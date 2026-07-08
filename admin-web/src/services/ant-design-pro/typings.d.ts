@@ -134,7 +134,7 @@ declare namespace API {
   type ReviewTask = {
     id: string;
     objectType: ReviewObjectType;
-    objectSubtype?: LearningPathConfigKind | AiCoachConfigType;
+    objectSubtype?: LearningPathConfigKind | AiCoachConfigType | WritingTranslationTopicType;
     objectTypeName: string;
     objectId: string;
     objectName: string;
@@ -378,6 +378,300 @@ declare namespace API {
     changeSummary: string;
     dataVersion: number;
     confirmWarnings?: boolean;
+  };
+
+  type WritingTranslationTopicType = 'writing' | 'translation';
+
+  type WritingTranslationStatus = ReviewTaskStatus;
+
+  type WritingTranslationDifficulty = QuestionDifficulty;
+
+  type WritingTranslationRiskLevel = ReviewRiskLevel;
+
+  type WritingGenre = 'argumentative' | 'chart' | 'letter' | 'notice' | 'poster';
+
+  type TranslationDirection = 'zh-CN_to_en';
+
+  type ScoringBand = {
+    name: string;
+    minScore: number;
+    maxScore: number;
+    description: string;
+    criteria: string[];
+  };
+
+  type CorrectionErrorRule = {
+    code: string;
+    name: string;
+    topicType: WritingTranslationTopicType;
+    severity: 'minor' | 'medium' | 'major' | 'critical';
+    description: string;
+    suggestedDeduction: number;
+    repeatable: boolean;
+    maxDeduction: number;
+    dimensionKey: string;
+    revisionSuggestionTemplate: string;
+  };
+
+  type ScoringDimension = {
+    key: string;
+    name: string;
+    description: string;
+    weight: number;
+    maxScore: number;
+    order: number;
+    required: boolean;
+    bandNotes: ScoringBand[];
+    deductionRules: CorrectionErrorRule[];
+    bonusRules: string[];
+  };
+
+  type CorrectionRuleSet = {
+    feedbackStructure: string[];
+    overallScoringGuide: string;
+    deductionRules: CorrectionErrorRule[];
+    bonusRules: string[];
+    severityRules: string[];
+    blankAnswerRule: string;
+    offTopicRule: string;
+    insufficientInformationRule: string;
+    templateAbuseRule: string;
+    sensitiveContentRule: string;
+    uncertainResultRule: string;
+    manualReviewConditions: string[];
+    revisionHint: string;
+    fallbackMessage: string;
+  };
+
+  type WritingTranslationAiStrategyReference = {
+    strategyId: string;
+    strategyTitle: string;
+    strategyVersion: string;
+    releaseVersionId: string;
+    configType: AiCoachConfigType;
+    businessScene: AiCoachBusinessScene;
+    usage: 'scoring_prompt' | 'feedback_structure' | 'dependency_guard' | 'intent_hint';
+    required: boolean;
+    statusAtBinding: AiCoachStrategyStatus;
+    boundAt: string;
+  };
+
+  type WritingTranslationPrecheckLevel = 'passed' | 'warning' | 'error';
+
+  type WritingTranslationPrecheckIssue = {
+    id: string;
+    level: WritingTranslationPrecheckLevel;
+    code: string;
+    field: string;
+    message: string;
+    suggestion: string;
+  };
+
+  type WritingTranslationPrecheckResult = {
+    id: string;
+    topicId?: string;
+    level: WritingTranslationPrecheckLevel;
+    checkedAt: string;
+    issues: WritingTranslationPrecheckIssue[];
+    summary: string;
+  };
+
+  type WritingTranslationValidationCase = {
+    id: string;
+    title: string;
+    inputSummary: string;
+    expectedRule: string;
+    result?: WritingTranslationPrecheckLevel;
+    message?: string;
+  };
+
+  type WritingTranslationValidationResult = {
+    level: WritingTranslationPrecheckLevel;
+    summary: string;
+    cases: WritingTranslationValidationCase[];
+    checkedAt: string;
+    mockOnly: true;
+  };
+
+  type WritingTranslationTopicVersion = {
+    id: string;
+    topicId: string;
+    topicType: WritingTranslationTopicType;
+    version: string;
+    status: WritingTranslationStatus;
+    createdBy: string;
+    createdAt: string;
+    changeSummary: string;
+    currentOnline: boolean;
+    snapshot: Partial<WritingTranslationTopicBase>;
+  };
+
+  type WritingTranslationTopicBase = {
+    id: string;
+    topicType: WritingTranslationTopicType;
+    name: string;
+    description?: string;
+    examType: ExamType;
+    difficulty: WritingTranslationDifficulty;
+    tags: string[];
+    totalScore: number;
+    riskLevel: WritingTranslationRiskLevel;
+    referencePoints: string[];
+    scoringDimensions: ScoringDimension[];
+    correctionRule: CorrectionRuleSet;
+    aiStrategyRefs: WritingTranslationAiStrategyReference[];
+    status: WritingTranslationStatus;
+    version: string;
+    dataVersion: number;
+    createdBy: string;
+    createdById?: string;
+    createdAt: string;
+    updatedBy: string;
+    updatedById?: string;
+    updatedAt: string;
+    reviewTaskId?: string;
+    releaseVersionId?: string;
+    rollbackTargetVersion?: string;
+    changeSummary: string;
+    internalRemark?: string;
+    lastPrecheck?: WritingTranslationPrecheckResult;
+    lastValidation?: WritingTranslationValidationResult;
+    versionRecords: WritingTranslationTopicVersion[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type WritingTopic = WritingTranslationTopicBase & {
+    topicType: 'writing';
+    prompt: string;
+    topicDirection: string;
+    genre: WritingGenre;
+    minWords: number;
+    maxWords: number;
+    suggestedMinutes: number;
+    writingRequirements: string[];
+    outlinePoints: string[];
+    sampleAnswerSummary?: string;
+    templateUsageWarning?: string;
+  };
+
+  type TranslationTopic = WritingTranslationTopicBase & {
+    topicType: 'translation';
+    sourceText: string;
+    sourceLanguage: 'zh-CN';
+    targetLanguage: 'en';
+    translationDirection: TranslationDirection;
+    topicDirection: string;
+    referenceTranslation: string;
+    keywords: string[];
+    fixedExpressions: string[];
+    acceptableExpressions: string[];
+    commonMistranslations: string[];
+    suggestedMinutes: number;
+  };
+
+  type WritingTranslationTopic = WritingTopic | TranslationTopic;
+
+  type WritingTranslationTopicQueryParams = {
+    current?: number;
+    pageSize?: number;
+    topicType?: WritingTranslationTopicType;
+    keyword?: string;
+    examType?: ExamType;
+    difficulty?: WritingTranslationDifficulty;
+    status?: WritingTranslationStatus;
+    riskLevel?: WritingTranslationRiskLevel;
+    tag?: string;
+    hasAiStrategy?: 'yes' | 'no';
+    updatedBy?: string;
+    updatedAtRange?: string[];
+  };
+
+  type WritingTranslationTopicSaveParams = {
+    topicType: WritingTranslationTopicType;
+    name: string;
+    description?: string;
+    examType: ExamType;
+    difficulty: WritingTranslationDifficulty;
+    totalScore: number;
+    riskLevel: WritingTranslationRiskLevel;
+    tags?: string[];
+    referencePoints?: string[];
+    scoringDimensions?: ScoringDimension[];
+    correctionRule?: CorrectionRuleSet;
+    aiStrategyRefs?: WritingTranslationAiStrategyReference[];
+    validationCases?: WritingTranslationValidationCase[];
+    changeSummary?: string;
+    internalRemark?: string;
+    prompt?: string;
+    topicDirection?: string;
+    genre?: WritingGenre;
+    minWords?: number;
+    maxWords?: number;
+    suggestedMinutes?: number;
+    writingRequirements?: string[];
+    outlinePoints?: string[];
+    sampleAnswerSummary?: string;
+    templateUsageWarning?: string;
+    sourceText?: string;
+    sourceLanguage?: 'zh-CN';
+    targetLanguage?: 'en';
+    translationDirection?: TranslationDirection;
+    referenceTranslation?: string;
+    keywords?: string[];
+    fixedExpressions?: string[];
+    acceptableExpressions?: string[];
+    commonMistranslations?: string[];
+    dataVersion?: number;
+    confirmWarnings?: boolean;
+    simulateFailure?: boolean;
+  };
+
+  type WritingTranslationSubmitParams = {
+    changeSummary: string;
+    dataVersion: number;
+    confirmWarnings?: boolean;
+    simulateTaskFailure?: boolean;
+  };
+
+  type WritingTranslationVersionDiffItem = {
+    field: string;
+    before?: string;
+    after?: string;
+    changed: boolean;
+  };
+
+  type WritingTranslationVersionDiff = {
+    fromVersion: string;
+    toVersion: string;
+    items: WritingTranslationVersionDiffItem[];
+  };
+
+  type WritingTranslationTopicList = {
+    data?: WritingTranslationTopic[];
+    total?: number;
+    current?: number;
+    pageSize?: number;
+    success?: boolean;
+  };
+
+  type WritingTranslationScoringPreset = {
+    id: string;
+    topicType: WritingTranslationTopicType;
+    name: string;
+    totalScore: number;
+    dimensions: ScoringDimension[];
+  };
+
+  type UserWritingTranslationTrace = {
+    topicId: string;
+    topicVersion: string;
+    topicType: WritingTranslationTopicType;
+    scoringRuleVersion: string;
+    aiStrategyIds: string[];
+    aiStrategyVersions: string[];
+    submittedAt: string;
+    correctionMode: 'mock_static' | 'ai' | 'manual';
+    resultVersion: string;
   };
 
   type ExamType = 'CET4' | 'CET6';
@@ -1121,6 +1415,10 @@ declare namespace API {
     | 'ai_strategy_high_risk_publish'
     | 'ai_strategy_release_failed'
     | 'ai_strategy_rollback_failed'
+    | 'writing_translation_pending_review'
+    | 'writing_translation_pending_publish'
+    | 'writing_translation_precheck_error'
+    | 'writing_translation_ai_reference_invalid'
     | 'publish_failed'
     | 'rollback_failed'
     | 'high_risk_audit'
@@ -1137,6 +1435,7 @@ declare namespace API {
     | 'rollback_failed'
     | 'version_conflict'
     | 'precheck_blocked'
+    | 'ai_reference_invalid'
     | 'placeholder';
 
   type DashboardRiskLevel = 'high' | 'medium' | 'low';

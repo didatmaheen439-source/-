@@ -211,6 +211,24 @@ export default [
         name: 'topics',
         component: './writing-translation/topics',
       },
+      {
+        path: '/writing-translation/topics/new',
+        name: 'topic-new',
+        hideInMenu: true,
+        component: './writing-translation/topics/edit/index',
+      },
+      {
+        path: '/writing-translation/topics/:id/edit',
+        name: 'topic-edit',
+        hideInMenu: true,
+        component: './writing-translation/topics/edit/index',
+      },
+      {
+        path: '/writing-translation/topics/:id',
+        name: 'topic-detail',
+        hideInMenu: true,
+        component: './writing-translation/topics/detail/index',
+      },
     ],
   },
   {

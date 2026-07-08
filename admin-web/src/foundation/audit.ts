@@ -8,6 +8,7 @@ export type AuditObjectType =
   | 'dashboard'
   | 'learning_path_config'
   | 'ai_coach_strategy'
+  | 'writing_translation'
   | 'review_release'
   | 'system_permission';
 

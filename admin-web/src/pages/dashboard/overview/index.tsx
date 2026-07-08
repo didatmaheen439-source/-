@@ -24,7 +24,6 @@ import {
   Col,
   Empty,
   Flex,
-  List,
   Result,
   Row,
   Select,
@@ -192,7 +191,7 @@ const SectionCard: React.FC<{
         <Alert
           type={error.level === 'error' ? 'error' : 'warning'}
           showIcon
-          message={error.message}
+          title={error.message}
           description="该区块按部分成功策略降级展示，其他区块不受影响。"
         />
       ) : (
@@ -306,7 +305,7 @@ const DashboardOverviewPage: React.FC = () => {
       dataIndex: 'title',
       width: 320,
       render: (_, record) => (
-        <Space direction="vertical" size={2} style={{ maxWidth: 300 }}>
+        <Space orientation="vertical" size={2} style={{ maxWidth: 300 }}>
           <Space size={6}>
             <Tag>{record.typeName}</Tag>
             {record.overdue ? <Tag color="red">超时</Tag> : null}
@@ -451,12 +450,12 @@ const DashboardOverviewPage: React.FC = () => {
         </Button>,
       ]}
     >
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         {data?.sectionErrors.length ? (
           <Alert
             type="warning"
             showIcon
-            message="工作台部分区块降级展示"
+            title="工作台部分区块降级展示"
             description={data.sectionErrors.map((item) => item.message).join('；')}
           />
         ) : null}
@@ -464,7 +463,7 @@ const DashboardOverviewPage: React.FC = () => {
           <Alert
             type={data.dataQualityIssues.some((item) => item.level === 'error') ? 'error' : 'warning'}
             showIcon
-            message="数据质量提示"
+            title="数据质量提示"
             description={data.dataQualityIssues.map((item) => item.message).join('；')}
           />
         ) : null}
@@ -472,7 +471,7 @@ const DashboardOverviewPage: React.FC = () => {
         {visible('welcome') ? (
           <Card size="small">
             <Flex justify="space-between" align="center" wrap="wrap" gap={16}>
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Typography.Title level={4} style={{ margin: 0 }}>
                   {data?.welcome.greeting}，{data?.welcome.operatorName}
                 </Typography.Title>
@@ -556,58 +555,31 @@ const DashboardOverviewPage: React.FC = () => {
                 <Statistic title="关联超时" value={data?.riskSummary.overdue ?? 0} suffix="项" />
               </Col>
             </Row>
-            <List
-              dataSource={data?.riskItems ?? []}
-              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无风险" /> }}
-              renderItem={(risk) => (
-                <List.Item
-                  actions={[
-                    <Button
-                      key="view"
-                      type="link"
-                      size="small"
-                      onClick={() =>
-                        jumpToTarget(
-                          'todo_jump',
-                          risk.objectId,
-                          risk.targetRoute,
-                          risk.targetQuery,
-                        )
-                      }
-                    >
-                      查看
-                    </Button>,
-                    roleId === 'super_admin' ? (
-                      <Button
-                        key="handle"
-                        size="small"
-                        onClick={() => markRiskHandled(risk)}
-                      >
-                        标记处理
-                      </Button>
-                    ) : null,
-                  ].filter(Boolean)}
-                >
-                  <List.Item.Meta
-                    avatar={
-                      risk.level === 'high' ? (
-                        <ExclamationCircleOutlined style={{ color: '#cf1322' }} />
+            {data?.riskItems.length ? (
+              <Space orientation="vertical" size={0} style={{ width: '100%' }}>
+                {data.riskItems.map((risk) => (
+                  <Flex
+                    key={risk.id}
+                    align="flex-start"
+                    justify="space-between"
+                    gap={12}
+                    style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}
+                  >
+                    <Flex align="flex-start" gap={12} style={{ minWidth: 0 }}>
+                      {risk.level === 'high' ? (
+                        <ExclamationCircleOutlined style={{ color: '#cf1322', marginTop: 4 }} />
                       ) : (
-                        <SafetyCertificateOutlined style={{ color: '#fa8c16' }} />
-                      )
-                    }
-                    title={
-                      <Space wrap size={6}>
-                        <Tag color={riskLevelColors[risk.level]}>
-                          {riskLevelNames[risk.level]}风险
-                        </Tag>
-                        <Typography.Text ellipsis style={{ maxWidth: 520 }}>
-                          {risk.title}
-                        </Typography.Text>
-                      </Space>
-                    }
-                    description={
-                      <Space direction="vertical" size={2}>
+                        <SafetyCertificateOutlined style={{ color: '#fa8c16', marginTop: 4 }} />
+                      )}
+                      <Space orientation="vertical" size={2} style={{ minWidth: 0 }}>
+                        <Space wrap size={6}>
+                          <Tag color={riskLevelColors[risk.level]}>
+                            {riskLevelNames[risk.level]}风险
+                          </Tag>
+                          <Typography.Text ellipsis style={{ maxWidth: 520 }}>
+                            {risk.title}
+                          </Typography.Text>
+                        </Space>
                         <Typography.Text type="secondary">
                           {risk.sourceModuleName} / {risk.typeName} / {risk.occurredAt}
                         </Typography.Text>
@@ -615,11 +587,34 @@ const DashboardOverviewPage: React.FC = () => {
                           {risk.description}
                         </Typography.Text>
                       </Space>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
+                    </Flex>
+                    <Space wrap>
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() =>
+                          jumpToTarget(
+                            'todo_jump',
+                            risk.objectId,
+                            risk.targetRoute,
+                            risk.targetQuery,
+                          )
+                        }
+                      >
+                        查看
+                      </Button>
+                      {roleId === 'super_admin' ? (
+                        <Button size="small" onClick={() => markRiskHandled(risk)}>
+                          标记处理
+                        </Button>
+                      ) : null}
+                    </Space>
+                  </Flex>
+                ))}
+              </Space>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无风险" />
+            )}
           </SectionCard>
         ) : null}
 
@@ -629,7 +624,7 @@ const DashboardOverviewPage: React.FC = () => {
               {(data?.summaryMetrics ?? []).map((metric) => (
                 <Col key={metric.id} {...metricSpan}>
                   <div style={tileStyle}>
-                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
                       <Flex justify="space-between" align="center" gap={8}>
                         <Tooltip title={metric.tooltip}>
                           <Typography.Text type="secondary" ellipsis>
@@ -691,7 +686,7 @@ const DashboardOverviewPage: React.FC = () => {
                     }
                   >
                     <Flex justify="space-between" align="flex-start" gap={12}>
-                      <Space direction="vertical" size={6}>
+                      <Space orientation="vertical" size={6}>
                         <Space size={8}>
                           {actionIcons[action.icon] ?? <ArrowRightOutlined />}
                           <Typography.Text strong>{action.title}</Typography.Text>
@@ -735,7 +730,7 @@ const DashboardOverviewPage: React.FC = () => {
                         进入
                       </Button>
                     </Flex>
-                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
                       {snapshot.items.map((item) => (
                         <Flex key={item.label} justify="space-between" align="center">
                           <Typography.Text type="secondary">{item.label}</Typography.Text>
@@ -774,7 +769,7 @@ const DashboardOverviewPage: React.FC = () => {
             type="info"
             showIcon
             icon={<RobotOutlined />}
-            message="AI 陪练指标当前仅展示占位摘要"
+            title="AI 陪练指标当前仅展示占位摘要"
             description="本阶段不深入开发 AI 陪练模块，正式策略、效果和风险数据将在后续阶段接入。"
           />
         ) : null}
@@ -784,7 +779,7 @@ const DashboardOverviewPage: React.FC = () => {
             type="success"
             showIcon
             icon={<CheckCircleOutlined />}
-            message="当前角色暂无待办和风险事项"
+            title="当前角色暂无待办和风险事项"
           />
         ) : null}
       </Space>

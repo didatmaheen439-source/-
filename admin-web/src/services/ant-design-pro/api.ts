@@ -289,6 +289,240 @@ export async function availableAiCoachResponseStructures(options?: { [key: strin
   });
 }
 
+/** 获取写译题目列表 GET /api/writing-translation/topics */
+export async function writingTranslationTopics(
+  params?: API.WritingTranslationTopicQueryParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.WritingTranslationTopicList>('/api/writing-translation/topics', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取写译题目详情 GET /api/writing-translation/topics/:id */
+export async function writingTranslationTopicDetail(
+  id: string,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationTopic;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 新建写译题目 POST /api/writing-translation/topics */
+export async function createWritingTranslationTopic(
+  body: API.WritingTranslationTopicSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationTopic;
+    success?: boolean;
+  }>('/api/writing-translation/topics', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 更新写译题目 PATCH /api/writing-translation/topics/:id */
+export async function updateWritingTranslationTopic(
+  id: string,
+  body: API.WritingTranslationTopicSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationTopic;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 复制写译题目为草稿 POST /api/writing-translation/topics/:id/copy */
+export async function copyWritingTranslationTopic(
+  id: string,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationTopic;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}/copy`, {
+    method: 'POST',
+    ...(options || {}),
+  });
+}
+
+/** 新建态写译预校验 POST /api/writing-translation/topics/precheck */
+export async function precheckWritingTranslationTopic(
+  body: API.WritingTranslationTopicSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationPrecheckResult;
+    success?: boolean;
+  }>('/api/writing-translation/topics/precheck', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 已有写译题目预校验 POST /api/writing-translation/topics/:id/precheck */
+export async function precheckExistingWritingTranslationTopic(
+  id: string,
+  body?: API.WritingTranslationTopicSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationPrecheckResult;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}/precheck`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 新建态静态样例校验 POST /api/writing-translation/topics/validate-samples */
+export async function validateWritingTranslationSamples(
+  body: API.WritingTranslationTopicSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationValidationResult;
+    success?: boolean;
+  }>('/api/writing-translation/topics/validate-samples', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 已有写译题目静态样例校验 POST /api/writing-translation/topics/:id/validate-samples */
+export async function validateExistingWritingTranslationSamples(
+  id: string,
+  body?: API.WritingTranslationTopicSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationValidationResult;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}/validate-samples`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 提交写译题目审核 POST /api/writing-translation/topics/:id/submit-review */
+export async function submitWritingTranslationReview(
+  id: string,
+  body: API.WritingTranslationSubmitParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationTopic;
+    reviewTask?: API.ReviewTask;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}/submit-review`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取写译题目版本 GET /api/writing-translation/topics/:id/versions */
+export async function writingTranslationTopicVersions(
+  id: string,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationTopicVersion[];
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}/versions`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 获取写译题目版本差异 GET /api/writing-translation/topics/:id/versions/diff */
+export async function writingTranslationTopicVersionDiff(
+  id: string,
+  params?: { fromVersion?: string; toVersion?: string },
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationVersionDiff;
+    success?: boolean;
+  }>(`/api/writing-translation/topics/${id}/versions/diff`, {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取写译评分预设 GET /api/writing-translation/references/scoring-presets */
+export async function writingTranslationScoringPresets(
+  params?: { topicType?: API.WritingTranslationTopicType },
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WritingTranslationScoringPreset[];
+    success?: boolean;
+  }>('/api/writing-translation/references/scoring-presets', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取写译可引用 AI 策略 GET /api/writing-translation/references/ai-strategies */
+export async function writingTranslationAiStrategies(
+  params?: {
+    topicType?: API.WritingTranslationTopicType;
+    examType?: API.ExamType;
+  },
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachStrategy[];
+    success?: boolean;
+  }>('/api/writing-translation/references/ai-strategies', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
 /** 获取题库题目列表 GET /api/content/questions */
 export async function contentQuestions(options?: { [key: string]: any }) {
   return request<API.QuestionList>('/api/content/questions', {

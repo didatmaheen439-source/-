@@ -131,3 +131,14 @@ mock 接口：
 - `content_operator`、`customer_support`、`data_analyst` 等无 AI 菜单权限角色直访 `/ai-coach/prompts` 或 AI mock API 返回 403。
 - AI 策略审核任务使用 `objectType=ai_coach_strategy`，配置类型写入 `objectSubtype`，业务场景单独存储在 `businessScenes`。
 - AI mock API 对 `read/create/edit/submit` 均做接口层校验，并写入审计日志；审计日志不保存完整 Prompt 正文。
+
+## 2026-07-08 写译批改权限补充
+
+- `super_admin` 可查看、新建、编辑、提交审核、复制草稿，并可在审核发布中心发布、下架和回滚写译题目。
+- `content_operator` 可查看、新建、编辑草稿/已驳回题目、提交审核和复制草稿；不可审核、发布、下架或回滚。
+- `teaching_reviewer` 在写译题目页只读；在审核发布中心可审核、安排发布、发布、下架和回滚写译任务。
+- `ai_operator` 的写译权限收紧为只读，只查看题目、批改规则和 AI 策略引用；AI 反馈结构修改仍通过 AI 策略模块完成。
+- `read_only_auditor` 增加 `writingTranslation.read`，可只读查看写译列表和详情，不显示写操作按钮。
+- `customer_support`、`data_analyst` 等无写译模块权限角色直访写译页面或 mock API 返回 403，并写入权限拒绝审计。
+- 写译审核任务使用 `objectType=writing_translation`，题目类型写入 `objectSubtype=writing|translation`。
+- 写译 mock API 对 `read/create/edit/submit` 做接口层校验；审计日志不保存完整题干、参考译文或真实学生答案。

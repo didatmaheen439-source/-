@@ -73,6 +73,8 @@
 - AI 策略数据集中在 `admin-web/mock/aiCoachStore.ts`，不再堆入 `mock/user.ts`。
 - 工作台 AI 待办从 AI store 和审核任务聚合，不硬编码待办数字。
 - 用户详情 AI 摘要展示 `strategyId`、`strategyVersion`、`configType`、`businessScene` 和 `strategyStatusAtTime`，不提供客服跳转策略管理入口。
+- 写译批改管理通过 `aiStrategyRefs` 引用已发布 AI 策略版本，当前只允许绑定 `businessScene=writing_explanation` 的 Prompt、回答结构和防依赖策略。
+- 第九阶段补充了可供写译引用的已发布写作 Prompt、回答结构和防依赖策略种子；引用保存具体版本，不自动漂移到最新策略。
 - 审计日志不记录完整 Prompt 正文，只记录对象、版本、状态、配置类型和变更摘要。
 
 ## 错误态
@@ -91,3 +93,4 @@
 - 不保存真实 API Key、真实用户会话或完整 Prompt 审计副本。
 - 不做策略效果真实指标分析。
 - 不接真实后端。
+- 不为翻译批改单独拆分真实 AI 场景；第九阶段翻译题目暂时复用 `writing_explanation` 场景。

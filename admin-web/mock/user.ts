@@ -19,6 +19,14 @@ import {
 import { auditLogs, nowText, pushAuditLog, pushOperationAuditLog } from './auditStore';
 import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
+import {
+  buildWritingTranslationPrecheck,
+  isWritingTranslationReviewTask,
+  operatorFromWritingTranslationRole,
+  syncWritingTranslationFromReviewTask,
+  validateWritingTranslationReviewTransition,
+  writingTranslationDashboardStats,
+} from './writingTranslationStore';
 
 let currentRoleId: AdminRoleId | '' = mockSession.currentRoleId;
 let currentAccountId = mockSession.currentAccountId;
@@ -481,11 +489,13 @@ const initialReviewTasksData: API.ReviewTask[] = [
   {
     id: 'review-writing-001',
     objectType: 'writing_translation',
+    objectSubtype: 'writing',
     objectTypeName: '写译题目',
     objectId: 'writing-topic-cet4-202607',
     objectName: '四级写作题 2026-07',
     moduleKey: 'writingTranslation',
     moduleName: '写译批改管理',
+    submitterId: 'content_operator',
     submitter: '内容运营',
     submittedAt: '2026-07-07 11:20:00',
     version: 'V1.0',
@@ -3252,7 +3262,7 @@ const buildAnalyticsOverview = (
       { section: 'reviewRelease', source: 'reviewTasksData、auditLogs', formal: true },
       { section: 'feedback', source: 'operationUsersData.feedbacks', formal: true },
       { section: 'aiCoach', source: '固定 Mock 占位指标', formal: false },
-      { section: 'writingTranslation', source: '固定 Mock 占位指标', formal: false },
+      { section: 'writingTranslation', source: 'writingTranslationTopicsData、reviewTasksData', formal: true },
       { section: 'mockExam', source: '固定 Mock 占位指标', formal: false },
       { section: 'audit', source: 'auditLogs 聚合摘要', formal: true },
     ] as API.AnalyticsDataSource[]).filter((item) => visibleSections.includes(item.section)),
@@ -3287,6 +3297,10 @@ const dashboardTodoTypeLabels: Record<API.DashboardTodoType, string> = {
   ai_strategy_high_risk_publish: 'AI 高风险发布',
   ai_strategy_release_failed: 'AI 发布失败',
   ai_strategy_rollback_failed: 'AI 回滚失败',
+  writing_translation_pending_review: '写译待审核',
+  writing_translation_pending_publish: '写译待发布',
+  writing_translation_precheck_error: '写译预校验阻断',
+  writing_translation_ai_reference_invalid: '写译 AI 引用失效',
   publish_failed: '发布失败',
   rollback_failed: '回滚失败',
   high_risk_audit: '高风险审计',
@@ -3322,6 +3336,10 @@ const dashboardOverdueThresholdHours: Record<API.DashboardTodoType, number> = {
   ai_strategy_high_risk_publish: 0,
   ai_strategy_release_failed: 0,
   ai_strategy_rollback_failed: 0,
+  writing_translation_pending_review: 24,
+  writing_translation_pending_publish: 24,
+  writing_translation_precheck_error: 12,
+  writing_translation_ai_reference_invalid: 12,
   publish_failed: 0,
   rollback_failed: 0,
   high_risk_audit: 0,
@@ -3340,13 +3358,13 @@ const dashboardRoleSections: Record<AdminRoleId, API.DashboardVisibleSection[]> 
 };
 
 const dashboardRoleTodoTypes: Record<AdminRoleId, API.DashboardTodoType[]> = {
-  super_admin: ['pending_review', 'pending_publish', 'rejected_content', 'pending_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'publish_failed', 'rollback_failed', 'permission_denied'],
-  content_operator: ['pending_review', 'pending_publish', 'rejected_content', 'publish_failed', 'rollback_failed'],
-  teaching_reviewer: ['pending_review', 'pending_publish', 'rejected_content', 'learning_path_precheck_error', 'learning_path_rejected', 'publish_failed', 'rollback_failed'],
-  ai_operator: ['ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'publish_failed', 'rollback_failed'],
+  super_admin: ['pending_review', 'pending_publish', 'rejected_content', 'pending_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'writing_translation_precheck_error', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed', 'permission_denied'],
+  content_operator: ['pending_review', 'pending_publish', 'rejected_content', 'writing_translation_precheck_error', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed'],
+  teaching_reviewer: ['pending_review', 'pending_publish', 'rejected_content', 'learning_path_precheck_error', 'learning_path_rejected', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'publish_failed', 'rollback_failed'],
+  ai_operator: ['ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed'],
   customer_support: ['pending_feedback', 'stale_feedback', 'permission_denied'],
   data_analyst: [],
-  read_only_auditor: ['permission_denied', 'publish_failed', 'rollback_failed', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_high_risk_publish'],
+  read_only_auditor: ['permission_denied', 'publish_failed', 'rollback_failed', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_high_risk_publish', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'writing_translation_ai_reference_invalid'],
 };
 
 const dashboardSourceModuleLabels: Record<string, string> = {
@@ -3555,6 +3573,10 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
             : task.riskLevel === 'high'
               ? 'ai_strategy_high_risk_publish'
               : 'ai_strategy_pending_publish'
+          : task.objectType === 'writing_translation'
+            ? task.status === 'pending_review'
+              ? 'writing_translation_pending_review'
+              : 'writing_translation_pending_publish'
           : task.status === 'pending_review'
             ? 'pending_review'
             : 'pending_publish';
@@ -3666,6 +3688,46 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
       targetRoute: route.targetRoute,
       targetQuery: route.targetQuery,
       description: precheck.issues.find((item) => item.level === 'error')?.message ?? precheck.summary,
+      roleId,
+      riskLevel: 'medium',
+    }));
+  });
+
+  const writingStats = writingTranslationDashboardStats();
+  writingStats.precheckErrors.forEach((topic) => {
+    const precheck = buildWritingTranslationPrecheck(topic, topic.id);
+    todos.push(createDashboardTodo({
+      type: 'writing_translation_precheck_error',
+      title: topic.name,
+      objectType: topic.topicType === 'writing' ? '写作题目' : '翻译题目',
+      objectId: topic.id,
+      priority: 'P1',
+      status: topic.status,
+      statusLabel: reviewStatusLabels[topic.status],
+      createdAt: topic.updatedAt,
+      owner: topic.updatedBy,
+      sourceModule: 'writingTranslation',
+      targetRoute: `/writing-translation/topics/${topic.id}`,
+      description: precheck.issues.find((item) => item.level === 'error')?.message ?? precheck.summary,
+      roleId,
+      riskLevel: 'medium',
+    }));
+  });
+
+  writingStats.aiInvalid.forEach((topic) => {
+    todos.push(createDashboardTodo({
+      type: 'writing_translation_ai_reference_invalid',
+      title: topic.name,
+      objectType: topic.topicType === 'writing' ? '写作题目' : '翻译题目',
+      objectId: topic.id,
+      priority: 'P1',
+      status: topic.status,
+      statusLabel: reviewStatusLabels[topic.status],
+      createdAt: topic.updatedAt,
+      owner: topic.updatedBy,
+      sourceModule: 'writingTranslation',
+      targetRoute: `/writing-translation/topics/${topic.id}`,
+      description: 'AI 策略引用失效或未发布，需要重新绑定固定版本。',
       roleId,
       riskLevel: 'medium',
     }));
@@ -3806,6 +3868,10 @@ const buildDashboardRisks = (roleId: AdminRoleId, todos: API.DashboardTodoItem[]
       id: `risk-${todo.id}`,
       type: todo.type === 'learning_path_precheck_error'
         ? 'precheck_blocked'
+        : todo.type === 'writing_translation_precheck_error'
+          ? 'precheck_blocked'
+          : todo.type === 'writing_translation_ai_reference_invalid'
+            ? 'ai_reference_invalid'
         : todo.type === 'publish_failed'
           ? 'publish_failed'
           : todo.type === 'rollback_failed'
@@ -3861,9 +3927,9 @@ const buildDashboardRisks = (roleId: AdminRoleId, todos: API.DashboardTodoItem[]
     .filter((risk) => {
       if (roleId === 'super_admin' || roleId === 'read_only_auditor') return true;
       if (roleId === 'customer_support') return ['users', 'system'].includes(risk.sourceModule);
-      if (roleId === 'teaching_reviewer') return ['reviewRelease', 'learningPath', 'content'].includes(risk.sourceModule);
-      if (roleId === 'ai_operator') return ['aiCoach', 'reviewRelease', 'analytics'].includes(risk.sourceModule);
-      if (roleId === 'content_operator') return ['content', 'reviewRelease'].includes(risk.sourceModule);
+      if (roleId === 'teaching_reviewer') return ['reviewRelease', 'learningPath', 'content', 'writingTranslation'].includes(risk.sourceModule);
+      if (roleId === 'ai_operator') return ['aiCoach', 'reviewRelease', 'analytics', 'writingTranslation'].includes(risk.sourceModule);
+      if (roleId === 'content_operator') return ['content', 'reviewRelease', 'writingTranslation'].includes(risk.sourceModule);
       return false;
     })
     .filter((risk) => canReadRoute(roleId, risk.targetRoute))
@@ -3921,6 +3987,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
     { id: 'content-questions', title: '去题库管理', description: '查看题目草稿、驳回和审核状态。', icon: 'DatabaseOutlined', targetRoute: '/content/questions', requiredModule: 'content', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'content').length },
     { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
     { id: 'learning-path', title: '去学习路径配置', description: '检查诊断规则和今日任务模板。', icon: 'BranchesOutlined', targetRoute: '/learning-path/diagnosis-rules', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
+    { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
     { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/overview', requiredModule: 'analytics', requiredAction: 'read' },
     { id: 'system-audit', title: '去审计日志', description: '查看权限拒绝、敏感访问和权限变更。', icon: 'SafetyCertificateOutlined', targetRoute: '/system/accounts', targetQuery: { tab: 'audit' }, requiredModule: 'system', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'system').length },
     { id: 'ai-coach', title: '去 AI 陪练管理', description: '查看 AI 策略占位摘要和审核入口。', icon: 'RobotOutlined', targetRoute: '/ai-coach/prompts', requiredModule: 'aiCoach', requiredAction: 'read' },
@@ -3938,6 +4005,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
 
 const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModuleSnapshot[] => {
   const today = dashboardTodayRange().today;
+  const writingStats = writingTranslationDashboardStats();
   const snapshots: API.DashboardModuleSnapshot[] = [
     {
       id: 'reviewRelease',
@@ -4011,6 +4079,21 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
         { label: '审核相关', value: reviewTasksData.filter((task) => task.objectType === 'ai_coach_strategy' && ['pending_review', 'pending_publish', 'approved'].includes(task.status)).length, status: 'warning' },
       ],
     },
+    {
+      id: 'writingTranslation',
+      title: '写译批改',
+      sourceModule: 'writingTranslation',
+      targetRoute: '/writing-translation/topics',
+      items: [
+        { label: '草稿', value: writingStats.draft },
+        { label: '待审核', value: writingStats.pendingReview, status: 'warning' },
+        { label: '待发布', value: writingStats.pendingPublish, status: 'warning' },
+        { label: '已驳回', value: writingStats.rejected, status: 'risk' },
+        { label: '已发布', value: writingStats.published },
+        { label: '预校验阻断', value: writingStats.precheckErrors.length, status: 'risk' },
+        { label: 'AI 引用失效', value: writingStats.aiInvalid.length, status: 'risk' },
+      ],
+    },
   ];
   return snapshots.filter((snapshot) => canReadRoute(roleId, snapshot.targetRoute));
 };
@@ -4021,9 +4104,9 @@ const buildDashboardRecentActivities = (roleId: AdminRoleId) =>
       if (roleId === 'super_admin') return true;
       if (roleId === 'read_only_auditor') return ['permission_denied', 'sensitive_access'].includes(log.logType ?? '') || ['permission_change', 'restricted_access'].includes(String(log.action)) || log.result === 'failed';
       if (roleId === 'customer_support') return log.objectType === 'user';
-      if (roleId === 'content_operator') return ['content', 'review_release'].includes(log.objectType);
-      if (roleId === 'teaching_reviewer') return ['content', 'learning_path_config', 'review_release'].includes(log.objectType);
-      if (roleId === 'ai_operator') return ['ai_coach_strategy', 'review_release', 'analytics'].includes(log.objectType);
+      if (roleId === 'content_operator') return ['content', 'writing_translation', 'review_release'].includes(log.objectType);
+      if (roleId === 'teaching_reviewer') return ['content', 'learning_path_config', 'writing_translation', 'review_release'].includes(log.objectType);
+      if (roleId === 'ai_operator') return ['ai_coach_strategy', 'writing_translation', 'review_release', 'analytics'].includes(log.objectType);
       return false;
     })
     .slice(0, 8)
@@ -4035,8 +4118,8 @@ const buildDashboardRecentActivities = (roleId: AdminRoleId) =>
       objectType: log.objectType,
       objectSummary: log.objectId,
       result: log.result,
-      sourceModule: log.objectType === 'user' ? 'users' : log.objectType === 'analytics' ? 'analytics' : log.objectType === 'review_release' ? 'reviewRelease' : log.objectType === 'learning_path_config' ? 'learningPath' : log.objectType === 'content' ? 'content' : 'system',
-      sourceModuleName: log.objectType === 'user' ? '用户管理' : log.objectType === 'analytics' ? '运营数据' : log.objectType === 'review_release' ? '审核发布' : log.objectType === 'learning_path_config' ? '学习路径配置' : log.objectType === 'content' ? '题库与内容管理' : '权限与系统设置',
+      sourceModule: log.objectType === 'user' ? 'users' : log.objectType === 'analytics' ? 'analytics' : log.objectType === 'review_release' ? 'reviewRelease' : log.objectType === 'learning_path_config' ? 'learningPath' : log.objectType === 'content' ? 'content' : log.objectType === 'writing_translation' ? 'writingTranslation' : 'system',
+      sourceModuleName: log.objectType === 'user' ? '用户管理' : log.objectType === 'analytics' ? '运营数据' : log.objectType === 'review_release' ? '审核发布' : log.objectType === 'learning_path_config' ? '学习路径配置' : log.objectType === 'content' ? '题库与内容管理' : log.objectType === 'writing_translation' ? '写译批改管理' : '权限与系统设置',
     }));
 
 const dashboardDataQualityIssues = (
@@ -5048,7 +5131,9 @@ export default {
       if (
         nextStatus === 'published' &&
         task.status === 'published' &&
-        (isLearningPathConfig(task) || isAiCoachReviewTask(task))
+        (isLearningPathConfig(task) ||
+          isAiCoachReviewTask(task) ||
+          isWritingTranslationReviewTask(task))
       ) {
         res.send({
           success: true,
@@ -5088,6 +5173,28 @@ export default {
         success: false,
         errorCode: '403',
         errorMessage: '无权执行该操作。',
+      });
+      return;
+    }
+
+    const writingTransitionCheck = validateWritingTranslationReviewTransition(
+      task,
+      nextStatus,
+    );
+    if (!writingTransitionCheck.ok) {
+      pushReviewAuditLog(
+        currentRoleId,
+        task,
+        reviewStatusActionMap[nextStatus],
+        'failed',
+        writingTransitionCheck.errorMessage,
+        `写译题目发布前复验失败：${writingTransitionCheck.errorMessage}`,
+      );
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: writingTransitionCheck.errorMessage,
+        data: writingTransitionCheck.precheck,
       });
       return;
     }
@@ -5138,6 +5245,13 @@ export default {
       previousStatus,
       nextStatus,
       operatorFromRole(operator.roleId, operator.id, operator.name),
+      operationReason,
+    );
+    syncWritingTranslationFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      operatorFromWritingTranslationRole(operator.roleId, operator.id, operator.name),
       operationReason,
     );
 

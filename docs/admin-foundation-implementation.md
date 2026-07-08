@@ -219,3 +219,17 @@ Ant Design Pro 基座已完成第一阶段后台业务骨架初始化：十个�
 - 预校验区分通过、警告和阻断错误；阻断错误返回 422，不能提交审核。
 - 工作台 AI 待办来自共享 Store，不硬编码；用户详情 AI 摘要关联策略 ID、版本、配置类型和业务场景。
 - 详细执行与验证记录见 `logs/ai-coach-strategy-implementation-2026-07-08.md`。
+
+## 2026-07-08 写译批改管理 MVP
+
+- `/writing-translation/topics` 已从占位页升级为 `PageContainer + Tabs + ProTable` 真实业务页，包含写作题目和翻译题目两个 Tab。
+- 新增隐藏路由 `/writing-translation/topics/new`、`/writing-translation/topics/:id`、`/writing-translation/topics/:id/edit`。
+- 写作题目覆盖题干、体裁、话题方向、字数要求、写作要求、参考要点、评分维度和批改规则。
+- 翻译题目覆盖中文原文、参考译文、翻译方向、关键词、固定表达、可接受表达、常见误译、评分维度和批改规则。
+- 评分维度校验覆盖至少 2 项、权重合计 100、最高分合计等于总分、分档区间冲突和扣分上限。
+- 批改规则校验覆盖写作偏题、空白答案、翻译漏译、错译和 AI 策略引用。
+- 提交审核会创建 `objectType=writing_translation`、`objectSubtype=writing|translation` 的审核任务。
+- 审核发布中心状态流转会同步更新写译题目状态；发布前复验评分规则和 AI 引用。
+- 工作台摘要、待办、风险和最近处理记录已接入写译共享 Store。
+- 审计日志记录对象、版本、状态、维度数量和 AI 引用数量，不记录完整题干、参考译文或真实用户答案。
+- 详细执行与验证记录见 `logs/writing-translation-topics-implementation-2026-07-08.md`。
