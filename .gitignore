@@ -1,0 +1,50 @@
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+.history/
+admin-web/.agents/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Frontend build output and caches
+admin-web/dist/
+admin-web/build/
+admin-web/coverage/
+admin-web/.turbopack/
+admin-web/.umi/
+admin-web/.umi-*/
+admin-web/.temp/
+admin-web/.wrangler/
+admin-web/.firebase/
+admin-web/.worktrees/
+admin-web/screenshot/
+admin-web/types/cache/
+
+# Runtime logs and local debug output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+requestRecord.mock.js
+
+# Project artifacts kept outside source control
+builds/*
+!builds/.gitkeep
+backups/*
+!backups/.gitkeep
+
+# Verification files that may contain local sessions
+logs/**/*.cookies

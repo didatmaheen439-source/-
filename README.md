@@ -1,0 +1,53 @@
+# 过级搭子后台管理系统
+
+## 项目目标
+
+- 基于 GitHub 上成熟开源后台管理项目，开发「过级搭子运营管理后台」MVP。
+- 首版定位为内部运营后台，覆盖用户排查、内容管理、学习路径配置、AI 治理、审核发布、运营数据、权限审计等闭环。
+- 当前阶段先完成开源底座选型，不接真实后端、不接真实 AI、不开发学生端。
+
+## 当前状态
+
+- 已创建标准项目目录。
+- 已归档 PRD 副本。
+- 已完成 GitHub 候选项目初筛和评分。
+- 已确认主选：`ant-design/ant-design-pro`。
+- 推荐备选：`vbenjs/vue-vben-admin`。
+- 已克隆主选基座到 `admin-web/`。
+- 已完成依赖安装、TypeScript、lint、build 和浏览器基础验证。
+- 已完成最小项目名称初始化：`过级搭子运营管理后台`。
+- 已完成后台业务骨架、RBAC 权限和公共规范落地。
+- 已完成 `/system/accounts` 权限与系统设置 MVP：账号列表、角色权限矩阵、审计日志和按钮权限验证。
+- 已完成 `/review-release/pending` 审核发布中心 MVP：审核任务列表、详情抽屉、状态流转、审计日志和角色权限验证。
+- 已完成 `/content/questions` 题库内容 MVP：题目列表、详情抽屉、独立新增/编辑页、提交审核、审核发布状态同步和审计日志。
+- 已完成 `/users/list` 用户管理 MVP：用户列表、独立详情页、学习记录、反馈处理、AI 摘要、敏感访问审计和角色权限验证。
+- 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
+
+## 目录说明
+
+- `docs/`：PRD、选型标准、选型报告和后续实施方案。
+- `assets/`：后续设计素材、截图、图标等。
+- `builds/`：后续构建产物。
+- `backups/`：阶段稳定备份。
+- `logs/`：验证记录、命令结果、错误原文。
+- `references/`：候选仓库链接和外部参考资料。
+
+## 常用命令
+
+- `cd /Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/admin-web`
+- `npm start`
+- `npm run tsc`
+- `npm run lint`
+- `npm run build`
+
+## 最近验证
+
+- 2026-07-06：读取全局工作台、新项目 SOP、过级搭子上下文和后台 PRD。
+- 2026-07-06：通过 GitHub API 和仓库公开文件初筛候选项目。
+- 2026-07-06：Chrome 插件未能连接当前可控 profile，已在 `logs/selection-verification-2026-07-06.md` 记录限制。
+- 2026-07-07：`admin-web` 基座安装、启动、TypeScript、lint、build 和浏览器验证完成，详见 `logs/base-project-verification-2026-07-07.md`。
+- 2026-07-07：`/system/accounts` 账号与角色页面 MVP 完成，`npm run tsc`、`npm run lint`、`npm run build` 通过，浏览器验证详见 `logs/system-accounts-implementation-2026-07-07.md`。
+- 2026-07-07：`/review-release/pending` 审核发布中心 MVP 完成，`npm run tsc`、`npm run lint`、`npm run build` 通过，浏览器验证详见 `logs/review-release-implementation-2026-07-07.md`。
+- 2026-07-07：`/content/questions` 题库内容 MVP 完成，`npm run tsc`、`npm run lint`、`npm run build` 通过，API 和浏览器验证详见 `logs/content-questions-implementation-2026-07-07.md`。
+- 2026-07-07：`/users/list` 用户管理 MVP 完成，`npm run tsc`、`npm run lint` 通过；build 与浏览器验证记录见 `logs/user-management-mvp-2026-07-07.md`。
+- 2026-07-07：外层项目 Git 初始化完成，忽略规则验证详见 `logs/git-initialization-2026-07-07.md`。
