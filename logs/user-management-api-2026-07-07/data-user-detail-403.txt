@@ -1,0 +1,12 @@
+HTTP/1.1 403 Forbidden
+X-Powered-By: Express
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 95
+ETag: W/"5f-aR7mV4U8PXwix+3q/laztNR/3Xw"
+Date: Tue, 07 Jul 2026 07:53:39 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"errorCode":"403","errorMessage":"当前账号无用户详情访问权限。"}
