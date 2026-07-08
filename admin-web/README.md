@@ -28,6 +28,8 @@
 - 已完成 `/review-release/pending` 审核发布中心 MVP，包含任务列表、详情抽屉、状态流转、审计日志和角色权限验证。
 - 已完成 `/content/questions` 题库内容 MVP，包含题目列表、详情抽屉、独立新增/编辑页、提交审核、审核发布状态同步和审计日志。
 - 已完成 `/users/list` 用户管理 MVP，包含用户列表、独立详情页、学习记录、反馈处理、必要 AI 摘要、敏感访问审计和角色权限验证。
+- 已完成 `/analytics/overview` 运营数据总览 MVP，包含用户增长、学习路径漏斗、题库内容、审核发布、客服反馈、占位指标、数据质量提示和 mock 导出预览。
+- 已完成 `/dashboard/overview` 运营工作台 MVP，包含欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
 - 暂未接入真实后端、真实用户数据或真实 AI。
 - 暂未开发完整 PRD 业务页面、题组编排、每日一句、外刊、写译题目和模考题库。
 
@@ -53,3 +55,7 @@ npm run build
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/content-questions-implementation-2026-07-07.md`
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/user-management-mvp.md`
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/user-management-mvp-2026-07-07.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/analytics-overview-mvp.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/analytics-overview-implementation-2026-07-08.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/dashboard-overview-mvp.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/dashboard-overview-implementation-2026-07-08.md`

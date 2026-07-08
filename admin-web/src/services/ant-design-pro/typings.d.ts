@@ -870,6 +870,231 @@ declare namespace API {
     message: string;
   };
 
+  type DashboardVisibleSection =
+    | 'welcome'
+    | 'todos'
+    | 'risks'
+    | 'metrics'
+    | 'quickActions'
+    | 'moduleSnapshots'
+    | 'recentActivities'
+    | 'aiPlaceholder';
+
+  type DashboardTodoType =
+    | 'pending_review'
+    | 'pending_release'
+    | 'rejected_content'
+    | 'pending_feedback'
+    | 'stale_feedback'
+    | 'learning_path_precheck_error'
+    | 'learning_path_rejected'
+    | 'publish_failed'
+    | 'rollback_failed'
+    | 'high_risk_audit'
+    | 'permission_denied'
+    | 'ai_placeholder';
+
+  type DashboardTodoPriority = 'P0' | 'P1' | 'P2' | 'P3';
+
+  type DashboardRiskType =
+    | 'permission_denied'
+    | 'sensitive_access'
+    | 'permission_change'
+    | 'publish_failed'
+    | 'rollback_failed'
+    | 'version_conflict'
+    | 'precheck_blocked'
+    | 'placeholder';
+
+  type DashboardRiskLevel = 'high' | 'medium' | 'low';
+
+  type DashboardMetricType = 'count' | 'rate';
+
+  type DashboardRoleView = {
+    roleId: string;
+    roleName: string;
+    description: string;
+  };
+
+  type DashboardWelcome = {
+    operatorName: string;
+    roleName: string;
+    greeting: string;
+    workHint: string;
+    currentDate: string;
+    updatedAt: string;
+  };
+
+  type DashboardComparison = {
+    available: boolean;
+    value?: number;
+    label: string;
+  };
+
+  type DashboardMetric = {
+    id: string;
+    title: string;
+    value?: number;
+    displayValue: string;
+    unit: string;
+    type: DashboardMetricType;
+    timeSemantic: 'today' | 'snapshot';
+    direction: 'positive' | 'risk' | 'neutral';
+    comparison: DashboardComparison;
+    tooltip: string;
+    targetRoute?: string;
+  };
+
+  type DashboardTodoSummary = {
+    total: number;
+    highPriority: number;
+    overdue: number;
+    todayNew: number;
+  };
+
+  type DashboardTodoItem = {
+    id: string;
+    type: DashboardTodoType;
+    typeName: string;
+    title: string;
+    objectType: string;
+    objectId: string;
+    priority: DashboardTodoPriority;
+    status: string;
+    statusLabel: string;
+    createdAt: string;
+    waitHours: number;
+    waitText: string;
+    owner: string;
+    sourceModule: string;
+    sourceModuleName: string;
+    targetRoute: string;
+    targetQuery?: Record<string, string>;
+    canHandle: boolean;
+    handleActionLabel?: string;
+    overdue: boolean;
+    riskLevel?: DashboardRiskLevel;
+    description: string;
+  };
+
+  type DashboardRiskSummary = {
+    total: number;
+    high: number;
+    overdue: number;
+    latestAt?: string;
+  };
+
+  type DashboardRiskItem = {
+    id: string;
+    type: DashboardRiskType;
+    typeName: string;
+    level: DashboardRiskLevel;
+    title: string;
+    objectId: string;
+    occurredAt: string;
+    sourceModule: string;
+    sourceModuleName: string;
+    targetRoute: string;
+    targetQuery?: Record<string, string>;
+    handled: boolean;
+    description: string;
+  };
+
+  type DashboardQuickAction = {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    targetRoute: string;
+    targetQuery?: Record<string, string>;
+    requiredModule: string;
+    requiredAction: string;
+    todoCount?: number;
+  };
+
+  type DashboardModuleSnapshot = {
+    id: string;
+    title: string;
+    sourceModule: string;
+    targetRoute: string;
+    items: {
+      label: string;
+      value: number;
+      status?: 'normal' | 'warning' | 'risk';
+    }[];
+  };
+
+  type DashboardRecentActivity = {
+    id: string;
+    time: string;
+    operator: string;
+    action: string;
+    objectType: string;
+    objectSummary: string;
+    result: 'success' | 'denied' | 'failed';
+    sourceModule: string;
+    sourceModuleName: string;
+  };
+
+  type DashboardSectionError = {
+    section: DashboardVisibleSection;
+    message: string;
+    level: 'warning' | 'error';
+  };
+
+  type DashboardDataQualityIssue = {
+    id: string;
+    section: DashboardVisibleSection;
+    level: 'warning' | 'error';
+    message: string;
+    objectId?: string;
+  };
+
+  type DashboardOverview = {
+    welcome: DashboardWelcome;
+    role: DashboardRoleView;
+    summaryMetrics: DashboardMetric[];
+    todoSummary: DashboardTodoSummary;
+    todoItems: DashboardTodoItem[];
+    riskSummary: DashboardRiskSummary;
+    riskItems: DashboardRiskItem[];
+    quickActions: DashboardQuickAction[];
+    moduleSnapshots: DashboardModuleSnapshot[];
+    recentActivities: DashboardRecentActivity[];
+    visibleSections: DashboardVisibleSection[];
+    sectionErrors: DashboardSectionError[];
+    dataQualityIssues: DashboardDataQualityIssue[];
+    updatedAt: string;
+  };
+
+  type DashboardApiResponse = {
+    data?: DashboardOverview;
+    success?: boolean;
+    errorCode?: string;
+    errorMessage?: string;
+  };
+
+  type DashboardFilterParams = {
+    module?: string;
+    todoType?: DashboardTodoType | 'all';
+    priority?: DashboardTodoPriority | 'all';
+    simulateEmpty?: boolean;
+    simulateNoRisk?: boolean;
+    simulateFailure?: boolean;
+    simulateSectionError?: DashboardVisibleSection;
+  };
+
+  type DashboardActionLogParams = {
+    action: 'manual_refresh' | 'todo_jump' | 'quick_action_jump';
+    objectId: string;
+    targetRoute?: string;
+    reason?: string;
+  };
+
+  type DashboardRiskHandleParams = {
+    reason?: string;
+  };
+
   type FakeCaptcha = {
     code?: number;
     status?: string;

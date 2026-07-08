@@ -5,7 +5,7 @@ import {
   roleConfigs,
   roleList,
 } from '../src/foundation/permissions';
-import type { AdminRoleId } from '../src/foundation/permissions';
+import type { AdminModuleKey, AdminRoleId, PermissionAction } from '../src/foundation/permissions';
 import { mockAuditLogs } from '../src/foundation/audit';
 import { waitTime, defaultUser } from './utils';
 
@@ -28,6 +28,7 @@ let currentAccountName = '';
 
 const disabledAccounts = new Set(['disabled_admin']);
 const auditLogs = [...mockAuditLogs];
+const dashboardHandledRiskIds = new Set<string>();
 const accountStatusMap: Record<string, API.AdminAccountStatus> = {
   super_admin: 'enabled',
   content_operator: 'enabled',
@@ -1525,7 +1526,7 @@ const pushOperationAuditLog = (params: {
   roleId: AdminRoleId;
   logType?: API.AuditLogType;
   action: string;
-  objectType?: 'session' | 'user' | 'content' | 'learning_path_config' | 'ai_strategy' | 'review_release' | 'system_permission' | 'analytics';
+  objectType?: 'session' | 'user' | 'content' | 'learning_path_config' | 'ai_strategy' | 'review_release' | 'system_permission' | 'analytics' | 'dashboard';
   objectId: string;
   objectSubtype?: string;
   sourcePage: string;
@@ -3307,6 +3308,858 @@ const buildAnalyticsOverview = (
   return response;
 };
 
+const dashboardSectionLabels: Record<API.DashboardVisibleSection, string> = {
+  welcome: '欢迎区',
+  todos: '今日待办',
+  risks: '超时和高风险提醒',
+  metrics: '今日关键指标',
+  quickActions: '快捷入口',
+  moduleSnapshots: '模块状态摘要',
+  recentActivities: '最近处理记录',
+  aiPlaceholder: 'AI 占位摘要',
+};
+
+const dashboardTodoTypeLabels: Record<API.DashboardTodoType, string> = {
+  pending_review: '待审核',
+  pending_release: '待发布',
+  rejected_content: '驳回待修改',
+  pending_feedback: '待处理反馈',
+  stale_feedback: '反馈超时',
+  learning_path_precheck_error: '预校验阻断',
+  learning_path_rejected: '学习路径驳回',
+  publish_failed: '发布失败',
+  rollback_failed: '回滚失败',
+  high_risk_audit: '高风险审计',
+  permission_denied: '权限异常',
+  ai_placeholder: 'AI 占位提醒',
+};
+
+const dashboardPriorityRank: Record<API.DashboardTodoPriority, number> = {
+  P0: 0,
+  P1: 1,
+  P2: 2,
+  P3: 3,
+};
+
+const dashboardRiskLevelRank: Record<API.DashboardRiskLevel, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+const dashboardOverdueThresholdHours: Record<API.DashboardTodoType, number> = {
+  pending_review: 24,
+  pending_release: 24,
+  rejected_content: 48,
+  pending_feedback: 24,
+  stale_feedback: 48,
+  learning_path_precheck_error: 24,
+  learning_path_rejected: 48,
+  publish_failed: 0,
+  rollback_failed: 0,
+  high_risk_audit: 0,
+  permission_denied: 2,
+  ai_placeholder: 24,
+};
+
+const dashboardRoleSections: Record<AdminRoleId, API.DashboardVisibleSection[]> = {
+  super_admin: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
+  content_operator: ['welcome', 'todos', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
+  teaching_reviewer: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
+  ai_operator: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities', 'aiPlaceholder'],
+  customer_support: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
+  data_analyst: ['welcome', 'metrics', 'quickActions', 'moduleSnapshots'],
+  read_only_auditor: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
+};
+
+const dashboardRoleTodoTypes: Record<AdminRoleId, API.DashboardTodoType[]> = {
+  super_admin: ['pending_review', 'pending_release', 'rejected_content', 'pending_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'publish_failed', 'rollback_failed', 'permission_denied'],
+  content_operator: ['pending_review', 'pending_release', 'rejected_content', 'publish_failed', 'rollback_failed'],
+  teaching_reviewer: ['pending_review', 'pending_release', 'rejected_content', 'learning_path_precheck_error', 'learning_path_rejected', 'publish_failed', 'rollback_failed'],
+  ai_operator: ['pending_review', 'pending_release', 'publish_failed', 'rollback_failed'],
+  customer_support: ['pending_feedback', 'stale_feedback', 'permission_denied'],
+  data_analyst: [],
+  read_only_auditor: ['permission_denied', 'publish_failed', 'rollback_failed'],
+};
+
+const dashboardSourceModuleLabels: Record<string, string> = {
+  dashboard: '工作台',
+  users: '用户管理',
+  content: '题库与内容管理',
+  learningPath: '学习路径配置',
+  aiCoach: 'AI 陪练管理',
+  writingTranslation: '写译批改管理',
+  mockExam: '模考管理',
+  analytics: '运营数据',
+  reviewRelease: '审核发布',
+  system: '权限与系统设置',
+};
+
+const reviewStatusLabels: Record<API.ReviewTaskStatus, string> = {
+  draft: '草稿',
+  pending_review: '待审核',
+  rejected: '已驳回',
+  approved: '已通过',
+  pending_release: '待发布',
+  published: '已发布',
+  offline: '已下架',
+  rolled_back: '已回滚',
+};
+
+const dashboardRouteModuleMap: { prefix: string; module: AdminModuleKey }[] = [
+  { prefix: '/dashboard', module: 'dashboard' },
+  { prefix: '/users', module: 'users' },
+  { prefix: '/content', module: 'content' },
+  { prefix: '/learning-path', module: 'learningPath' },
+  { prefix: '/ai-coach', module: 'aiCoach' },
+  { prefix: '/writing-translation', module: 'writingTranslation' },
+  { prefix: '/mock-exam', module: 'mockExam' },
+  { prefix: '/analytics', module: 'analytics' },
+  { prefix: '/review-release', module: 'reviewRelease' },
+  { prefix: '/system', module: 'system' },
+];
+
+const routeModule = (route: string) =>
+  dashboardRouteModuleMap.find((item) => route.startsWith(item.prefix))?.module;
+
+const canReadRoute = (roleId: AdminRoleId, route: string) => {
+  const module = routeModule(route);
+  return Boolean(module && roleCanPerformAction(roleId, module, 'read'));
+};
+
+const dashboardHoursSince = (value: string, nowMs = Date.now()) => {
+  const start = parseDateTime(value);
+  if (start === undefined) return 0;
+  return Math.max(0, Number(((nowMs - start) / 3_600_000).toFixed(1)));
+};
+
+const dashboardWaitText = (hours: number) =>
+  hours < 1 ? `${Math.round(hours * 60)} 分钟` : `${hours.toFixed(1)} 小时`;
+
+const dashboardTodayRange = () => {
+  const today = formatDate(new Date());
+  const yesterday = formatDate(addDays(new Date(`${today}T00:00:00`), -1));
+  return {
+    today,
+    todayStart: startOfDate(today),
+    todayEnd: endOfDate(today),
+    yesterdayStart: startOfDate(yesterday),
+    yesterdayEnd: endOfDate(yesterday),
+  };
+};
+
+const isInTimeRange = (value: string, start: number, end: number) => {
+  const time = parseDateTime(value);
+  return time !== undefined && time >= start && time <= end;
+};
+
+const dashboardMetric = (params: {
+  id: string;
+  title: string;
+  value?: number;
+  previousValue?: number;
+  unit: string;
+  type: API.DashboardMetricType;
+  timeSemantic: 'today' | 'snapshot';
+  direction: 'positive' | 'risk' | 'neutral';
+  tooltip: string;
+  targetRoute?: string;
+}): API.DashboardMetric => ({
+  id: params.id,
+  title: params.title,
+  value: params.value,
+  displayValue: params.type === 'rate' ? displayPercent(params.value) : displayNumber(params.value),
+  unit: params.unit,
+  type: params.type,
+  timeSemantic: params.timeSemantic,
+  direction: params.direction,
+  comparison:
+    params.previousValue === undefined
+      ? { available: false, label: '较昨日' }
+      : {
+          available: true,
+          value: Number(((params.value ?? 0) - params.previousValue).toFixed(1)),
+          label: '较昨日',
+        },
+  tooltip: params.tooltip,
+  targetRoute: params.targetRoute,
+});
+
+const dashboardReviewTaskRoute = (task: API.ReviewTask) => ({
+  targetRoute: '/review-release/pending',
+  targetQuery: { keyword: task.id, status: task.status },
+});
+
+const dashboardLearningPathRoute = (config: API.LearningPathConfigItem) => ({
+  targetRoute: config.kind === 'today_task_template'
+    ? `/learning-path/task-templates/${config.id}`
+    : `/learning-path/diagnosis-rules/${config.id}`,
+  targetQuery: { tab: config.kind },
+});
+
+const dashboardTodoCanHandle = (
+  roleId: AdminRoleId,
+  todoType: API.DashboardTodoType,
+  sourceModule: AdminModuleKey,
+  task?: API.ReviewTask,
+) => {
+  if (todoType === 'pending_review' && task) return roleCanOperateReviewTask(roleId, task, 'approved');
+  if (todoType === 'pending_release' && task) return roleCanOperateReviewTask(roleId, task, 'published');
+  if (todoType === 'rejected_content') {
+    return sourceModule === 'learningPath'
+      ? roleCanPerformAction(roleId, 'learningPath', 'submit')
+      : roleCanPerformAction(roleId, 'content', 'submit');
+  }
+  if (todoType === 'pending_feedback' || todoType === 'stale_feedback') return roleCanHandleFeedback(roleId);
+  if (todoType === 'learning_path_precheck_error' || todoType === 'learning_path_rejected') {
+    return roleCanPerformAction(roleId, 'learningPath', 'edit');
+  }
+  if (todoType === 'publish_failed' || todoType === 'rollback_failed') return roleCanPerformAction(roleId, 'reviewRelease', 'publish');
+  if (todoType === 'permission_denied') return roleCanPerformAction(roleId, 'system', 'config');
+  return false;
+};
+
+const createDashboardTodo = (params: {
+  type: API.DashboardTodoType;
+  title: string;
+  objectType: string;
+  objectId: string;
+  priority: API.DashboardTodoPriority;
+  status: string;
+  statusLabel: string;
+  createdAt: string;
+  owner: string;
+  sourceModule: AdminModuleKey;
+  targetRoute: string;
+  targetQuery?: Record<string, string>;
+  description: string;
+  roleId: AdminRoleId;
+  task?: API.ReviewTask;
+  riskLevel?: API.DashboardRiskLevel;
+}): API.DashboardTodoItem => {
+  const waitHours = dashboardHoursSince(params.createdAt);
+  const threshold = dashboardOverdueThresholdHours[params.type];
+  const overdue = threshold === 0 || waitHours >= threshold;
+  const canHandle = dashboardTodoCanHandle(params.roleId, params.type, params.sourceModule, params.task);
+  return {
+    id: `todo-${params.type}-${params.objectId}`,
+    type: params.type,
+    typeName: dashboardTodoTypeLabels[params.type],
+    title: params.title,
+    objectType: params.objectType,
+    objectId: params.objectId,
+    priority: params.priority,
+    status: params.status,
+    statusLabel: params.statusLabel,
+    createdAt: params.createdAt,
+    waitHours,
+    waitText: dashboardWaitText(waitHours),
+    owner: params.owner,
+    sourceModule: params.sourceModule,
+    sourceModuleName: dashboardSourceModuleLabels[params.sourceModule],
+    targetRoute: params.targetRoute,
+    targetQuery: params.targetQuery,
+    canHandle,
+    handleActionLabel: canHandle ? '处理' : '查看',
+    overdue,
+    riskLevel: params.riskLevel,
+    description: params.description,
+  };
+};
+
+const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
+  const todos: API.DashboardTodoItem[] = [];
+  for (const task of reviewTasksData) {
+    if (task.status === 'pending_review' || task.status === 'pending_release') {
+      const route = dashboardReviewTaskRoute(task);
+      todos.push(createDashboardTodo({
+        type: task.status === 'pending_review' ? 'pending_review' : 'pending_release',
+        title: task.objectName,
+        objectType: task.objectTypeName,
+        objectId: task.id,
+        priority: task.priority as API.DashboardTodoPriority,
+        status: task.status,
+        statusLabel: reviewStatusLabels[task.status],
+        createdAt: task.status === 'pending_review' ? task.submittedAt : task.updatedAt,
+        owner: task.status === 'pending_review' ? task.submitter : task.reviewer || task.submitter,
+        sourceModule: 'reviewRelease',
+        targetRoute: route.targetRoute,
+        targetQuery: route.targetQuery,
+        description: `${task.moduleName}，版本 ${task.version}。`,
+        roleId,
+        task,
+        riskLevel: task.riskLevel === 'high' ? 'high' : task.riskLevel === 'medium' ? 'medium' : 'low',
+      }));
+    }
+  }
+
+  questionData.filter((item) => item.status === 'rejected').forEach((question) => {
+    todos.push(createDashboardTodo({
+      type: 'rejected_content',
+      title: question.title,
+      objectType: '题库内容',
+      objectId: question.id,
+      priority: 'P2',
+      status: question.status,
+      statusLabel: '已驳回',
+      createdAt: question.updatedAt,
+      owner: question.creator,
+      sourceModule: 'content',
+      targetRoute: '/content/questions',
+      targetQuery: { keyword: question.id, status: 'rejected' },
+      description: question.changeSummary,
+      roleId,
+      riskLevel: 'medium',
+    }));
+  });
+
+  learningPathConfigsData.filter((item) => item.status === 'rejected').forEach((config) => {
+    const route = dashboardLearningPathRoute(config);
+    todos.push(createDashboardTodo({
+      type: 'learning_path_rejected',
+      title: config.name,
+      objectType: config.kind === 'diagnosis_rule' ? '诊断规则' : '今日任务模板',
+      objectId: config.id,
+      priority: 'P1',
+      status: config.status,
+      statusLabel: '已驳回',
+      createdAt: config.updatedAt,
+      owner: config.updatedBy,
+      sourceModule: 'learningPath',
+      targetRoute: route.targetRoute,
+      targetQuery: route.targetQuery,
+      description: config.changeSummary,
+      roleId,
+      riskLevel: 'medium',
+    }));
+  });
+
+  learningPathConfigsData.forEach((config) => {
+    const precheck = precheckLearningPathPayload(config as API.LearningPathSaveParams, config.id);
+    if (precheck.level !== 'error') return;
+    const route = dashboardLearningPathRoute(config);
+    todos.push(createDashboardTodo({
+      type: 'learning_path_precheck_error',
+      title: config.name,
+      objectType: config.kind === 'diagnosis_rule' ? '诊断规则' : '今日任务模板',
+      objectId: config.id,
+      priority: 'P1',
+      status: config.status,
+      statusLabel: reviewStatusLabels[config.status as API.ReviewTaskStatus] ?? config.status,
+      createdAt: config.updatedAt,
+      owner: config.updatedBy,
+      sourceModule: 'learningPath',
+      targetRoute: route.targetRoute,
+      targetQuery: route.targetQuery,
+      description: precheck.issues.find((item) => item.level === 'error')?.message ?? precheck.summary,
+      roleId,
+      riskLevel: 'medium',
+    }));
+  });
+
+  operationUsersData.forEach((user) => {
+    (user.feedbacks ?? []).forEach((feedback) => {
+      if (feedback.status === 'pending') {
+        todos.push(createDashboardTodo({
+          type: 'pending_feedback',
+          title: `${user.nickname}：${feedback.summary}`,
+          objectType: '用户反馈',
+          objectId: feedback.id,
+          priority: feedback.priority,
+          status: feedback.status,
+          statusLabel: feedbackStatusLabels[feedback.status],
+          createdAt: feedback.submittedAt,
+          owner: feedback.handler ?? '未分配',
+          sourceModule: 'users',
+          targetRoute: '/users/list',
+          targetQuery: { keyword: user.id, feedbackStatus: 'pending' },
+          description: `${feedback.type}，${feedback.relatedModule}。`,
+          roleId,
+          riskLevel: feedback.priority === 'P0' ? 'high' : feedback.priority === 'P1' ? 'medium' : 'low',
+        }));
+      }
+      if (feedback.status === 'processing' && dashboardHoursSince(feedback.updatedAt) >= dashboardOverdueThresholdHours.stale_feedback) {
+        todos.push(createDashboardTodo({
+          type: 'stale_feedback',
+          title: `${user.nickname}：${feedback.summary}`,
+          objectType: '用户反馈',
+          objectId: feedback.id,
+          priority: feedback.priority === 'P0' ? 'P0' : 'P1',
+          status: feedback.status,
+          statusLabel: feedbackStatusLabels[feedback.status],
+          createdAt: feedback.updatedAt,
+          owner: feedback.handler ?? '客服',
+          sourceModule: 'users',
+          targetRoute: '/users/list',
+          targetQuery: { keyword: user.id, feedbackStatus: 'processing' },
+          description: '处理中反馈长时间未更新。',
+          roleId,
+          riskLevel: feedback.priority === 'P0' ? 'high' : 'medium',
+        }));
+      }
+    });
+  });
+
+  auditLogs.forEach((item) => {
+    if (item.result === 'failed' && String(item.action).includes('发布')) {
+      todos.push(createDashboardTodo({
+        type: 'publish_failed',
+        title: item.changeSummary,
+        objectType: item.objectType,
+        objectId: item.id,
+        priority: 'P0',
+        status: item.result,
+        statusLabel: '失败',
+        createdAt: item.time,
+        owner: item.operator,
+        sourceModule: 'reviewRelease',
+        targetRoute: '/review-release/pending',
+        targetQuery: { keyword: item.objectId },
+        description: item.reason,
+        roleId,
+        riskLevel: 'high',
+      }));
+    }
+    if (item.result === 'failed' && String(item.action).includes('回滚')) {
+      todos.push(createDashboardTodo({
+        type: 'rollback_failed',
+        title: item.changeSummary,
+        objectType: item.objectType,
+        objectId: item.id,
+        priority: 'P0',
+        status: item.result,
+        statusLabel: '失败',
+        createdAt: item.time,
+        owner: item.operator,
+        sourceModule: 'reviewRelease',
+        targetRoute: '/review-release/pending',
+        targetQuery: { keyword: item.objectId },
+        description: item.reason,
+        roleId,
+        riskLevel: 'high',
+      }));
+    }
+    if (item.logType === 'permission_denied' || item.action === 'restricted_access') {
+      todos.push(createDashboardTodo({
+        type: 'permission_denied',
+        title: item.changeSummary,
+        objectType: item.objectType,
+        objectId: item.id,
+        priority: 'P1',
+        status: item.result,
+        statusLabel: '已拒绝',
+        createdAt: item.time,
+        owner: item.operator,
+        sourceModule: 'system',
+        targetRoute: '/system/accounts',
+        targetQuery: { logType: 'permission_denied' },
+        description: item.reason,
+        roleId,
+        riskLevel: 'medium',
+      }));
+    }
+  });
+
+  return todos;
+};
+
+const filterDashboardTodos = (
+  roleId: AdminRoleId,
+  todos: API.DashboardTodoItem[],
+  filters: API.DashboardFilterParams,
+) => {
+  const allowedTypes = new Set(dashboardRoleTodoTypes[roleId]);
+  return todos
+    .filter((todo) => allowedTypes.has(todo.type))
+    .filter((todo) => canReadRoute(roleId, todo.targetRoute))
+    .filter((todo) => !filters.todoType || filters.todoType === 'all' || todo.type === filters.todoType)
+    .filter((todo) => !filters.priority || filters.priority === 'all' || todo.priority === filters.priority)
+    .sort((first, second) => {
+      const priorityDiff = dashboardPriorityRank[first.priority] - dashboardPriorityRank[second.priority];
+      if (priorityDiff) return priorityDiff;
+      if (first.overdue !== second.overdue) return first.overdue ? -1 : 1;
+      const waitDiff = second.waitHours - first.waitHours;
+      if (waitDiff) return waitDiff;
+      const timeDiff = (parseDateTime(second.createdAt) ?? 0) - (parseDateTime(first.createdAt) ?? 0);
+      return timeDiff || first.id.localeCompare(second.id);
+    });
+};
+
+const buildDashboardRisks = (roleId: AdminRoleId, todos: API.DashboardTodoItem[]) => {
+  const riskItems: API.DashboardRiskItem[] = todos
+    .filter((todo) => ['P0', 'P1'].includes(todo.priority) || todo.overdue)
+    .map((todo) => ({
+      id: `risk-${todo.id}`,
+      type: todo.type === 'learning_path_precheck_error'
+        ? 'precheck_blocked'
+        : todo.type === 'publish_failed'
+          ? 'publish_failed'
+          : todo.type === 'rollback_failed'
+            ? 'rollback_failed'
+            : todo.type === 'permission_denied'
+              ? 'permission_denied'
+              : 'placeholder',
+      typeName: todo.typeName,
+      level: todo.priority === 'P0' ? 'high' : todo.priority === 'P1' ? 'medium' : 'low',
+      title: todo.title,
+      objectId: todo.objectId,
+      occurredAt: todo.createdAt,
+      sourceModule: todo.sourceModule,
+      sourceModuleName: todo.sourceModuleName,
+      targetRoute: todo.targetRoute,
+      targetQuery: todo.targetQuery,
+      handled: false,
+      description: todo.description,
+    }));
+
+  auditLogs.forEach((log) => {
+    const isRisk =
+      log.logType === 'permission_denied' ||
+      log.logType === 'sensitive_access' ||
+      log.action === 'permission_change' ||
+      log.result === 'failed';
+    if (!isRisk) return;
+    riskItems.push({
+      id: `risk-audit-${log.id}`,
+      type: log.action === 'permission_change'
+        ? 'permission_change'
+        : log.logType === 'sensitive_access'
+          ? 'sensitive_access'
+          : log.result === 'failed'
+            ? 'version_conflict'
+            : 'permission_denied',
+      typeName: log.action === 'permission_change' ? '权限变更' : log.logType === 'sensitive_access' ? '敏感访问' : log.result === 'failed' ? '操作失败' : '权限拒绝',
+      level: log.result === 'failed' || log.action === 'permission_change' ? 'high' : 'medium',
+      title: log.changeSummary,
+      objectId: log.objectId,
+      occurredAt: log.time,
+      sourceModule: log.objectType === 'analytics' ? 'analytics' : log.objectType === 'user' ? 'users' : log.objectType === 'review_release' ? 'reviewRelease' : 'system',
+      sourceModuleName: log.objectType === 'analytics' ? '运营数据' : log.objectType === 'user' ? '用户管理' : log.objectType === 'review_release' ? '审核发布' : '权限与系统设置',
+      targetRoute: log.objectType === 'analytics' ? '/analytics/overview' : log.objectType === 'review_release' ? '/review-release/pending' : '/system/accounts',
+      targetQuery: { logType: log.logType ?? 'operation' },
+      handled: false,
+      description: log.reason,
+    });
+  });
+
+  return riskItems
+    .filter((risk) => !dashboardHandledRiskIds.has(risk.id))
+    .filter((risk) => {
+      if (roleId === 'super_admin' || roleId === 'read_only_auditor') return true;
+      if (roleId === 'customer_support') return ['users', 'system'].includes(risk.sourceModule);
+      if (roleId === 'teaching_reviewer') return ['reviewRelease', 'learningPath', 'content'].includes(risk.sourceModule);
+      if (roleId === 'ai_operator') return ['aiCoach', 'reviewRelease', 'analytics'].includes(risk.sourceModule);
+      if (roleId === 'content_operator') return ['content', 'reviewRelease'].includes(risk.sourceModule);
+      return false;
+    })
+    .filter((risk) => canReadRoute(roleId, risk.targetRoute))
+    .sort((first, second) => {
+      const levelDiff = dashboardRiskLevelRank[first.level] - dashboardRiskLevelRank[second.level];
+      if (levelDiff) return levelDiff;
+      return (parseDateTime(second.occurredAt) ?? 0) - (parseDateTime(first.occurredAt) ?? 0);
+    });
+};
+
+const buildDashboardMetrics = (roleId: AdminRoleId, risks: API.DashboardRiskItem[]) => {
+  const range = dashboardTodayRange();
+  const todayRegistered = operationUsersData.filter((user) => isInTimeRange(user.registerAt, range.todayStart, range.todayEnd)).length;
+  const yesterdayRegistered = operationUsersData.filter((user) => isInTimeRange(user.registerAt, range.yesterdayStart, range.yesterdayEnd)).length;
+  const todayActiveIds = new Set<string>();
+  const yesterdayActiveIds = new Set<string>();
+  operationUsersData.forEach((user) => {
+    if (isInTimeRange(user.lastActiveAt, range.todayStart, range.todayEnd)) todayActiveIds.add(user.id);
+    if (isInTimeRange(user.lastActiveAt, range.yesterdayStart, range.yesterdayEnd)) yesterdayActiveIds.add(user.id);
+    (user.learningRecords ?? []).forEach((record) => {
+      if (isInTimeRange(record.date, range.todayStart, range.todayEnd)) todayActiveIds.add(user.id);
+      if (isInTimeRange(record.date, range.yesterdayStart, range.yesterdayEnd)) yesterdayActiveIds.add(user.id);
+    });
+  });
+  const todayStartedTaskUsers = operationUsersData.filter((user) => user.learningStatus.todayTaskStatus !== 'not_started').length;
+  const todayCompletedTaskUsers = operationUsersData.filter((user) => user.learningStatus.todayTaskStatus === 'completed').length;
+  const pendingReview = reviewTasksData.filter((task) => task.status === 'pending_review').length;
+  const pendingRelease = reviewTasksData.filter((task) => task.status === 'pending_release').length;
+  const pendingFeedback = operationUsersData.flatMap((user) => user.feedbacks ?? []).filter((feedback) => feedback.status === 'pending').length;
+  const highRisk = risks.filter((risk) => ['high', 'medium'].includes(risk.level)).length;
+  const allMetrics = [
+    dashboardMetric({ id: 'today_new_users', title: '今日新增用户', value: todayRegistered, previousValue: yesterdayRegistered, unit: '人', type: 'count', timeSemantic: 'today', direction: 'positive', tooltip: 'createdAt 落在今日范围内的用户数。', targetRoute: '/users/list' }),
+    dashboardMetric({ id: 'today_active_users', title: '今日活跃用户', value: todayActiveIds.size, previousValue: yesterdayActiveIds.size, unit: '人', type: 'count', timeSemantic: 'today', direction: 'positive', tooltip: '今日存在学习行为或 lastActiveAt 落入今日范围的去重用户数。', targetRoute: '/users/list' }),
+    dashboardMetric({ id: 'today_task_completion_rate', title: '今日任务完成率', value: percentValue(todayCompletedTaskUsers, todayStartedTaskUsers), unit: '%', type: 'rate', timeSemantic: 'today', direction: 'positive', tooltip: '今日完成任务用户数 / 今日开始任务用户数，分母为 0 时显示 --。', targetRoute: '/analytics/overview' }),
+    dashboardMetric({ id: 'pending_review', title: '当前待审核', value: pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_review 的审核任务数。', targetRoute: '/review-release/pending?status=pending_review' }),
+    dashboardMetric({ id: 'pending_release', title: '当前待发布', value: pendingRelease, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_release 的审核任务数。', targetRoute: '/review-release/pending?status=pending_release' }),
+    dashboardMetric({ id: 'pending_feedback', title: '当前待处理反馈', value: pendingFeedback, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending 的用户反馈数。', targetRoute: '/users/list?feedbackStatus=pending' }),
+    dashboardMetric({ id: 'high_risk', title: '当前高风险事项', value: highRisk, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前 P0/P1 或高风险未关闭事项数。', targetRoute: '/system/accounts' }),
+  ];
+  const roleMetricIds: Record<AdminRoleId, string[]> = {
+    super_admin: allMetrics.map((metric) => metric.id),
+    content_operator: ['pending_review', 'pending_release', 'high_risk'],
+    teaching_reviewer: ['pending_review', 'pending_release', 'high_risk'],
+    ai_operator: ['pending_review', 'pending_release', 'high_risk'],
+    customer_support: ['today_active_users', 'today_task_completion_rate', 'pending_feedback', 'high_risk'],
+    data_analyst: ['today_new_users', 'today_active_users', 'today_task_completion_rate', 'pending_review', 'pending_release', 'pending_feedback', 'high_risk'],
+    read_only_auditor: ['pending_review', 'pending_release', 'high_risk'],
+  };
+  return allMetrics.filter((metric) => roleMetricIds[roleId].includes(metric.id));
+};
+
+const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTodoItem[]) => {
+  const candidates: API.DashboardQuickAction[] = [
+    { id: 'review-release', title: '去审核发布', description: '查看审核、发布、下架和回滚记录。', icon: 'AuditOutlined', targetRoute: '/review-release/pending', requiredModule: 'reviewRelease', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'reviewRelease').length },
+    { id: 'content-questions', title: '去题库管理', description: '查看题目草稿、驳回和审核状态。', icon: 'DatabaseOutlined', targetRoute: '/content/questions', requiredModule: 'content', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'content').length },
+    { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
+    { id: 'learning-path', title: '去学习路径配置', description: '检查诊断规则和今日任务模板。', icon: 'BranchesOutlined', targetRoute: '/learning-path/diagnosis-rules', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
+    { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/overview', requiredModule: 'analytics', requiredAction: 'read' },
+    { id: 'system-audit', title: '去审计日志', description: '查看权限拒绝、敏感访问和权限变更。', icon: 'SafetyCertificateOutlined', targetRoute: '/system/accounts', targetQuery: { tab: 'audit' }, requiredModule: 'system', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'system').length },
+    { id: 'ai-coach', title: '去 AI 陪练管理', description: '查看 AI 策略占位摘要和审核入口。', icon: 'RobotOutlined', targetRoute: '/ai-coach/prompts', requiredModule: 'aiCoach', requiredAction: 'read' },
+  ];
+  return candidates
+    .filter((action) =>
+      roleCanPerformAction(
+        roleId,
+        action.requiredModule as AdminModuleKey,
+        action.requiredAction as PermissionAction,
+      ),
+    )
+    .slice(0, 6);
+};
+
+const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModuleSnapshot[] => {
+  const today = dashboardTodayRange().today;
+  const snapshots: API.DashboardModuleSnapshot[] = [
+    {
+      id: 'reviewRelease',
+      title: '审核发布',
+      sourceModule: 'reviewRelease',
+      targetRoute: '/review-release/pending',
+      items: [
+        { label: '待审核', value: reviewTasksData.filter((task) => task.status === 'pending_review').length, status: 'risk' },
+        { label: '待发布', value: reviewTasksData.filter((task) => task.status === 'pending_release').length, status: 'warning' },
+        { label: '今日已通过', value: reviewTasksData.filter((task) => task.status === 'approved' && dateOnly(task.updatedAt) === today).length },
+        { label: '今日已驳回', value: reviewTasksData.filter((task) => task.status === 'rejected' && dateOnly(task.updatedAt) === today).length, status: 'warning' },
+      ],
+    },
+    {
+      id: 'content',
+      title: '题库内容',
+      sourceModule: 'content',
+      targetRoute: '/content/questions',
+      items: [
+        { label: '草稿', value: questionData.filter((item) => item.status === 'draft').length },
+        { label: '待审核', value: questionData.filter((item) => item.status === 'pending_review').length, status: 'warning' },
+        { label: '已发布', value: questionData.filter((item) => item.status === 'published').length },
+        { label: '被驳回', value: questionData.filter((item) => item.status === 'rejected').length, status: 'risk' },
+      ],
+    },
+    {
+      id: 'users',
+      title: '用户反馈',
+      sourceModule: 'users',
+      targetRoute: '/users/list',
+      items: [
+        { label: '待处理', value: operationUsersData.flatMap((user) => user.feedbacks ?? []).filter((item) => item.status === 'pending').length, status: 'risk' },
+        { label: '处理中', value: operationUsersData.flatMap((user) => user.feedbacks ?? []).filter((item) => item.status === 'processing').length, status: 'warning' },
+        { label: '今日已处理', value: operationUsersData.flatMap((user) => user.feedbacks ?? []).filter((item) => ['resolved', 'no_action'].includes(item.status) && dateOnly(item.updatedAt) === today).length },
+        { label: 'P0 未关闭', value: operationUsersData.flatMap((user) => user.feedbacks ?? []).filter((item) => item.priority === 'P0' && item.status !== 'closed').length, status: 'risk' },
+      ],
+    },
+    {
+      id: 'learningPath',
+      title: '学习路径',
+      sourceModule: 'learningPath',
+      targetRoute: '/learning-path/diagnosis-rules',
+      items: [
+        { label: '草稿', value: learningPathConfigsData.filter((item) => item.status === 'draft').length },
+        { label: '待审核', value: learningPathConfigsData.filter((item) => item.status === 'pending_review').length, status: 'warning' },
+        { label: '预校验阻断', value: learningPathConfigsData.filter((item) => precheckLearningPathPayload(item as API.LearningPathSaveParams, item.id).level === 'error').length, status: 'risk' },
+        { label: '已发布', value: learningPathConfigsData.filter((item) => item.status === 'published').length },
+      ],
+    },
+    {
+      id: 'system',
+      title: '审计风险',
+      sourceModule: 'system',
+      targetRoute: '/system/accounts',
+      items: [
+        { label: '今日权限拒绝', value: auditLogs.filter((item) => item.logType === 'permission_denied' && dateOnly(item.time) === today).length, status: 'risk' },
+        { label: '今日敏感访问', value: auditLogs.filter((item) => item.logType === 'sensitive_access' && dateOnly(item.time) === today).length, status: 'warning' },
+        { label: '权限变更', value: auditLogs.filter((item) => item.action === 'permission_change').length, status: 'risk' },
+        { label: '发布回滚异常', value: auditLogs.filter((item) => item.result === 'failed' && ['发布', '回滚'].includes(String(item.action))).length, status: 'risk' },
+      ],
+    },
+    {
+      id: 'aiCoach',
+      title: 'AI 占位摘要',
+      sourceModule: 'aiCoach',
+      targetRoute: '/ai-coach/prompts',
+      items: [
+        { label: '策略待接入', value: 1, status: 'warning' },
+        { label: '异常摘要', value: 0 },
+        { label: '审核相关', value: reviewTasksData.filter((task) => task.objectType === 'ai_strategy' && ['pending_review', 'pending_release', 'approved'].includes(task.status)).length, status: 'warning' },
+        { label: '正式指标', value: 0 },
+      ],
+    },
+  ];
+  return snapshots.filter((snapshot) => canReadRoute(roleId, snapshot.targetRoute));
+};
+
+const buildDashboardRecentActivities = (roleId: AdminRoleId) =>
+  auditLogs
+    .filter((log) => {
+      if (roleId === 'super_admin') return true;
+      if (roleId === 'read_only_auditor') return ['permission_denied', 'sensitive_access'].includes(log.logType ?? '') || ['permission_change', 'restricted_access'].includes(String(log.action)) || log.result === 'failed';
+      if (roleId === 'customer_support') return log.objectType === 'user';
+      if (roleId === 'content_operator') return ['content', 'review_release'].includes(log.objectType);
+      if (roleId === 'teaching_reviewer') return ['content', 'learning_path_config', 'review_release'].includes(log.objectType);
+      if (roleId === 'ai_operator') return ['ai_strategy', 'review_release', 'analytics'].includes(log.objectType);
+      return false;
+    })
+    .slice(0, 8)
+    .map((log): API.DashboardRecentActivity => ({
+      id: log.id,
+      time: log.time,
+      operator: log.operator,
+      action: String(log.action),
+      objectType: log.objectType,
+      objectSummary: log.objectId,
+      result: log.result,
+      sourceModule: log.objectType === 'user' ? 'users' : log.objectType === 'analytics' ? 'analytics' : log.objectType === 'review_release' ? 'reviewRelease' : log.objectType === 'learning_path_config' ? 'learningPath' : log.objectType === 'content' ? 'content' : 'system',
+      sourceModuleName: log.objectType === 'user' ? '用户管理' : log.objectType === 'analytics' ? '运营数据' : log.objectType === 'review_release' ? '审核发布' : log.objectType === 'learning_path_config' ? '学习路径配置' : log.objectType === 'content' ? '题库与内容管理' : '权限与系统设置',
+    }));
+
+const dashboardDataQualityIssues = (
+  roleId: AdminRoleId,
+  todos: API.DashboardTodoItem[],
+  metrics: API.DashboardMetric[],
+  quickActions: API.DashboardQuickAction[],
+): API.DashboardDataQualityIssue[] => {
+  const issues: API.DashboardDataQualityIssue[] = [];
+  const seenTodoObjectIds = new Set<string>();
+  todos.forEach((todo) => {
+    const dedupeKey = `${todo.type}-${todo.objectId}`;
+    if (seenTodoObjectIds.has(dedupeKey)) {
+      issues.push({ id: `dq-dashboard-duplicate-${todo.id}`, section: 'todos', level: 'warning', message: `待办重复生成：${todo.title}`, objectId: todo.objectId });
+    }
+    seenTodoObjectIds.add(dedupeKey);
+    if (!routeModule(todo.targetRoute)) {
+      issues.push({ id: `dq-dashboard-route-${todo.id}`, section: 'todos', level: 'error', message: `待办目标路由无效：${todo.targetRoute}`, objectId: todo.objectId });
+    }
+    if (todo.waitHours < 0) {
+      issues.push({ id: `dq-dashboard-wait-${todo.id}`, section: 'todos', level: 'error', message: `待办等待时长为负数：${todo.title}`, objectId: todo.objectId });
+    }
+    if (!canReadRoute(roleId, todo.targetRoute)) {
+      issues.push({ id: `dq-dashboard-permission-${todo.id}`, section: 'todos', level: 'error', message: `无权限角色收到待办：${todo.title}`, objectId: todo.objectId });
+    }
+  });
+  quickActions.forEach((action) => {
+    if (!canReadRoute(roleId, action.targetRoute)) {
+      issues.push({ id: `dq-dashboard-action-${action.id}`, section: 'quickActions', level: 'error', message: `快捷入口指向无权限路由：${action.title}`, objectId: action.id });
+    }
+  });
+  metrics.forEach((metric) => {
+    if (metric.value !== undefined && !Number.isFinite(metric.value)) {
+      issues.push({ id: `dq-dashboard-metric-${metric.id}`, section: 'metrics', level: 'error', message: `指标出现无效数值：${metric.title}`, objectId: metric.id });
+    }
+  });
+  return issues;
+};
+
+const buildDashboardOverview = (roleId: AdminRoleId, query: Request['query']): API.DashboardOverview => {
+  const role = roleConfigs[roleId];
+  const visibleSections = dashboardRoleSections[roleId];
+  const simulateEmpty = getQueryValue(query.simulateEmpty) === 'true';
+  const simulateNoRisk = getQueryValue(query.simulateNoRisk) === 'true';
+  const simulateSectionError = getQueryValue(query.simulateSectionError) as API.DashboardVisibleSection | undefined;
+  const sectionErrors: API.DashboardSectionError[] = [];
+  if (simulateSectionError && dashboardSectionLabels[simulateSectionError]) {
+    sectionErrors.push({
+      section: simulateSectionError,
+      level: 'error',
+      message: `${dashboardSectionLabels[simulateSectionError]}聚合模拟失败，其他区块继续返回。`,
+    });
+    pushOperationAuditLog({
+      roleId,
+      action: 'dashboard_section_failed',
+      objectType: 'dashboard',
+      objectId: simulateSectionError,
+      sourcePage: '/dashboard/overview',
+      reason: '模拟工作台单区块聚合失败。',
+      result: 'failed',
+      changeSummary: `${dashboardSectionLabels[simulateSectionError]}区块聚合失败，接口按部分成功返回。`,
+    });
+  }
+
+  const filters = query as API.DashboardFilterParams;
+  const todoItems = simulateEmpty || simulateSectionError === 'todos'
+    ? []
+    : filterDashboardTodos(roleId, buildDashboardTodoCandidates(roleId), filters);
+  const riskItems = simulateEmpty || simulateNoRisk || simulateSectionError === 'risks'
+    ? []
+    : buildDashboardRisks(roleId, todoItems);
+  const summaryMetrics = simulateSectionError === 'metrics' ? [] : buildDashboardMetrics(roleId, riskItems);
+  const quickActions = simulateSectionError === 'quickActions' ? [] : buildDashboardQuickActions(roleId, todoItems);
+  const moduleSnapshots = simulateSectionError === 'moduleSnapshots' ? [] : buildDashboardModuleSnapshots(roleId);
+  const recentActivities = simulateSectionError === 'recentActivities' ? [] : buildDashboardRecentActivities(roleId);
+  const dataQualityIssues = dashboardDataQualityIssues(roleId, todoItems, summaryMetrics, quickActions);
+  if (summaryMetrics.some((metric) => ['NaN', 'Infinity'].includes(metric.displayValue))) {
+    dataQualityIssues.push({ id: 'dq-dashboard-invalid-display', section: 'metrics', level: 'error', message: '今日指标出现 NaN 或 Infinity。' });
+  }
+  if (simulateEmpty && summaryMetrics.some((metric) => metric.type === 'rate' && metric.displayValue !== '--')) {
+    dataQualityIssues.push({ id: 'dq-dashboard-empty-rate', section: 'metrics', level: 'warning', message: '空数据比例指标未显示 --。' });
+  }
+  if (dataQualityIssues.length > 0) {
+    pushOperationAuditLog({
+      roleId,
+      action: 'dashboard_data_quality',
+      objectType: 'dashboard',
+      objectId: 'overview',
+      sourcePage: '/dashboard/overview',
+      reason: '工作台聚合发现数据质量问题。',
+      result: dataQualityIssues.some((item) => item.level === 'error') ? 'failed' : 'success',
+      changeSummary: `工作台数据质量提示 ${dataQualityIssues.length} 条。`,
+    });
+  }
+  const today = dashboardTodayRange().today;
+  const updatedAt = nowText();
+  const overdue = todoItems.filter((item) => item.overdue).length;
+
+  return {
+    welcome: {
+      operatorName: currentAccountName || role.name,
+      roleName: role.name,
+      greeting: new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好',
+      workHint: todoItems.length > 0 ? `今天有 ${todoItems.length} 项待办需要处理。` : '当前暂无待处理事项。',
+      currentDate: today,
+      updatedAt,
+    },
+    role: {
+      roleId,
+      roleName: role.name,
+      description: role.description,
+    },
+    summaryMetrics,
+    todoSummary: {
+      total: todoItems.length,
+      highPriority: todoItems.filter((item) => ['P0', 'P1'].includes(item.priority)).length,
+      overdue,
+      todayNew: todoItems.filter((item) => dateOnly(item.createdAt) === today).length,
+    },
+    todoItems: todoItems.slice(0, 10),
+    riskSummary: {
+      total: riskItems.length,
+      high: riskItems.filter((item) => item.level === 'high').length,
+      overdue,
+      latestAt: riskItems[0]?.occurredAt,
+    },
+    riskItems: riskItems.slice(0, 8),
+    quickActions,
+    moduleSnapshots,
+    recentActivities,
+    visibleSections,
+    sectionErrors,
+    dataQualityIssues,
+    updatedAt,
+  };
+};
+
 const buildCurrentUser = (roleId: AdminRoleId): API.CurrentUser => {
   const role = roleConfigs[roleId];
   const permissions = getRolePermissionsPayload(roleId);
@@ -3345,6 +4198,142 @@ export default {
       success: true,
       data: buildCurrentUser(currentRoleId),
     });
+  },
+  'GET /api/dashboard/overview': (req: Request, res: Response) => {
+    if (!currentRoleId) {
+      res.status(401).send({
+        success: false,
+        errorCode: '401',
+        errorMessage: '登录态已失效，请重新登录。',
+      });
+      return;
+    }
+    if (!roleCanPerformAction(currentRoleId, 'dashboard', 'read')) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        logType: 'permission_denied',
+        action: 'restricted_access',
+        objectType: 'dashboard',
+        objectId: 'overview',
+        sourcePage: '/dashboard/overview',
+        reason: '当前角色无工作台访问权限。',
+        result: 'denied',
+        changeSummary: 'Mock API 拒绝运营工作台访问。',
+      });
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无工作台访问权限。',
+      });
+      return;
+    }
+    if (getQueryValue(req.query.simulateFailure) === 'true') {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        action: 'dashboard_failed',
+        objectType: 'dashboard',
+        objectId: 'overview',
+        sourcePage: '/dashboard/overview',
+        reason: '模拟工作台聚合服务整体失败。',
+        result: 'failed',
+        changeSummary: '运营工作台聚合服务模拟失败。',
+      });
+      res.status(500).send({
+        success: false,
+        errorCode: '500',
+        errorMessage: '运营工作台聚合服务模拟失败。',
+      });
+      return;
+    }
+    const overview = buildDashboardOverview(currentRoleId, req.query);
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'dashboard_view',
+      objectType: 'dashboard',
+      objectId: 'overview',
+      sourcePage: '/dashboard/overview',
+      reason: '访问运营工作台。',
+      result: 'success',
+      changeSummary: `运营工作台加载成功，角色视图 ${overview.role.roleName}。`,
+    });
+    res.send({
+      success: true,
+      data: overview,
+    });
+  },
+  'POST /api/dashboard/action-log': (req: Request, res: Response) => {
+    if (!currentRoleId) {
+      res.status(401).send({
+        success: false,
+        errorCode: '401',
+        errorMessage: '登录态已失效，请重新登录。',
+      });
+      return;
+    }
+    if (!roleCanPerformAction(currentRoleId, 'dashboard', 'read')) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无工作台访问权限。',
+      });
+      return;
+    }
+    const body = req.body as API.DashboardActionLogParams;
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: body.action,
+      objectType: 'dashboard',
+      objectId: body.objectId || 'overview',
+      sourcePage: '/dashboard/overview',
+      reason: body.reason || '记录工作台操作。',
+      result: 'success',
+      changeSummary: body.targetRoute
+        ? `工作台操作 ${body.action}，目标 ${body.targetRoute}。`
+        : `工作台操作 ${body.action}。`,
+    });
+    res.send({ success: true });
+  },
+  'PATCH /api/dashboard/risks/:id/handle': (req: Request, res: Response) => {
+    const riskId = getQueryValue(req.params.id);
+    if (!currentRoleId) {
+      res.status(401).send({
+        success: false,
+        errorCode: '401',
+        errorMessage: '登录态已失效，请重新登录。',
+      });
+      return;
+    }
+    if (!roleCanPerformAction(currentRoleId, 'system', 'config')) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        logType: 'permission_denied',
+        action: 'dashboard_risk_handle_denied',
+        objectType: 'dashboard',
+        objectId: riskId,
+        sourcePage: '/dashboard/overview',
+        reason: '当前角色无高风险事项处理权限。',
+        result: 'denied',
+        changeSummary: 'Mock API 拒绝工作台风险处理。',
+      });
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无高风险事项处理权限。',
+      });
+      return;
+    }
+    dashboardHandledRiskIds.add(riskId);
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'dashboard_risk_handled',
+      objectType: 'dashboard',
+      objectId: riskId,
+      sourcePage: '/dashboard/overview',
+      reason: (req.body as API.DashboardRiskHandleParams)?.reason || '标记工作台风险已处理。',
+      result: 'success',
+      changeSummary: `工作台风险 ${riskId} 已标记处理。`,
+    });
+    res.send({ success: true });
   },
   'GET /api/admin/roles': (_req: Request, res: Response) => {
     res.send({

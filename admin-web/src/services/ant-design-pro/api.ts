@@ -602,6 +602,49 @@ export async function exportAnalyticsOverview(
   });
 }
 
+/** 获取运营工作台 GET /api/dashboard/overview */
+export async function dashboardOverview(
+  params?: API.DashboardFilterParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.DashboardApiResponse>('/api/dashboard/overview', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 记录工作台动作 POST /api/dashboard/action-log */
+export async function recordDashboardAction(
+  body: API.DashboardActionLogParams,
+  options?: { [key: string]: any },
+) {
+  return request<{ success?: boolean }>('/api/dashboard/action-log', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 标记工作台风险已处理 PATCH /api/dashboard/risks/:id/handle */
+export async function handleDashboardRisk(
+  id: string,
+  body: API.DashboardRiskHandleParams,
+  options?: { [key: string]: any },
+) {
+  return request<{ success?: boolean }>(`/api/dashboard/risks/${id}/handle`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 此处后端没有提供注释 GET /api/notices */
 export async function getNotices(options?: { [key: string]: any }) {
   return request<API.NoticeIconList>('/api/notices', {

@@ -5,6 +5,7 @@ export type AuditObjectType =
   | 'user'
   | 'content'
   | 'analytics'
+  | 'dashboard'
   | 'learning_path_config'
   | 'ai_strategy'
   | 'review_release'

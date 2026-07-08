@@ -188,3 +188,19 @@ Ant Design Pro 基座已完成第一阶段后台业务骨架初始化：十个�
 - 新增 API 类型：`AnalyticsOverview`、`AnalyticsApiResponse`、`AnalyticsFilterParams`、`AnalyticsMetricCard`、`AnalyticsModuleSnapshot`、`AnalyticsExportResult` 等。
 - 接口层执行 `analytics.read` 和 `analytics.export` 权限校验，并支持部分成功、空数据、整体失败和导出无权限验证。
 - 详细执行与验证记录见 `logs/analytics-overview-implementation-2026-07-08.md`。
+
+## 2026-07-08 运营工作台 MVP
+
+- `/dashboard/overview` 已从占位页升级为真实角色化运营工作台。
+- 工作台定位为今日处理入口，不复制 `/analytics/overview` 的趋势图、漏斗图、导出和多维分析能力。
+- 欢迎区展示当前操作人、角色、当前日期、更新时间和当前待办摘要。
+- 今日待办聚合待审核、待发布、被驳回内容、待处理反馈、学习路径预校验异常、学习路径驳回、发布失败、回滚失败和权限异常。
+- 待办按优先级、是否超时、等待时长和创建时间排序，支持待办类型与优先级筛选。
+- 风险提醒聚合 P0/P1、超时、发布失败、回滚失败、权限拒绝、敏感访问和权限变更记录。
+- 今日关键指标来自用户、题库、学习路径、审核发布、反馈和审计 mock 共享数据，不维护静态正式数字。
+- 快捷入口、模块状态摘要和最近处理记录均按 `permissions.ts` 的角色权限过滤。
+- 新增 mock API：`GET /api/dashboard/overview`、`POST /api/dashboard/action-log`、`PATCH /api/dashboard/risks/:id/handle`。
+- 新增服务函数：`dashboardOverview`、`recordDashboardAction`、`handleDashboardRisk`。
+- 新增 API 类型：`DashboardOverview`、`DashboardTodoItem`、`DashboardRiskItem`、`DashboardMetric`、`DashboardQuickAction`、`DashboardModuleSnapshot` 等。
+- 接口层支持整体失败、单区块部分成功、无待办、无风险、数据质量提示和风险处理同步。
+- 详细执行与验证记录见 `logs/dashboard-overview-implementation-2026-07-08.md`。
