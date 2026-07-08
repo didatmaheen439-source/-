@@ -1525,7 +1525,7 @@ const pushOperationAuditLog = (params: {
   roleId: AdminRoleId;
   logType?: API.AuditLogType;
   action: string;
-  objectType?: 'session' | 'user' | 'content' | 'learning_path_config' | 'ai_strategy' | 'review_release' | 'system_permission';
+  objectType?: 'session' | 'user' | 'content' | 'learning_path_config' | 'ai_strategy' | 'review_release' | 'system_permission' | 'analytics';
   objectId: string;
   objectSubtype?: string;
   sourcePage: string;
@@ -2727,8 +2727,584 @@ const buildUserLearningPathMatch = (userId: string) => {
           status: templateConfig?.status ?? existing.todayTaskTemplate.status,
           currentOnline: templateConfig?.status === 'published' || templateConfig?.status === 'rolled_back',
         }
-      : undefined,
+    : undefined,
   };
+};
+
+const analyticsSectionLabels: Record<API.AnalyticsVisibleSection, string> = {
+  users: '用户增长与活跃',
+  learningPath: '学习路径漏斗',
+  content: '题库与内容',
+  reviewRelease: '审核发布',
+  feedback: '客服反馈',
+  aiCoach: 'AI 陪练占位',
+  writingTranslation: '写译批改占位',
+  mockExam: '模考占位',
+  audit: '风险与审计摘要',
+};
+
+const analyticsModuleSectionMap: Record<API.AnalyticsModule, API.AnalyticsVisibleSection[]> = {
+  all: ['users', 'learningPath', 'content', 'reviewRelease', 'feedback', 'aiCoach', 'writingTranslation', 'mockExam', 'audit'],
+  users: ['users'],
+  learningPath: ['learningPath'],
+  content: ['content'],
+  reviewRelease: ['reviewRelease'],
+  feedback: ['feedback'],
+  aiCoach: ['aiCoach'],
+  writingTranslation: ['writingTranslation'],
+  mockExam: ['mockExam'],
+  audit: ['audit'],
+};
+
+const roleAnalyticsSections: Record<AdminRoleId, API.AnalyticsVisibleSection[]> = {
+  super_admin: analyticsModuleSectionMap.all,
+  content_operator: ['content', 'reviewRelease'],
+  teaching_reviewer: ['users', 'learningPath', 'content', 'reviewRelease', 'writingTranslation'],
+  ai_operator: ['users', 'reviewRelease', 'aiCoach', 'writingTranslation'],
+  customer_support: ['users', 'feedback'],
+  data_analyst: analyticsModuleSectionMap.all,
+  read_only_auditor: ['reviewRelease', 'audit'],
+};
+
+const analyticsPlaceholderSnapshots: API.AnalyticsModuleSnapshot[] = [
+  {
+    id: 'aiCoach',
+    name: 'AI 陪练',
+    value: 86,
+    displayValue: '86',
+    unit: '次 Mock 会话',
+    status: 'placeholder',
+    description: '基础占位指标，完整 AI 业务模块尚未建设。',
+    visible: true,
+  },
+  {
+    id: 'writingTranslation',
+    name: '写译批改',
+    value: 42,
+    displayValue: '42',
+    unit: '次 Mock 提交',
+    status: 'placeholder',
+    description: '完整模块尚未建设，仅展示结构占位。',
+    visible: true,
+  },
+  {
+    id: 'mockExam',
+    name: '模考',
+    value: 18,
+    displayValue: '18',
+    unit: '人 Mock 开始',
+    status: 'placeholder',
+    description: '基础占位指标，不参与顶部核心指标。',
+    visible: true,
+  },
+];
+
+const formatDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const dateOnly = (value: string) => value.slice(0, 10);
+
+const parseDateTime = (value?: string) => {
+  if (!value) return undefined;
+  const time = new Date(value.replace(/-/g, '/')).getTime();
+  return Number.isFinite(time) ? time : undefined;
+};
+
+const startOfDate = (value: string) => {
+  const date = new Date(`${value}T00:00:00`);
+  return date.getTime();
+};
+
+const endOfDate = (value: string) => {
+  const date = new Date(`${value}T23:59:59`);
+  return date.getTime();
+};
+
+const addDays = (date: Date, amount: number) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+};
+
+const percentValue = (numerator: number, denominator: number) =>
+  denominator > 0 ? Number(((numerator / denominator) * 100).toFixed(1)) : undefined;
+
+const displayNumber = (value?: number) =>
+  value === undefined || !Number.isFinite(value) ? '--' : value.toLocaleString('zh-CN');
+
+const displayPercent = (value?: number) =>
+  value === undefined || !Number.isFinite(value) ? '--' : value.toFixed(1);
+
+const displayMinutes = (value?: number) =>
+  value === undefined || !Number.isFinite(value) ? '--' : `${value.toFixed(1)} 分钟`;
+
+const metricCard = (params: {
+  id: string;
+  title: string;
+  value?: number;
+  unit: string;
+  type: API.AnalyticsMetricType;
+  timeSemantic: API.AnalyticsMetricTimeSemantic;
+  direction: API.AnalyticsMetricDirection;
+  section: API.AnalyticsVisibleSection;
+  tooltip: string;
+  updatedAt: string;
+  comparisonValue?: number;
+  jumpTo?: string;
+}) => {
+  const isRate = params.type === 'rate';
+  const displayValue = isRate ? displayPercent(params.value) : displayNumber(params.value);
+  const rate =
+    params.value !== undefined && params.comparisonValue !== undefined && params.comparisonValue !== 0
+      ? Number((((params.value - params.comparisonValue) / Math.abs(params.comparisonValue)) * 100).toFixed(1))
+      : undefined;
+  return {
+    id: params.id,
+    title: params.title,
+    value: params.value,
+    displayValue,
+    unit: params.unit,
+    type: params.type,
+    timeSemantic: params.timeSemantic,
+    direction: params.direction,
+    comparison: {
+      value: params.comparisonValue,
+      rate,
+      label: '较上一周期',
+      available: params.comparisonValue !== undefined,
+    },
+    tooltip: params.tooltip,
+    updatedAt: params.updatedAt,
+    section: params.section,
+    jumpTo: params.jumpTo,
+  } satisfies API.AnalyticsMetricCard;
+};
+
+const analyticsRoleSections = (roleId: AdminRoleId, module: API.AnalyticsModule) => {
+  const allowed = roleAnalyticsSections[roleId] ?? [];
+  const requested = analyticsModuleSectionMap[module] ?? analyticsModuleSectionMap.all;
+  return allowed.filter((section) => requested.includes(section));
+};
+
+const roleCanReadAnalytics = (roleId?: AdminRoleId | '') =>
+  Boolean(roleId && roleCanPerformAction(roleId, 'analytics', 'read'));
+
+const roleCanExportAnalytics = (roleId?: AdminRoleId | '') =>
+  Boolean(roleId && roleCanPerformAction(roleId, 'analytics', 'export'));
+
+const analyticsFilters = (query: Request['query']) => {
+  const today = new Date();
+  const defaultEnd = formatDate(today);
+  const defaultStart = formatDate(addDays(today, -29));
+  const startDate = getQueryValue(query.startDate) || defaultStart;
+  const endDate = getQueryValue(query.endDate) || defaultEnd;
+  const examType = (getQueryValue(query.examType) || 'all') as API.ExamType | 'all';
+  const module = (getQueryValue(query.module) || 'all') as API.AnalyticsModule;
+  const explicitGranularity = getQueryValue(query.granularity) as API.AnalyticsGranularity | '';
+  const start = startOfDate(startDate);
+  const end = endOfDate(endDate);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+    return {
+      error: '日期范围无效，请检查开始日期和结束日期。',
+      filters: undefined,
+    };
+  }
+  const days = Math.max(1, Math.ceil((end - start) / 86_400_000));
+  const granularity: API.AnalyticsGranularity =
+    explicitGranularity || (days <= 30 ? 'day' : days <= 90 ? 'week' : 'month');
+  return {
+    error: '',
+    filters: {
+      startDate,
+      endDate,
+      examType,
+      granularity,
+      module,
+    },
+  };
+};
+
+const inRange = (value: string | undefined, filters: API.AnalyticsOverview['filters'], offsetDays = 0) => {
+  const time = parseDateTime(value);
+  if (time === undefined) return false;
+  const start = startOfDate(filters.startDate) + offsetDays * 86_400_000;
+  const end = endOfDate(filters.endDate) + offsetDays * 86_400_000;
+  return time >= start && time <= end;
+};
+
+const beforeOrAtEnd = (value: string | undefined, filters: API.AnalyticsOverview['filters']) => {
+  const time = parseDateTime(value);
+  return time !== undefined && time <= endOfDate(filters.endDate);
+};
+
+const sameExam = (examType: API.ExamType | 'all', itemExam?: API.ExamType) =>
+  examType === 'all' || itemExam === examType;
+
+const bucketStart = (dateText: string, granularity: API.AnalyticsGranularity) => {
+  const date = new Date(`${dateOnly(dateText)}T00:00:00`);
+  if (granularity === 'month') return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  if (granularity === 'week') {
+    const day = date.getDay() || 7;
+    date.setDate(date.getDate() - day + 1);
+    return formatDate(date);
+  }
+  return formatDate(date);
+};
+
+const buildBuckets = (filters: API.AnalyticsOverview['filters']) => {
+  const buckets: string[] = [];
+  const cursor = new Date(`${filters.startDate}T00:00:00`);
+  const end = new Date(`${filters.endDate}T00:00:00`);
+  while (cursor <= end) {
+    buckets.push(bucketStart(formatDate(cursor), filters.granularity));
+    if (filters.granularity === 'month') {
+      cursor.setMonth(cursor.getMonth() + 1);
+    } else if (filters.granularity === 'week') {
+      cursor.setDate(cursor.getDate() + 7);
+    } else {
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  return [...new Set(buckets)];
+};
+
+const countBy = <T,>(items: T[], getKey: (item: T) => string) =>
+  Object.entries(
+    items.reduce<Record<string, number>>((acc, item) => {
+      const key = getKey(item) || '未知';
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {}),
+  ).map(([label, value]) => ({ label, value }));
+
+const taskExamType = (task: API.ReviewTask): API.ExamType | undefined => {
+  const question = questionData.find((item) => item.id === task.objectId);
+  if (question) return question.examType;
+  const config = learningPathConfigsData.find((item) => item.id === task.objectId);
+  return config?.examType;
+};
+
+const buildAnalyticsOverview = (
+  roleId: AdminRoleId,
+  filters: API.AnalyticsOverview['filters'],
+  query: Request['query'],
+) => {
+  const updatedAt = nowText();
+  const visibleSections = analyticsRoleSections(roleId, filters.module);
+  const sectionErrors: API.AnalyticsSectionError[] = [];
+  const dataQualityIssues: API.AnalyticsDataQualityIssue[] = [];
+  const simulatedSection = getQueryValue(query.simulateSectionError) as API.AnalyticsVisibleSection;
+  const simulateEmpty = getQueryValue(query.simulateEmpty) === 'true';
+  if (simulatedSection && visibleSections.includes(simulatedSection)) {
+    sectionErrors.push({
+      section: simulatedSection,
+      level: 'error',
+      message: `${analyticsSectionLabels[simulatedSection]}聚合模拟失败，其他区块继续返回。`,
+    });
+    pushOperationAuditLog({
+      roleId,
+      action: 'analytics_section_failed',
+      objectType: 'analytics',
+      objectId: simulatedSection,
+      sourcePage: '/analytics/overview',
+      reason: '模拟单一区块聚合失败。',
+      result: 'failed',
+      changeSummary: `${analyticsSectionLabels[simulatedSection]}区块聚合失败，接口按部分成功返回。`,
+    });
+  }
+
+  const users = simulateEmpty
+    ? []
+    : operationUsersData.filter((user) => sameExam(filters.examType, user.examProfile.examType));
+  const registeredUsers = users.filter((user) => beforeOrAtEnd(user.registerAt, filters));
+  const previousDays = Math.max(1, Math.ceil((endOfDate(filters.endDate) - startOfDate(filters.startDate)) / 86_400_000));
+  const previousOffset = -previousDays;
+  const newUsers = users.filter((user) => inRange(user.registerAt, filters)).length;
+  const previousNewUsers = users.filter((user) => inRange(user.registerAt, filters, previousOffset)).length;
+  const activeUserIds = new Set<string>();
+  const previousActiveUserIds = new Set<string>();
+  users.forEach((user) => {
+    if (inRange(user.lastActiveAt, filters) || (user.learningRecords ?? []).some((record) => inRange(record.date, filters))) {
+      activeUserIds.add(user.id);
+    }
+    if (inRange(user.lastActiveAt, filters, previousOffset) || (user.learningRecords ?? []).some((record) => inRange(record.date, filters, previousOffset))) {
+      previousActiveUserIds.add(user.id);
+    }
+  });
+  const onboardingCompleted = registeredUsers.filter((user) => user.learningStatus.onboardingStatus === 'completed').length;
+  const diagnosisCompleted = registeredUsers.filter((user) => user.learningStatus.diagnosisStatus === 'completed').length;
+  const startedTaskUsers = registeredUsers.filter((user) => user.learningStatus.todayTaskStatus !== 'not_started').length;
+  const completedTaskUsers = registeredUsers.filter((user) => user.learningStatus.todayTaskStatus === 'completed').length;
+  const previousCompletedTaskUsers = users.filter((user) => inRange(user.learningStatus.lastStudyAt, filters, previousOffset) && user.learningStatus.todayTaskStatus === 'completed').length;
+  const onboardingRate = percentValue(onboardingCompleted, registeredUsers.length);
+  const diagnosisRate = percentValue(diagnosisCompleted, onboardingCompleted);
+  const taskCompletionRate = percentValue(completedTaskUsers, startedTaskUsers);
+
+  const buckets = buildBuckets(filters);
+  const trendRows: API.AnalyticsTrendPoint[] = buckets.flatMap((date) => {
+    const bucketUsers = users.filter((user) => bucketStart(user.registerAt, filters.granularity) === date && inRange(user.registerAt, filters));
+    const bucketActive = users.filter((user) =>
+      (bucketStart(user.lastActiveAt, filters.granularity) === date && inRange(user.lastActiveAt, filters)) ||
+      (user.learningRecords ?? []).some((record) => bucketStart(record.date, filters.granularity) === date && inRange(record.date, filters)),
+    );
+    const bucketCompleted = users.filter((user) => bucketStart(user.learningStatus.lastStudyAt, filters.granularity) === date && inRange(user.learningStatus.lastStudyAt, filters) && user.learningStatus.todayTaskStatus === 'completed');
+    return [
+      { date, metric: '新增用户', value: bucketUsers.length },
+      { date, metric: '活跃用户', value: new Set(bucketActive.map((user) => user.id)).size },
+      { date, metric: '完成今日任务', value: bucketCompleted.length },
+    ];
+  });
+
+  const matchSummaries = registeredUsers.map((user) => buildUserLearningPathMatch(user.id));
+  const matchedRuleUsers = matchSummaries.filter((item) => item.diagnosisRule).length;
+  const matchedTemplateUsers = matchSummaries.filter((item) => item.todayTaskTemplate).length;
+  const funnelCounts = [
+    onboardingCompleted,
+    diagnosisCompleted,
+    matchedRuleUsers,
+    matchedTemplateUsers,
+    startedTaskUsers,
+    completedTaskUsers,
+  ];
+  const funnelSteps = ['已完成 Onboarding', '已完成诊断', '命中诊断规则', '匹配今日任务模板', '开始今日任务', '完成今日任务'];
+  const learningPathFunnel = funnelSteps.map((step, index) => {
+    const count = funnelCounts[index] ?? 0;
+    const previous = index === 0 ? count : funnelCounts[index - 1] ?? 0;
+    if (index > 0 && count > previous) {
+      dataQualityIssues.push({
+        id: `dq-funnel-${index}`,
+        section: 'learningPath',
+        level: 'warning',
+        message: `${step}人数大于上一漏斗步骤，保留原始聚合结果。`,
+        metricId: 'learning_path_funnel',
+      });
+    }
+    return {
+      step,
+      count,
+      previousRate: index === 0 ? 100 : percentValue(count, previous),
+      totalRate: percentValue(count, funnelCounts[0] ?? 0),
+      source: '用户状态、学习路径匹配摘要和学习记录',
+    };
+  });
+  const matchedTemplates = matchSummaries.map((item) => item.todayTaskTemplate).filter(Boolean) as NonNullable<API.UserLearningPathMatchSummary['todayTaskTemplate']>[];
+  const avgEstimatedMinutes = matchedTemplates.length > 0
+    ? Number((matchedTemplates.reduce((sum, item) => sum + item.totalEstimatedMinutes, 0) / matchedTemplates.length).toFixed(1))
+    : undefined;
+  const publishedRules = learningPathConfigsData.filter((item) => item.kind === 'diagnosis_rule' && item.status === 'published' && sameExam(filters.examType, item.examType)).length;
+  const publishedTemplates = learningPathConfigsData.filter((item) => item.kind === 'today_task_template' && item.status === 'published' && sameExam(filters.examType, item.examType)).length;
+
+  const questions = simulateEmpty ? [] : questionData.filter((item) => sameExam(filters.examType, item.examType));
+  const contentObjects = [
+    ...questions.map((item) => ({ status: item.status, examType: item.examType, type: '题目' })),
+    ...questionGroupReferences.filter((item) => sameExam(filters.examType, item.examType)).map((item) => ({ status: item.status, examType: item.examType, type: '题组' })),
+  ];
+  const contentStatusDistribution = countBy(contentObjects, (item) => reviewStatusActionMap[item.status as API.ReviewTaskStatus] ?? String(item.status));
+  const contentReviewTasks = reviewTasksData.filter((task) => task.objectType === 'question_bank' && sameExam(filters.examType, taskExamType(task)));
+  const approvedContentReviews = contentReviewTasks.filter((task) => task.status === 'approved' && inRange(task.updatedAt, filters)).length;
+  const rejectedContentReviews = contentReviewTasks.filter((task) => task.status === 'rejected' && inRange(task.updatedAt, filters)).length;
+  const contentApprovalRate = percentValue(approvedContentReviews, approvedContentReviews + rejectedContentReviews);
+
+  const filteredReviewTasks = simulateEmpty ? [] : reviewTasksData.filter((task) => sameExam(filters.examType, taskExamType(task)));
+  const intervalTasks = filteredReviewTasks.filter((task) => inRange(task.updatedAt, filters));
+  const reviewStats: API.AnalyticsReviewStats = {
+    pendingReview: filteredReviewTasks.filter((task) => task.status === 'pending_review').length,
+    approved: intervalTasks.filter((task) => task.status === 'approved').length,
+    rejected: intervalTasks.filter((task) => task.status === 'rejected').length,
+    pendingRelease: filteredReviewTasks.filter((task) => task.status === 'pending_release').length,
+    published: intervalTasks.filter((task) => task.status === 'published').length,
+    offline: intervalTasks.filter((task) => task.status === 'offline').length,
+    rolledBack: intervalTasks.filter((task) => task.status === 'rolled_back').length,
+    publishFailed: auditLogs.filter((item) => String(item.action) === '发布' && item.result === 'failed' && inRange(item.time, filters)).length,
+    rollbackFailed: auditLogs.filter((item) => String(item.action) === '回滚' && item.result === 'failed' && inRange(item.time, filters)).length,
+  };
+  const closedReviewTasks = intervalTasks.filter((task) => ['approved', 'rejected'].includes(task.status));
+  const reviewDurations = closedReviewTasks
+    .map((task) => {
+      const start = parseDateTime(task.submittedAt);
+      const end = parseDateTime(task.updatedAt);
+      if (start === undefined || end === undefined) {
+        dataQualityIssues.push({ id: `dq-review-date-${task.id}`, section: 'reviewRelease', level: 'warning', message: `审核任务 ${task.id} 缺少时间字段。`, metricId: 'average_review_minutes' });
+        return undefined;
+      }
+      if (end < start) {
+        dataQualityIssues.push({ id: `dq-review-negative-${task.id}`, section: 'reviewRelease', level: 'error', message: `审核任务 ${task.id} 审核结束时间早于提交时间。`, metricId: 'average_review_minutes' });
+        return undefined;
+      }
+      return (end - start) / 60_000;
+    })
+    .filter((item): item is number => item !== undefined);
+  reviewStats.averageReviewMinutes = reviewDurations.length > 0 ? Number((reviewDurations.reduce((sum, item) => sum + item, 0) / reviewDurations.length).toFixed(1)) : undefined;
+  const pendingReviewHours = filteredReviewTasks
+    .filter((task) => task.status === 'pending_review')
+    .map((task) => {
+      const start = parseDateTime(task.submittedAt);
+      return start === undefined ? undefined : (endOfDate(filters.endDate) - start) / 3_600_000;
+    })
+    .filter((item): item is number => item !== undefined);
+  reviewStats.longestPendingReviewHours = pendingReviewHours.length > 0 ? Number(Math.max(...pendingReviewHours).toFixed(1)) : undefined;
+  reviewStats.averagePendingReleaseMinutes = undefined;
+
+  const usersWithFeedback = simulateEmpty ? [] : users;
+  const allFeedbacks = usersWithFeedback.flatMap((user) =>
+    (user.feedbacks ?? []).map((feedback) => ({
+      feedback,
+      examType: user.examProfile.examType,
+    })),
+  );
+  const intervalFeedbacks = allFeedbacks.filter(({ feedback }) => inRange(feedback.submittedAt, filters));
+  const handledFeedbacks = allFeedbacks.filter(({ feedback }) => ['resolved', 'no_action'].includes(feedback.status) && inRange(feedback.updatedAt, filters));
+  const closedFeedbacks = allFeedbacks.filter(({ feedback }) => feedback.status === 'closed' && inRange(feedback.updatedAt, filters));
+  const pendingFeedback = allFeedbacks.filter(({ feedback }) => feedback.status === 'pending').length;
+  const processingFeedback = allFeedbacks.filter(({ feedback }) => feedback.status === 'processing').length;
+  const feedbackDurations = handledFeedbacks
+    .map(({ feedback }) => {
+      const start = parseDateTime(feedback.submittedAt);
+      const end = parseDateTime(feedback.updatedAt);
+      if (start === undefined || end === undefined) {
+        dataQualityIssues.push({ id: `dq-feedback-date-${feedback.id}`, section: 'feedback', level: 'warning', message: `反馈 ${feedback.id} 缺少处理时间字段。`, metricId: 'feedback_average_handle_hours' });
+        return undefined;
+      }
+      if (end < start) {
+        dataQualityIssues.push({ id: `dq-feedback-negative-${feedback.id}`, section: 'feedback', level: 'error', message: `反馈 ${feedback.id} 处理时间为负。`, metricId: 'feedback_average_handle_hours' });
+        return undefined;
+      }
+      return (end - start) / 3_600_000;
+    })
+    .filter((item): item is number => item !== undefined);
+  const feedbackStats: API.AnalyticsFeedbackStats = {
+    newFeedback: intervalFeedbacks.length,
+    pending: pendingFeedback,
+    processing: processingFeedback,
+    resolved: allFeedbacks.filter(({ feedback }) => feedback.status === 'resolved').length,
+    noAction: allFeedbacks.filter(({ feedback }) => feedback.status === 'no_action').length,
+    closed: allFeedbacks.filter(({ feedback }) => feedback.status === 'closed').length,
+    handled: handledFeedbacks.length,
+    closeRate: percentValue(closedFeedbacks.length, intervalFeedbacks.length),
+    averageHandleHours: feedbackDurations.length > 0 ? Number((feedbackDurations.reduce((sum, item) => sum + item, 0) / feedbackDurations.length).toFixed(1)) : undefined,
+    overdue24h: allFeedbacks.filter(({ feedback }) => feedback.status === 'pending' && parseDateTime(feedback.submittedAt) !== undefined && endOfDate(filters.endDate) - (parseDateTime(feedback.submittedAt) ?? 0) > 86_400_000).length,
+    p0Feedback: intervalFeedbacks.filter(({ feedback }) => feedback.priority === 'P0').length,
+  };
+
+  const learningPathMetrics = [
+    metricCard({ id: 'diagnosis_completion_rate', title: '诊断完成率', value: diagnosisRate, unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '完成诊断用户数 / 完成 Onboarding 用户数。', updatedAt }),
+    metricCard({ id: 'rule_hit_rate', title: '规则命中率', value: percentValue(matchedRuleUsers, diagnosisCompleted), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '命中诊断规则用户数 / 完成诊断用户数。', updatedAt }),
+    metricCard({ id: 'task_template_match_rate', title: '任务模板匹配率', value: percentValue(matchedTemplateUsers, matchedRuleUsers), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '匹配今日任务模板用户数 / 命中诊断规则用户数。', updatedAt }),
+    metricCard({ id: 'average_task_minutes', title: '平均任务预计分钟', value: avgEstimatedMinutes, unit: '分钟', type: 'duration', timeSemantic: 'snapshot', direction: 'neutral', section: 'learningPath', tooltip: '用户匹配到的今日任务模板预计分钟均值。', updatedAt }),
+    metricCard({ id: 'published_diagnosis_rules', title: '已发布诊断规则', value: publishedRules, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的诊断规则数。', updatedAt, jumpTo: '/learning-path/diagnosis-rules' }),
+    metricCard({ id: 'published_task_templates', title: '已发布任务模板', value: publishedTemplates, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的今日任务模板数。', updatedAt, jumpTo: '/learning-path/diagnosis-rules?tab=today_task_template' }),
+  ];
+
+  const contentMetrics = [
+    metricCard({ id: 'question_total', title: '题目总数', value: questions.length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '当前题库题目总数，来自题库共享 Mock 数据。', updatedAt, jumpTo: '/content/questions' }),
+    metricCard({ id: 'published_questions', title: '已发布题目', value: questions.filter((item) => item.status === 'published').length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '当前状态为已发布的题目数。', updatedAt, jumpTo: '/content/questions?status=published' }),
+    metricCard({ id: 'pending_questions', title: '待审核题目', value: questions.filter((item) => item.status === 'pending_review').length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'content', tooltip: '当前状态为待审核的题目数。', updatedAt, jumpTo: '/content/questions?status=pending_review' }),
+    metricCard({ id: 'rejected_questions', title: '已驳回题目', value: questions.filter((item) => item.status === 'rejected').length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'content', tooltip: '当前状态为已驳回的题目数。', updatedAt }),
+    metricCard({ id: 'recent_new_questions', title: '最近新增题目', value: questions.filter((item) => inRange(item.createdAt, filters)).length, unit: '题', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '筛选时间范围内 createdAt 落入范围的题目数。', updatedAt }),
+    metricCard({ id: 'content_review_approval_rate', title: '内容审核通过率', value: contentApprovalRate, unit: '%', type: 'rate', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '审核通过数量 /（审核通过数量 + 审核驳回数量）。', updatedAt }),
+  ];
+
+  const summaryCards = [
+    metricCard({ id: 'new_users', title: '新增用户', value: newUsers, comparisonValue: previousNewUsers, unit: '人', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'users', tooltip: '筛选时间范围内 registerAt 落入范围的用户数。', updatedAt, jumpTo: '/users/list' }),
+    metricCard({ id: 'active_users', title: '区间活跃用户', value: activeUserIds.size, comparisonValue: previousActiveUserIds.size, unit: '人', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'users', tooltip: '筛选时间范围内存在学习行为或 lastActiveAt 落入范围的去重用户数。', updatedAt }),
+    metricCard({ id: 'onboarding_rate', title: 'Onboarding 完成率', value: onboardingRate, unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'users', tooltip: '完成 Onboarding 的有效用户数 / 有效注册用户数。', updatedAt }),
+    metricCard({ id: 'today_task_completion_rate', title: '今日任务完成率', value: taskCompletionRate, comparisonValue: percentValue(previousCompletedTaskUsers, Math.max(previousActiveUserIds.size, 1)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'users', tooltip: '完成今日任务用户数 / 已开始今日任务用户数。', updatedAt }),
+    metricCard({ id: 'pending_review_tasks', title: '当前待审核任务', value: reviewStats.pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'reviewRelease', tooltip: '当前审核任务状态为待审核的任务数。', updatedAt, jumpTo: '/review-release/pending?status=pending_review' }),
+    metricCard({ id: 'pending_feedback', title: '当前待处理反馈', value: feedbackStats.pending, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'feedback', tooltip: '当前状态为待处理的反馈数。', updatedAt, jumpTo: '/users/list?feedbackStatus=pending' }),
+    metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目和已实现题组中当前状态为已发布的对象数。', updatedAt, jumpTo: '/content/questions?status=published' }),
+    metricCard({ id: 'review_rollback_count', title: '区间回滚数', value: reviewStats.rolledBack, unit: '次', type: 'count', timeSemantic: 'interval', direction: 'risk', section: 'reviewRelease', tooltip: '筛选时间范围内审核任务状态变为已回滚的数量。', updatedAt }),
+  ].filter((card) => visibleSections.includes(card.section));
+
+  const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
+    { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
+    { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
+    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库和题组共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content/questions' },
+    { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
+    { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/list?feedbackStatus=pending' },
+    ...analyticsPlaceholderSnapshots.map((item) => ({ ...item, visible: visibleSections.includes(item.id) })),
+  ];
+
+  if ([registeredUsers.length, onboardingCompleted, startedTaskUsers].some((value) => value === 0)) {
+    dataQualityIssues.push({
+      id: 'dq-zero-denominator',
+      section: 'users',
+      level: 'warning',
+      message: '部分比例指标分母为 0，页面按规则显示 --。',
+      metricId: 'ratio_metrics',
+    });
+  }
+  if (learningPathConfigsData.some((config) => !config.updatedAt)) {
+    dataQualityIssues.push({
+      id: 'dq-learning-missing-date',
+      section: 'learningPath',
+      level: 'warning',
+      message: '存在学习路径配置缺少更新时间，受影响快照指标显示 --。',
+    });
+  }
+  dataQualityIssues.forEach((issue) => {
+    pushOperationAuditLog({
+      roleId,
+      action: 'analytics_data_quality',
+      objectType: 'analytics',
+      objectId: issue.metricId ?? issue.section,
+      sourcePage: '/analytics/overview',
+      reason: issue.message,
+      result: issue.level === 'error' ? 'failed' : 'success',
+      changeSummary: `运营数据质量提示：${issue.message}`,
+    });
+  });
+
+  const response: API.AnalyticsOverview = {
+    filters,
+    summaryCards,
+    userTrend: visibleSections.includes('users') && !sectionErrors.some((item) => item.section === 'users') ? trendRows : [],
+    userDistributions: {
+      examType: countBy(registeredUsers, (user) => user.examProfile.examType),
+      onboardingStatus: countBy(registeredUsers, (user) => onboardingStatusLabels[user.learningStatus.onboardingStatus]),
+      diagnosisStatus: countBy(registeredUsers, (user) => diagnosisStatusLabels[user.learningStatus.diagnosisStatus]),
+      todayTaskStatus: countBy(registeredUsers, (user) => taskStatusLabels[user.learningStatus.todayTaskStatus]),
+    },
+    learningPathFunnel,
+    learningPathMetrics,
+    contentStatusDistribution,
+    contentMetrics,
+    reviewReleaseStats: reviewStats,
+    reviewRiskItems: [
+      { label: '待审核超过 24 小时', value: pendingReviewHours.filter((item) => item > 24).length },
+      { label: '待发布超过 24 小时', value: filteredReviewTasks.filter((task) => task.status === 'pending_release' && parseDateTime(task.updatedAt) !== undefined && endOfDate(filters.endDate) - (parseDateTime(task.updatedAt) ?? 0) > 86_400_000).length },
+      { label: '发布失败', value: reviewStats.publishFailed },
+      { label: '回滚失败', value: reviewStats.rollbackFailed },
+      { label: '状态不一致任务', value: dataQualityIssues.filter((item) => item.section === 'reviewRelease').length },
+    ],
+    feedbackStats,
+    feedbackDistributions: {
+      status: countBy(allFeedbacks, ({ feedback }) => feedbackStatusLabels[feedback.status]),
+      type: countBy(allFeedbacks, ({ feedback }) => feedback.type),
+      relatedModule: countBy(allFeedbacks, ({ feedback }) => feedback.relatedModule),
+    },
+    moduleSnapshots,
+    sectionErrors,
+    dataQualityIssues,
+    visibleSections,
+    updatedAt,
+    dataSources: ([
+      { section: 'users', source: 'operationUsersData、learningRecords', formal: true },
+      { section: 'learningPath', source: 'learningPathConfigsData、userLearningPathMatches、learningRecords', formal: true },
+      { section: 'content', source: 'questionData、questionGroupReferences、reviewTasksData', formal: true },
+      { section: 'reviewRelease', source: 'reviewTasksData、auditLogs', formal: true },
+      { section: 'feedback', source: 'operationUsersData.feedbacks', formal: true },
+      { section: 'aiCoach', source: '固定 Mock 占位指标', formal: false },
+      { section: 'writingTranslation', source: '固定 Mock 占位指标', formal: false },
+      { section: 'mockExam', source: '固定 Mock 占位指标', formal: false },
+      { section: 'audit', source: 'auditLogs 聚合摘要', formal: true },
+    ] as API.AnalyticsDataSource[]).filter((item) => visibleSections.includes(item.section)),
+  };
+  response.sectionErrors = sectionErrors;
+  return response;
 };
 
 const buildCurrentUser = (roleId: AdminRoleId): API.CurrentUser => {
@@ -2797,6 +3373,148 @@ export default {
       success: true,
       data,
       total: data.length,
+    });
+  },
+  'GET /api/analytics/overview': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanReadAnalytics(currentRoleId)) {
+      if (currentRoleId) {
+        pushOperationAuditLog({
+          roleId: currentRoleId,
+          logType: 'permission_denied',
+          action: 'restricted_access',
+          objectType: 'analytics',
+          objectId: 'overview',
+          sourcePage: '/analytics/overview',
+          reason: '当前角色无运营数据访问权限。',
+          result: 'denied',
+          changeSummary: 'Mock API 拒绝运营数据总览访问。',
+        });
+      }
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无运营数据访问权限。',
+      });
+      return;
+    }
+    if (getQueryValue(req.query.simulateFailure) === 'true') {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        action: 'analytics_failed',
+        objectType: 'analytics',
+        objectId: 'overview',
+        sourcePage: '/analytics/overview',
+        reason: '模拟聚合服务整体失败。',
+        result: 'failed',
+        changeSummary: '运营数据聚合服务模拟失败。',
+      });
+      res.status(500).send({
+        success: false,
+        errorCode: '500',
+        errorMessage: '运营数据聚合服务模拟失败。',
+      });
+      return;
+    }
+    const { error, filters } = analyticsFilters(req.query);
+    if (error || !filters) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        action: 'analytics_invalid_filter',
+        objectType: 'analytics',
+        objectId: 'overview',
+        sourcePage: '/analytics/overview',
+        reason: error || '筛选参数无效。',
+        result: 'failed',
+        changeSummary: '运营数据筛选参数校验失败。',
+      });
+      res.status(400).send({
+        success: false,
+        errorCode: '400',
+        errorMessage: error || '筛选参数无效。',
+      });
+      return;
+    }
+    const overview = buildAnalyticsOverview(currentRoleId, filters, req.query);
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'analytics_view',
+      objectType: 'analytics',
+      objectId: 'overview',
+      sourcePage: '/analytics/overview',
+      reason: '访问运营数据总览。',
+      result: 'success',
+      changeSummary: `运营数据总览加载成功，区块数 ${overview.visibleSections.length}。`,
+    });
+    res.send({
+      success: true,
+      data: overview,
+    });
+  },
+  'GET /api/analytics/overview/export': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanExportAnalytics(currentRoleId)) {
+      if (currentRoleId) {
+        pushOperationAuditLog({
+          roleId: currentRoleId,
+          logType: 'permission_denied',
+          action: 'analytics_export_denied',
+          objectType: 'analytics',
+          objectId: 'overview-export',
+          sourcePage: '/analytics/overview',
+          reason: '当前角色无运营数据导出权限。',
+          result: 'denied',
+          changeSummary: 'Mock 聚合导出预览被拒绝。',
+        });
+      }
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无运营数据导出权限。',
+      });
+      return;
+    }
+    if (getQueryValue(req.query.simulateFailure) === 'true') {
+      res.status(500).send({
+        success: false,
+        errorCode: '500',
+        errorMessage: 'Mock 导出预览模拟失败。',
+      });
+      return;
+    }
+    const { error, filters } = analyticsFilters(req.query);
+    if (error || !filters) {
+      res.status(400).send({
+        success: false,
+        errorCode: '400',
+        errorMessage: error || '筛选参数无效。',
+      });
+      return;
+    }
+    const overview = buildAnalyticsOverview(currentRoleId, filters, req.query);
+    const result: API.AnalyticsExportResult = {
+      id: `analytics-export-preview-${Date.now()}`,
+      status: 'preview_ready',
+      title: '运营数据 Mock 聚合导出预览',
+      filters: overview.filters,
+      metricCount: overview.summaryCards.length + overview.learningPathMetrics.length + overview.contentMetrics.length,
+      sectionCount: overview.visibleSections.length,
+      containsSensitiveFields: false,
+      mockOnly: true,
+      createdAt: nowText(),
+      message: '本阶段仅生成导出预览，不生成真实文件，不包含用户级敏感字段。',
+    };
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'analytics_export_preview',
+      objectType: 'analytics',
+      objectId: result.id,
+      sourcePage: '/analytics/overview',
+      reason: '生成运营数据 Mock 导出预览。',
+      result: 'success',
+      changeSummary: `生成 Mock 导出预览，区块数 ${result.sectionCount}，指标数 ${result.metricCount}。`,
+    });
+    res.send({
+      success: true,
+      data: result,
     });
   },
   'GET /api/content/questions': (req: Request, res: Response) => {

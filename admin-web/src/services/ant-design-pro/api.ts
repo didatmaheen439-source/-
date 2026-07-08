@@ -575,6 +575,33 @@ export async function userLearningPathMatchSummary(
   });
 }
 
+/** 获取运营数据总览 GET /api/analytics/overview */
+export async function analyticsOverview(
+  params?: API.AnalyticsFilterParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.AnalyticsApiResponse>('/api/analytics/overview', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 生成运营数据 Mock 导出预览 GET /api/analytics/overview/export */
+export async function exportAnalyticsOverview(
+  params?: API.AnalyticsFilterParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AnalyticsExportResult;
+    success?: boolean;
+  }>('/api/analytics/overview/export', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
 /** 此处后端没有提供注释 GET /api/notices */
 export async function getNotices(options?: { [key: string]: any }) {
   return request<API.NoticeIconList>('/api/notices', {

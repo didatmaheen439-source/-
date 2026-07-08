@@ -4,6 +4,7 @@ export type AuditObjectType =
   | 'session'
   | 'user'
   | 'content'
+  | 'analytics'
   | 'learning_path_config'
   | 'ai_strategy'
   | 'review_release'

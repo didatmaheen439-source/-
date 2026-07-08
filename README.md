@@ -21,6 +21,7 @@
 - 已完成 `/review-release/pending` 审核发布中心 MVP：审核任务列表、详情抽屉、状态流转、审计日志和角色权限验证。
 - 已完成 `/content/questions` 题库内容 MVP：题目列表、详情抽屉、独立新增/编辑页、提交审核、审核发布状态同步和审计日志。
 - 已完成 `/users/list` 用户管理 MVP：用户列表、独立详情页、学习记录、反馈处理、AI 摘要、敏感访问审计和角色权限验证。
+- 已完成 `/analytics/overview` 运营数据总览 MVP：用户增长、学习路径漏斗、题库内容、审核发布、客服反馈、占位指标、数据质量提示和 mock 导出预览。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
 
 ## 目录说明
@@ -51,3 +52,4 @@
 - 2026-07-07：`/content/questions` 题库内容 MVP 完成，`npm run tsc`、`npm run lint`、`npm run build` 通过，API 和浏览器验证详见 `logs/content-questions-implementation-2026-07-07.md`。
 - 2026-07-07：`/users/list` 用户管理 MVP 完成，`npm run tsc`、`npm run lint` 通过；build 与浏览器验证记录见 `logs/user-management-mvp-2026-07-07.md`。
 - 2026-07-07：外层项目 Git 初始化完成，忽略规则验证详见 `logs/git-initialization-2026-07-07.md`。
+- 2026-07-08：`/analytics/overview` 运营数据总览 MVP 完成，验证记录见 `logs/analytics-overview-implementation-2026-07-08.md`。

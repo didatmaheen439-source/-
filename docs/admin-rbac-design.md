@@ -100,3 +100,13 @@ mock 接口：
 - `customer_support` 不进入学习路径配置页，只在用户详情读取学习路径匹配摘要。
 - `data_analyst` 和无学习路径菜单权限角色直访学习路径配置接口返回 403。
 - 新增 `teaching_editor` 和 `teaching_reviewer_2` 两个教研测试账号，用于验证同角色不同账号的自审隔离。
+
+## 2026-07-08 运营数据权限补充
+
+- `super_admin` 和 `data_analyst` 可查看全部运营数据分区，并可使用 mock 导出预览。
+- `customer_support` 可查看用户与客服反馈分区，不显示导出按钮。
+- `content_operator` 可查看题库内容与审核发布分区，不显示导出按钮。
+- `teaching_reviewer` 可查看用户、学习路径、题库内容、审核发布和写译占位分区。
+- `ai_operator` 可查看用户、审核发布、AI 陪练占位和写译占位分区，不显示导出按钮。
+- `read_only_auditor` 可查看审核发布与审计摘要分区，不显示业务写操作。
+- 运营数据 mock API 对 `analytics.read` 和 `analytics.export` 均执行接口层校验；无权限访问或导出会写入 `objectType=analytics` 的审计日志。

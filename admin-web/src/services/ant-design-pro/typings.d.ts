@@ -680,6 +680,196 @@ declare namespace API {
     success?: boolean;
   };
 
+  type AnalyticsGranularity = 'day' | 'week' | 'month';
+
+  type AnalyticsModule =
+    | 'all'
+    | 'users'
+    | 'learningPath'
+    | 'content'
+    | 'reviewRelease'
+    | 'feedback'
+    | 'aiCoach'
+    | 'writingTranslation'
+    | 'mockExam'
+    | 'audit';
+
+  type AnalyticsVisibleSection =
+    | 'users'
+    | 'learningPath'
+    | 'content'
+    | 'reviewRelease'
+    | 'feedback'
+    | 'aiCoach'
+    | 'writingTranslation'
+    | 'mockExam'
+    | 'audit';
+
+  type AnalyticsMetricType = 'count' | 'rate' | 'duration';
+
+  type AnalyticsMetricTimeSemantic = 'interval' | 'snapshot';
+
+  type AnalyticsMetricDirection = 'positive' | 'risk' | 'neutral';
+
+  type AnalyticsFilterParams = {
+    startDate?: string;
+    endDate?: string;
+    examType?: ExamType | 'all';
+    granularity?: AnalyticsGranularity;
+    module?: AnalyticsModule;
+    simulateSectionError?: AnalyticsVisibleSection;
+    simulateEmpty?: boolean;
+    simulateFailure?: boolean;
+  };
+
+  type AnalyticsComparison = {
+    value?: number;
+    rate?: number;
+    label: string;
+    available: boolean;
+  };
+
+  type AnalyticsMetricCard = {
+    id: string;
+    title: string;
+    value?: number;
+    displayValue: string;
+    unit: string;
+    type: AnalyticsMetricType;
+    timeSemantic: AnalyticsMetricTimeSemantic;
+    direction: AnalyticsMetricDirection;
+    comparison: AnalyticsComparison;
+    tooltip: string;
+    updatedAt: string;
+    section: AnalyticsVisibleSection;
+    jumpTo?: string;
+  };
+
+  type AnalyticsTrendPoint = {
+    date: string;
+    metric: string;
+    value: number;
+  };
+
+  type AnalyticsDistributionItem = {
+    label: string;
+    value: number;
+    percent?: number;
+    group?: string;
+  };
+
+  type AnalyticsFunnelItem = {
+    step: string;
+    count: number;
+    previousRate?: number;
+    totalRate?: number;
+    source: string;
+  };
+
+  type AnalyticsModuleSnapshot = {
+    id: AnalyticsVisibleSection;
+    name: string;
+    value: number;
+    displayValue: string;
+    unit: string;
+    status: 'formal' | 'placeholder';
+    description: string;
+    visible: boolean;
+    jumpTo?: string;
+  };
+
+  type AnalyticsReviewStats = {
+    pendingReview: number;
+    approved: number;
+    rejected: number;
+    pendingRelease: number;
+    published: number;
+    offline: number;
+    rolledBack: number;
+    publishFailed: number;
+    rollbackFailed: number;
+    averageReviewMinutes?: number;
+    longestPendingReviewHours?: number;
+    averagePendingReleaseMinutes?: number;
+  };
+
+  type AnalyticsFeedbackStats = {
+    newFeedback: number;
+    pending: number;
+    processing: number;
+    resolved: number;
+    noAction: number;
+    closed: number;
+    handled: number;
+    closeRate?: number;
+    averageHandleHours?: number;
+    overdue24h: number;
+    p0Feedback: number;
+  };
+
+  type AnalyticsSectionError = {
+    section: AnalyticsVisibleSection;
+    message: string;
+    level: 'warning' | 'error';
+  };
+
+  type AnalyticsDataQualityIssue = {
+    id: string;
+    section: AnalyticsVisibleSection;
+    level: 'warning' | 'error';
+    message: string;
+    metricId?: string;
+  };
+
+  type AnalyticsDataSource = {
+    section: AnalyticsVisibleSection;
+    source: string;
+    formal: boolean;
+  };
+
+  type AnalyticsOverview = {
+    filters: Required<Pick<AnalyticsFilterParams, 'startDate' | 'endDate' | 'granularity' | 'module'>> & {
+      examType: ExamType | 'all';
+    };
+    summaryCards: AnalyticsMetricCard[];
+    userTrend: AnalyticsTrendPoint[];
+    userDistributions: Record<string, AnalyticsDistributionItem[]>;
+    learningPathFunnel: AnalyticsFunnelItem[];
+    learningPathMetrics: AnalyticsMetricCard[];
+    contentStatusDistribution: AnalyticsDistributionItem[];
+    contentMetrics: AnalyticsMetricCard[];
+    reviewReleaseStats?: AnalyticsReviewStats;
+    reviewRiskItems: AnalyticsDistributionItem[];
+    feedbackStats?: AnalyticsFeedbackStats;
+    feedbackDistributions: Record<string, AnalyticsDistributionItem[]>;
+    moduleSnapshots: AnalyticsModuleSnapshot[];
+    sectionErrors: AnalyticsSectionError[];
+    dataQualityIssues: AnalyticsDataQualityIssue[];
+    visibleSections: AnalyticsVisibleSection[];
+    updatedAt: string;
+    dataSources: AnalyticsDataSource[];
+  };
+
+  type AnalyticsApiResponse = {
+    data?: AnalyticsOverview;
+    success?: boolean;
+    errorCode?: string;
+    errorMessage?: string;
+  };
+
+  type AnalyticsExportResult = {
+    id: string;
+    status: 'preview_ready';
+    title: string;
+    filters: AnalyticsOverview['filters'];
+    metricCount: number;
+    sectionCount: number;
+    containsSensitiveFields: false;
+    mockOnly: true;
+    createdAt: string;
+    message: string;
+  };
+
   type FakeCaptcha = {
     code?: number;
     status?: string;

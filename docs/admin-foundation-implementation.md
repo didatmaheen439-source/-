@@ -171,3 +171,20 @@ Ant Design Pro 基座已完成第一阶段后台业务骨架初始化：十个�
 - `read_only_auditor` 不进入用户列表或详情，用户相关审计记录通过系统审计日志查看。
 - `content_operator`、`teaching_reviewer`、`ai_operator` 等无权限角色访问用户管理路由或 mock API 返回 403。
 - 详细执行与验证记录见 `logs/user-management-mvp-2026-07-07.md`。
+
+## 2026-07-08 运营数据总览 MVP
+
+- `/analytics/overview` 已从占位页升级为真实运营数据看板。
+- 页面覆盖默认最近 30 天筛选、考试类型筛选、日/周/月粒度和模块范围筛选。
+- 核心指标卡汇总新增用户、活跃用户、任务完成率、待审核任务、题库可发布内容、待处理反馈，以及 AI、写译、模考占位指标。
+- 用户增长与活跃分区展示趋势图、考试目标分布、Onboarding 分布、诊断完成率和今日任务完成率。
+- 学习路径分区展示诊断开始、诊断完成、命中学习路径、生成今日任务、完成今日任务漏斗。
+- 题库内容分区展示题库状态、题型分布、审核通过率和题组引用情况。
+- 审核发布分区展示待审核、驳回、待发布、发布、下架、回滚、平均审核时长和失败统计。
+- 客服反馈分区展示反馈状态、类型分布、待处理数量和平均处理时长。
+- AI 陪练、写译批改、模考管理暂以 `formal=false` 占位指标呈现，不混入正式数据源。
+- 新增 mock API：`GET /api/analytics/overview`、`GET /api/analytics/overview/export`。
+- 新增服务函数：`analyticsOverview`、`exportAnalyticsOverview`。
+- 新增 API 类型：`AnalyticsOverview`、`AnalyticsApiResponse`、`AnalyticsFilterParams`、`AnalyticsMetricCard`、`AnalyticsModuleSnapshot`、`AnalyticsExportResult` 等。
+- 接口层执行 `analytics.read` 和 `analytics.export` 权限校验，并支持部分成功、空数据、整体失败和导出无权限验证。
+- 详细执行与验证记录见 `logs/analytics-overview-implementation-2026-07-08.md`。
