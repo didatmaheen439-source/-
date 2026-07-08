@@ -30,6 +30,7 @@
 - 已完成 `/users/list` 用户管理 MVP，包含用户列表、独立详情页、学习记录、反馈处理、必要 AI 摘要、敏感访问审计和角色权限验证。
 - 已完成 `/analytics/overview` 运营数据总览 MVP，包含用户增长、学习路径漏斗、题库内容、审核发布、客服反馈、占位指标、数据质量提示和 mock 导出预览。
 - 已完成 `/dashboard/overview` 运营工作台 MVP，包含欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
+- 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP，包含意图分类、Prompt 模板、回答结构、防依赖规则、五类业务场景、预校验、静态样例校验、版本差异和审核发布同步。
 - 暂未接入真实后端、真实用户数据或真实 AI。
 - 暂未开发完整 PRD 业务页面、题组编排、每日一句、外刊、写译题目和模考题库。
 
@@ -59,3 +60,5 @@ npm run build
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/analytics-overview-implementation-2026-07-08.md`
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/dashboard-overview-mvp.md`
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/dashboard-overview-implementation-2026-07-08.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/ai-coach-strategy-mvp.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/ai-coach-strategy-implementation-2026-07-08.md`

@@ -57,7 +57,7 @@ export const statusValueEnum = {
   pending_review: { text: '待审核' },
   rejected: { text: '已驳回' },
   approved: { text: '已通过' },
-  pending_release: { text: '待发布' },
+  pending_publish: { text: '待发布' },
   published: { text: '已发布' },
   offline: { text: '已下架' },
   rolled_back: { text: '已回滚' },

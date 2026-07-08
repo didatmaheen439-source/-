@@ -313,7 +313,7 @@ const AccountsPage: React.FC = () => {
         session: { text: '会话' },
         user: { text: '用户' },
         content: { text: '内容' },
-        ai_strategy: { text: 'AI 策略' },
+        ai_coach_strategy: { text: 'AI 陪练策略' },
         review_release: { text: '审核发布' },
         system_permission: { text: '系统权限' },
       },

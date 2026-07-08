@@ -307,10 +307,11 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     username: 'read_only_auditor',
     password: 'ant.design',
     description: '只读查看审核发布、系统记录和权限审计，不具备写操作。',
-    modules: ['dashboard', 'content', 'analytics', 'reviewRelease', 'system'],
+    modules: ['dashboard', 'content', 'aiCoach', 'analytics', 'reviewRelease', 'system'],
     actions: {
       dashboard: readOnly,
       content: readOnly,
+      aiCoach: readOnly,
       analytics: readOnly,
       reviewRelease: readOnly,
       system: readOnly,

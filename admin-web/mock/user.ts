@@ -6,28 +6,25 @@ import {
   roleList,
 } from '../src/foundation/permissions';
 import type { AdminModuleKey, AdminRoleId, PermissionAction } from '../src/foundation/permissions';
-import { mockAuditLogs } from '../src/foundation/audit';
+import {
+  aiCoachDashboardTodoSources,
+  aiCoachStrategiesData,
+  aiCoachBusinessSceneLabels,
+  aiCoachConfigTypeLabels,
+  isAiCoachReviewTask,
+  operatorFromRole,
+  strategyForUserSummary,
+  syncAiCoachStrategyFromReviewTask,
+} from './aiCoachStore';
+import { auditLogs, nowText, pushAuditLog, pushOperationAuditLog } from './auditStore';
+import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
 
-const { ANT_DESIGN_PRO_ONLY_DO_NOT_USE_IN_YOUR_PRODUCTION } = process.env;
-
-let currentRoleId: AdminRoleId | '' =
-  ANT_DESIGN_PRO_ONLY_DO_NOT_USE_IN_YOUR_PRODUCTION === 'site'
-    ? 'super_admin'
-    : '';
-
-const loginAliases: Record<string, AdminRoleId> = {
-  admin: 'super_admin',
-  user: 'content_operator',
-  teaching_editor: 'teaching_reviewer',
-  teaching_reviewer_2: 'teaching_reviewer',
-};
-
-let currentAccountId = '';
-let currentAccountName = '';
+let currentRoleId: AdminRoleId | '' = mockSession.currentRoleId;
+let currentAccountId = mockSession.currentAccountId;
+let currentAccountName = mockSession.currentAccountName;
 
 const disabledAccounts = new Set(['disabled_admin']);
-const auditLogs = [...mockAuditLogs];
 const dashboardHandledRiskIds = new Set<string>();
 const accountStatusMap: Record<string, API.AdminAccountStatus> = {
   super_admin: 'enabled',
@@ -72,7 +69,7 @@ const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   question_bank: 'content',
   learning_path_config: 'learningPath',
   learning_rule: 'learningPath',
-  ai_strategy: 'aiCoach',
+  ai_coach_strategy: 'aiCoach',
   writing_translation: 'writingTranslation',
   mock_exam: 'mockExam',
 };
@@ -82,13 +79,11 @@ const reviewStatusActionMap: Record<API.ReviewTaskStatus, string> = {
   pending_review: '重新提交',
   rejected: '驳回',
   approved: '审核通过',
-  pending_release: '安排发布',
+  pending_publish: '安排发布',
   published: '发布',
   offline: '下架',
   rolled_back: '回滚',
 };
-
-const nowText = () => new Date().toLocaleString('zh-CN', { hour12: false });
 
 const examTypeLabels: Record<API.ExamType, string> = {
   CET4: '四级',
@@ -263,6 +258,7 @@ const buildAiSummaries = (userId: string, index: number): API.UserAiSummary[] =>
   if (index % 6 === 0) return [];
   return Array.from({ length: 1 + (index % 2) }).map((_, summaryIndex) => {
     const id = `${userId}-ai-${summaryIndex + 1}`;
+    const strategy = strategyForUserSummary(index + summaryIndex);
     aiSummaryContentMap[id] = `模拟 AI 摘要：用户围绕 ${summaryIndex % 2 === 0 ? '阅读错题' : '写作修改'} 进行咨询，系统给出步骤化提示并避免直接代写。`;
     return {
       id,
@@ -274,7 +270,11 @@ const buildAiSummaries = (userId: string, index: number): API.UserAiSummary[] =>
       processStatus: (['pending', 'processing', 'resolved', 'closed'] as const)[
         (index + summaryIndex) % 4
       ],
-      strategyVersion: `AI-V${1 + (index % 3)}.${summaryIndex}`,
+      strategyId: strategy.id,
+      strategyVersion: strategy.version,
+      configType: strategy.configType,
+      businessScene: strategy.businessScenes[0],
+      strategyStatusAtTime: strategy.status,
       summaryPreview: '仅展示必要摘要，完整会话不进入本后台。',
       summaryAvailable: true,
     };
@@ -336,7 +336,7 @@ const operationUsersData: API.AdminUser[] = Array.from({ length: 30 }).map((_, z
   };
 });
 
-const reviewTasksData: API.ReviewTask[] = [
+const initialReviewTasksData: API.ReviewTask[] = [
   {
     id: 'review-question-001',
     objectType: 'question_bank',
@@ -435,9 +435,10 @@ const reviewTasksData: API.ReviewTask[] = [
   },
   {
     id: 'review-ai-001',
-    objectType: 'ai_strategy',
+    objectType: 'ai_coach_strategy',
+    objectSubtype: 'prompt_template',
     objectTypeName: 'AI 策略',
-    objectId: 'prompt-speaking-coach-v3',
+    objectId: 'ai-prompt-speaking-v30',
     objectName: '口语陪练提示词 V3',
     moduleKey: 'aiCoach',
     moduleName: 'AI 陪练管理',
@@ -489,7 +490,7 @@ const reviewTasksData: API.ReviewTask[] = [
     submittedAt: '2026-07-07 11:20:00',
     version: 'V1.0',
     priority: 'P1',
-    status: 'pending_release',
+    status: 'pending_publish',
     riskLevel: 'medium',
     updatedAt: '2026-07-07 12:30:00',
     changeSummary: '新增写作题和评分维度。',
@@ -502,7 +503,7 @@ const reviewTasksData: API.ReviewTask[] = [
       {
         id: 'version-writing-001-v10',
         version: 'V1.0',
-        status: 'pending_release',
+        status: 'pending_publish',
         summary: '新增写作题。',
         createdBy: '内容运营',
         createdAt: '2026-07-07 11:20:00',
@@ -515,7 +516,7 @@ const reviewTasksData: API.ReviewTask[] = [
         roleName: '教研审核',
         action: '安排发布',
         fromStatus: 'approved',
-        toStatus: 'pending_release',
+        toStatus: 'pending_publish',
         reason: '进入明日发布队列。',
         time: '2026-07-07 12:30:00',
       },
@@ -558,7 +559,7 @@ const reviewTasksData: API.ReviewTask[] = [
         operator: '超级管理员',
         roleName: '超级管理员',
         action: '发布',
-        fromStatus: 'pending_release',
+        fromStatus: 'pending_publish',
         toStatus: 'published',
         reason: '模考试卷审核通过。',
         time: '2026-07-07 09:00:00',
@@ -567,10 +568,11 @@ const reviewTasksData: API.ReviewTask[] = [
   },
   {
     id: 'review-ai-002',
-    objectType: 'ai_strategy',
+    objectType: 'ai_coach_strategy',
+    objectSubtype: 'dependency_rule',
     objectTypeName: 'AI 策略',
-    objectId: 'attachment-policy-v1',
-    objectName: '附件识别策略 V1',
+    objectId: 'ai-dependency-error-v04',
+    objectName: '错题答案依赖干预 V0.4',
     moduleKey: 'aiCoach',
     moduleName: 'AI 陪练管理',
     submitter: 'AI 策略运营',
@@ -662,6 +664,16 @@ const reviewTasksData: API.ReviewTask[] = [
     ],
   },
 ];
+
+const globalReviewStore = globalThis as typeof globalThis & {
+  __GUOJI_ADMIN_REVIEW_TASKS__?: API.ReviewTask[];
+};
+
+if (!globalReviewStore.__GUOJI_ADMIN_REVIEW_TASKS__) {
+  globalReviewStore.__GUOJI_ADMIN_REVIEW_TASKS__ = initialReviewTasksData;
+}
+
+export const reviewTasksData = globalReviewStore.__GUOJI_ADMIN_REVIEW_TASKS__;
 
 const questionData: API.QuestionItem[] = [
   {
@@ -857,7 +869,7 @@ const questionData: API.QuestionItem[] = [
         operator: '教研审核',
         roleName: '教研审核',
         action: '发布',
-        fromStatus: 'pending_release',
+        fromStatus: 'pending_publish',
         toStatus: 'published',
         reason: '题目审核通过并发布。',
         time: '2026-07-05 15:00:00',
@@ -1233,7 +1245,7 @@ const learningPathConfigsData: API.LearningPathConfigItem[] = [
     examType: 'CET4',
     module: 'translation',
     priority: 50,
-    status: 'pending_release',
+    status: 'pending_publish',
     version: 'V1.0',
     dataVersion: 4,
     updatedAt: '2026-07-07 13:05:00',
@@ -1359,7 +1371,7 @@ const learningPathConfigsData: API.LearningPathConfigItem[] = [
     name: '四级翻译今日任务模板',
     examType: 'CET4',
     priority: 30,
-    status: 'pending_release',
+    status: 'pending_publish',
     version: 'V0.9',
     dataVersion: 3,
     updatedAt: '2026-07-07 12:40:00',
@@ -1522,43 +1534,6 @@ const roleCanHandleFeedback = (roleId?: AdminRoleId | '') =>
 const roleCanAccessSensitiveUserData = (roleId?: AdminRoleId | '') =>
   Boolean(roleId && ['super_admin', 'customer_support'].includes(roleId));
 
-const pushOperationAuditLog = (params: {
-  roleId: AdminRoleId;
-  logType?: API.AuditLogType;
-  action: string;
-  objectType?: 'session' | 'user' | 'content' | 'learning_path_config' | 'ai_strategy' | 'review_release' | 'system_permission' | 'analytics' | 'dashboard';
-  objectId: string;
-  objectSubtype?: string;
-  sourcePage: string;
-  reason: string;
-  result: 'success' | 'denied' | 'failed';
-  changeSummary: string;
-  originalStatus?: string;
-  newStatus?: string;
-  version?: string;
-}) => {
-  const role = roleConfigs[params.roleId];
-  auditLogs.unshift({
-    id: `audit-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    logType: params.logType ?? 'operation',
-    operator: role.name,
-    roleId: role.id,
-    roleName: role.name,
-    action: params.action as any,
-    objectType: params.objectType ?? 'user',
-    objectId: params.objectId,
-    objectSubtype: params.objectSubtype,
-    sourcePage: params.sourcePage,
-    time: nowText(),
-    reason: params.reason,
-    result: params.result,
-    changeSummary: params.changeSummary,
-    originalStatus: params.originalStatus,
-    newStatus: params.newStatus,
-    version: params.version,
-  });
-};
-
 const buildAllowedUserActions = (roleId?: AdminRoleId | '') => {
   if (!roleId) return [];
   if (roleId === 'super_admin') return ['detail', 'learning', 'feedback', 'sensitive', 'remark', 'feedback_status'];
@@ -1710,42 +1685,13 @@ const recordSensitiveAccess = (
   return accessLog;
 };
 
-const pushAuditLog = (
-  roleId: AdminRoleId,
-  action: string,
-  result: 'success' | 'denied' | 'failed',
-  sourcePage: string,
-  changeSummary: string,
-) => {
-  const role = roleConfigs[roleId];
-  auditLogs.unshift({
-    id: `audit-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    operator: role.name,
-    roleId: role.id,
-    roleName: role.name,
-    action: action as any,
-    objectType: action === 'login' ? 'session' : 'system_permission',
-    objectId: reqObjectIdFromSource(action, sourcePage),
-    sourcePage,
-    time: new Date().toLocaleString('zh-CN', { hour12: false }),
-    reason: '开发环境 mock 操作',
-    result,
-    changeSummary,
-  });
-};
-
-const reqObjectIdFromSource = (action: string, sourcePage: string) => {
-  if (action === 'login') return 'session-dev';
-  return sourcePage.replace(/^\//, '') || 'system/accounts';
-};
-
 const requiredActionByReviewStatus = (
   status: API.ReviewTaskStatus,
 ): 'submit' | 'approve' | 'publish' | undefined => {
   if (status === 'pending_review') return 'submit';
   if (status === 'approved' || status === 'rejected') return 'approve';
   if (
-    status === 'pending_release' ||
+    status === 'pending_publish' ||
     status === 'published' ||
     status === 'offline' ||
     status === 'rolled_back'
@@ -1760,8 +1706,8 @@ const validReviewTransitions: Partial<
 > = {
   pending_review: ['approved', 'rejected'],
   rejected: ['pending_review'],
-  approved: ['pending_release'],
-  pending_release: ['published'],
+  approved: ['pending_publish'],
+  pending_publish: ['published'],
   published: ['offline', 'rolled_back'],
   offline: ['rolled_back'],
 };
@@ -1780,8 +1726,15 @@ const roleCanOperateReviewTask = (
   const requiredAction = requiredActionByReviewStatus(nextStatus);
   if (!requiredAction) return false;
   if (!roleCanPerformAction(roleId, 'reviewRelease', requiredAction)) return false;
-  if (isLearningPathConfig(task) && ['approved', 'rejected'].includes(nextStatus) && task.submitterId === currentAccountId) {
+  if (['approved', 'rejected'].includes(nextStatus) && task.submitterId === currentAccountId) {
     return false;
+  }
+  if (
+    isAiCoachReviewTask(task) &&
+    task.riskLevel === 'high' &&
+    nextStatus === 'published'
+  ) {
+    return roleId === 'super_admin' && task.submitterId !== currentAccountId;
   }
   if (roleId === 'super_admin') return true;
 
@@ -1792,7 +1745,7 @@ const roleCanOperateReviewTask = (
   }
 
   if (roleId === 'ai_operator') {
-    return task.objectType === 'ai_strategy';
+    return task.objectType === 'ai_coach_strategy';
   }
 
   if (roleId === 'content_operator') {
@@ -3116,7 +3069,7 @@ const buildAnalyticsOverview = (
     pendingReview: filteredReviewTasks.filter((task) => task.status === 'pending_review').length,
     approved: intervalTasks.filter((task) => task.status === 'approved').length,
     rejected: intervalTasks.filter((task) => task.status === 'rejected').length,
-    pendingRelease: filteredReviewTasks.filter((task) => task.status === 'pending_release').length,
+    pendingRelease: filteredReviewTasks.filter((task) => task.status === 'pending_publish').length,
     published: intervalTasks.filter((task) => task.status === 'published').length,
     offline: intervalTasks.filter((task) => task.status === 'offline').length,
     rolledBack: intervalTasks.filter((task) => task.status === 'rolled_back').length,
@@ -3276,7 +3229,7 @@ const buildAnalyticsOverview = (
     reviewReleaseStats: reviewStats,
     reviewRiskItems: [
       { label: '待审核超过 24 小时', value: pendingReviewHours.filter((item) => item > 24).length },
-      { label: '待发布超过 24 小时', value: filteredReviewTasks.filter((task) => task.status === 'pending_release' && parseDateTime(task.updatedAt) !== undefined && endOfDate(filters.endDate) - (parseDateTime(task.updatedAt) ?? 0) > 86_400_000).length },
+      { label: '待发布超过 24 小时', value: filteredReviewTasks.filter((task) => task.status === 'pending_publish' && parseDateTime(task.updatedAt) !== undefined && endOfDate(filters.endDate) - (parseDateTime(task.updatedAt) ?? 0) > 86_400_000).length },
       { label: '发布失败', value: reviewStats.publishFailed },
       { label: '回滚失败', value: reviewStats.rollbackFailed },
       { label: '状态不一致任务', value: dataQualityIssues.filter((item) => item.section === 'reviewRelease').length },
@@ -3321,12 +3274,19 @@ const dashboardSectionLabels: Record<API.DashboardVisibleSection, string> = {
 
 const dashboardTodoTypeLabels: Record<API.DashboardTodoType, string> = {
   pending_review: '待审核',
-  pending_release: '待发布',
+  pending_publish: '待发布',
   rejected_content: '驳回待修改',
   pending_feedback: '待处理反馈',
   stale_feedback: '反馈超时',
   learning_path_precheck_error: '预校验阻断',
   learning_path_rejected: '学习路径驳回',
+  ai_strategy_pending_review: 'AI 策略待审核',
+  ai_strategy_pending_publish: 'AI 策略待发布',
+  ai_strategy_rejected: 'AI 策略驳回',
+  ai_strategy_precheck_error: 'AI 预校验阻断',
+  ai_strategy_high_risk_publish: 'AI 高风险发布',
+  ai_strategy_release_failed: 'AI 发布失败',
+  ai_strategy_rollback_failed: 'AI 回滚失败',
   publish_failed: '发布失败',
   rollback_failed: '回滚失败',
   high_risk_audit: '高风险审计',
@@ -3349,12 +3309,19 @@ const dashboardRiskLevelRank: Record<API.DashboardRiskLevel, number> = {
 
 const dashboardOverdueThresholdHours: Record<API.DashboardTodoType, number> = {
   pending_review: 24,
-  pending_release: 24,
+  pending_publish: 24,
   rejected_content: 48,
   pending_feedback: 24,
   stale_feedback: 48,
   learning_path_precheck_error: 24,
   learning_path_rejected: 48,
+  ai_strategy_pending_review: 24,
+  ai_strategy_pending_publish: 24,
+  ai_strategy_rejected: 48,
+  ai_strategy_precheck_error: 12,
+  ai_strategy_high_risk_publish: 0,
+  ai_strategy_release_failed: 0,
+  ai_strategy_rollback_failed: 0,
   publish_failed: 0,
   rollback_failed: 0,
   high_risk_audit: 0,
@@ -3373,13 +3340,13 @@ const dashboardRoleSections: Record<AdminRoleId, API.DashboardVisibleSection[]> 
 };
 
 const dashboardRoleTodoTypes: Record<AdminRoleId, API.DashboardTodoType[]> = {
-  super_admin: ['pending_review', 'pending_release', 'rejected_content', 'pending_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'publish_failed', 'rollback_failed', 'permission_denied'],
-  content_operator: ['pending_review', 'pending_release', 'rejected_content', 'publish_failed', 'rollback_failed'],
-  teaching_reviewer: ['pending_review', 'pending_release', 'rejected_content', 'learning_path_precheck_error', 'learning_path_rejected', 'publish_failed', 'rollback_failed'],
-  ai_operator: ['pending_review', 'pending_release', 'publish_failed', 'rollback_failed'],
+  super_admin: ['pending_review', 'pending_publish', 'rejected_content', 'pending_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'publish_failed', 'rollback_failed', 'permission_denied'],
+  content_operator: ['pending_review', 'pending_publish', 'rejected_content', 'publish_failed', 'rollback_failed'],
+  teaching_reviewer: ['pending_review', 'pending_publish', 'rejected_content', 'learning_path_precheck_error', 'learning_path_rejected', 'publish_failed', 'rollback_failed'],
+  ai_operator: ['ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'publish_failed', 'rollback_failed'],
   customer_support: ['pending_feedback', 'stale_feedback', 'permission_denied'],
   data_analyst: [],
-  read_only_auditor: ['permission_denied', 'publish_failed', 'rollback_failed'],
+  read_only_auditor: ['permission_denied', 'publish_failed', 'rollback_failed', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_high_risk_publish'],
 };
 
 const dashboardSourceModuleLabels: Record<string, string> = {
@@ -3400,7 +3367,7 @@ const reviewStatusLabels: Record<API.ReviewTaskStatus, string> = {
   pending_review: '待审核',
   rejected: '已驳回',
   approved: '已通过',
-  pending_release: '待发布',
+  pending_publish: '待发布',
   published: '已发布',
   offline: '已下架',
   rolled_back: '已回滚',
@@ -3504,7 +3471,16 @@ const dashboardTodoCanHandle = (
   task?: API.ReviewTask,
 ) => {
   if (todoType === 'pending_review' && task) return roleCanOperateReviewTask(roleId, task, 'approved');
-  if (todoType === 'pending_release' && task) return roleCanOperateReviewTask(roleId, task, 'published');
+  if (todoType === 'pending_publish' && task) return roleCanOperateReviewTask(roleId, task, 'published');
+  if (todoType === 'ai_strategy_pending_review' && task) return roleCanOperateReviewTask(roleId, task, 'approved');
+  if (todoType === 'ai_strategy_pending_publish' && task) return roleCanOperateReviewTask(roleId, task, 'published');
+  if (todoType === 'ai_strategy_high_risk_publish' && task) return roleCanOperateReviewTask(roleId, task, 'published');
+  if (todoType === 'ai_strategy_rejected' || todoType === 'ai_strategy_precheck_error') {
+    return roleCanPerformAction(roleId, 'aiCoach', 'edit');
+  }
+  if (todoType === 'ai_strategy_release_failed' || todoType === 'ai_strategy_rollback_failed') {
+    return roleCanPerformAction(roleId, 'reviewRelease', 'publish');
+  }
   if (todoType === 'rejected_content') {
     return sourceModule === 'learningPath'
       ? roleCanPerformAction(roleId, 'learningPath', 'submit')
@@ -3570,10 +3546,20 @@ const createDashboardTodo = (params: {
 const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
   const todos: API.DashboardTodoItem[] = [];
   for (const task of reviewTasksData) {
-    if (task.status === 'pending_review' || task.status === 'pending_release') {
+    if (task.status === 'pending_review' || task.status === 'pending_publish') {
       const route = dashboardReviewTaskRoute(task);
+      const type =
+        task.objectType === 'ai_coach_strategy'
+          ? task.status === 'pending_review'
+            ? 'ai_strategy_pending_review'
+            : task.riskLevel === 'high'
+              ? 'ai_strategy_high_risk_publish'
+              : 'ai_strategy_pending_publish'
+          : task.status === 'pending_review'
+            ? 'pending_review'
+            : 'pending_publish';
       todos.push(createDashboardTodo({
-        type: task.status === 'pending_review' ? 'pending_review' : 'pending_release',
+        type,
         title: task.objectName,
         objectType: task.objectTypeName,
         objectId: task.id,
@@ -3592,6 +3578,34 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
       }));
     }
   }
+
+  aiCoachDashboardTodoSources().forEach((strategy) => {
+    if (strategy.status === 'pending_review' || strategy.status === 'pending_publish') return;
+    const type: API.DashboardTodoType =
+      strategy.lastPrecheck?.level === 'error'
+        ? 'ai_strategy_precheck_error'
+        : strategy.status === 'rejected'
+          ? 'ai_strategy_rejected'
+          : 'ai_strategy_release_failed';
+    todos.push(createDashboardTodo({
+      type,
+      title: strategy.title,
+      objectType: aiCoachConfigTypeLabels[strategy.configType],
+      objectId: strategy.id,
+      priority: strategy.riskLevel === 'high' ? 'P0' : 'P1',
+      status: strategy.status,
+      statusLabel: reviewStatusLabels[strategy.status],
+      createdAt: strategy.updatedAt,
+      owner: strategy.updatedBy,
+      sourceModule: 'aiCoach',
+      targetRoute: `/ai-coach/prompts/${strategy.id}`,
+      description: `${aiCoachConfigTypeLabels[strategy.configType]}，场景 ${strategy.businessScenes
+        .map((item) => aiCoachBusinessSceneLabels[item])
+        .join('、')}。`,
+      roleId,
+      riskLevel: strategy.riskLevel,
+    }));
+  });
 
   questionData.filter((item) => item.status === 'rejected').forEach((question) => {
     todos.push(createDashboardTodo({
@@ -3877,7 +3891,7 @@ const buildDashboardMetrics = (roleId: AdminRoleId, risks: API.DashboardRiskItem
   const todayStartedTaskUsers = operationUsersData.filter((user) => user.learningStatus.todayTaskStatus !== 'not_started').length;
   const todayCompletedTaskUsers = operationUsersData.filter((user) => user.learningStatus.todayTaskStatus === 'completed').length;
   const pendingReview = reviewTasksData.filter((task) => task.status === 'pending_review').length;
-  const pendingRelease = reviewTasksData.filter((task) => task.status === 'pending_release').length;
+  const pendingRelease = reviewTasksData.filter((task) => task.status === 'pending_publish').length;
   const pendingFeedback = operationUsersData.flatMap((user) => user.feedbacks ?? []).filter((feedback) => feedback.status === 'pending').length;
   const highRisk = risks.filter((risk) => ['high', 'medium'].includes(risk.level)).length;
   const allMetrics = [
@@ -3885,18 +3899,18 @@ const buildDashboardMetrics = (roleId: AdminRoleId, risks: API.DashboardRiskItem
     dashboardMetric({ id: 'today_active_users', title: '今日活跃用户', value: todayActiveIds.size, previousValue: yesterdayActiveIds.size, unit: '人', type: 'count', timeSemantic: 'today', direction: 'positive', tooltip: '今日存在学习行为或 lastActiveAt 落入今日范围的去重用户数。', targetRoute: '/users/list' }),
     dashboardMetric({ id: 'today_task_completion_rate', title: '今日任务完成率', value: percentValue(todayCompletedTaskUsers, todayStartedTaskUsers), unit: '%', type: 'rate', timeSemantic: 'today', direction: 'positive', tooltip: '今日完成任务用户数 / 今日开始任务用户数，分母为 0 时显示 --。', targetRoute: '/analytics/overview' }),
     dashboardMetric({ id: 'pending_review', title: '当前待审核', value: pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_review 的审核任务数。', targetRoute: '/review-release/pending?status=pending_review' }),
-    dashboardMetric({ id: 'pending_release', title: '当前待发布', value: pendingRelease, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_release 的审核任务数。', targetRoute: '/review-release/pending?status=pending_release' }),
+    dashboardMetric({ id: 'pending_publish', title: '当前待发布', value: pendingRelease, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_publish 的审核任务数。', targetRoute: '/review-release/pending?status=pending_publish' }),
     dashboardMetric({ id: 'pending_feedback', title: '当前待处理反馈', value: pendingFeedback, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending 的用户反馈数。', targetRoute: '/users/list?feedbackStatus=pending' }),
     dashboardMetric({ id: 'high_risk', title: '当前高风险事项', value: highRisk, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前 P0/P1 或高风险未关闭事项数。', targetRoute: '/system/accounts' }),
   ];
   const roleMetricIds: Record<AdminRoleId, string[]> = {
     super_admin: allMetrics.map((metric) => metric.id),
-    content_operator: ['pending_review', 'pending_release', 'high_risk'],
-    teaching_reviewer: ['pending_review', 'pending_release', 'high_risk'],
-    ai_operator: ['pending_review', 'pending_release', 'high_risk'],
+    content_operator: ['pending_review', 'pending_publish', 'high_risk'],
+    teaching_reviewer: ['pending_review', 'pending_publish', 'high_risk'],
+    ai_operator: ['pending_review', 'pending_publish', 'high_risk'],
     customer_support: ['today_active_users', 'today_task_completion_rate', 'pending_feedback', 'high_risk'],
-    data_analyst: ['today_new_users', 'today_active_users', 'today_task_completion_rate', 'pending_review', 'pending_release', 'pending_feedback', 'high_risk'],
-    read_only_auditor: ['pending_review', 'pending_release', 'high_risk'],
+    data_analyst: ['today_new_users', 'today_active_users', 'today_task_completion_rate', 'pending_review', 'pending_publish', 'pending_feedback', 'high_risk'],
+    read_only_auditor: ['pending_review', 'pending_publish', 'high_risk'],
   };
   return allMetrics.filter((metric) => roleMetricIds[roleId].includes(metric.id));
 };
@@ -3932,7 +3946,7 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
       targetRoute: '/review-release/pending',
       items: [
         { label: '待审核', value: reviewTasksData.filter((task) => task.status === 'pending_review').length, status: 'risk' },
-        { label: '待发布', value: reviewTasksData.filter((task) => task.status === 'pending_release').length, status: 'warning' },
+        { label: '待发布', value: reviewTasksData.filter((task) => task.status === 'pending_publish').length, status: 'warning' },
         { label: '今日已通过', value: reviewTasksData.filter((task) => task.status === 'approved' && dateOnly(task.updatedAt) === today).length },
         { label: '今日已驳回', value: reviewTasksData.filter((task) => task.status === 'rejected' && dateOnly(task.updatedAt) === today).length, status: 'warning' },
       ],
@@ -3987,14 +4001,14 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
     },
     {
       id: 'aiCoach',
-      title: 'AI 占位摘要',
+      title: 'AI 策略治理',
       sourceModule: 'aiCoach',
       targetRoute: '/ai-coach/prompts',
       items: [
-        { label: '策略待接入', value: 1, status: 'warning' },
-        { label: '异常摘要', value: 0 },
-        { label: '审核相关', value: reviewTasksData.filter((task) => task.objectType === 'ai_strategy' && ['pending_review', 'pending_release', 'approved'].includes(task.status)).length, status: 'warning' },
-        { label: '正式指标', value: 0 },
+        { label: '策略总量', value: aiCoachStrategiesData.length },
+        { label: '预校验阻断', value: aiCoachStrategiesData.filter((item) => item.lastPrecheck?.level === 'error').length, status: 'risk' },
+        { label: '高风险待发布', value: aiCoachStrategiesData.filter((item) => item.riskLevel === 'high' && item.status === 'pending_publish').length, status: 'risk' },
+        { label: '审核相关', value: reviewTasksData.filter((task) => task.objectType === 'ai_coach_strategy' && ['pending_review', 'pending_publish', 'approved'].includes(task.status)).length, status: 'warning' },
       ],
     },
   ];
@@ -4009,7 +4023,7 @@ const buildDashboardRecentActivities = (roleId: AdminRoleId) =>
       if (roleId === 'customer_support') return log.objectType === 'user';
       if (roleId === 'content_operator') return ['content', 'review_release'].includes(log.objectType);
       if (roleId === 'teaching_reviewer') return ['content', 'learning_path_config', 'review_release'].includes(log.objectType);
-      if (roleId === 'ai_operator') return ['ai_strategy', 'review_release', 'analytics'].includes(log.objectType);
+      if (roleId === 'ai_operator') return ['ai_coach_strategy', 'review_release', 'analytics'].includes(log.objectType);
       return false;
     })
     .slice(0, 8)
@@ -5031,7 +5045,11 @@ export default {
     }
 
     if (!nextStatus || !validReviewTransitions[task.status]?.includes(nextStatus)) {
-      if (nextStatus === 'published' && task.status === 'published' && isLearningPathConfig(task)) {
+      if (
+        nextStatus === 'published' &&
+        task.status === 'published' &&
+        (isLearningPathConfig(task) || isAiCoachReviewTask(task))
+      ) {
         res.send({
           success: true,
           data: task,
@@ -5113,6 +5131,13 @@ export default {
       previousStatus,
       nextStatus,
       operator,
+      operationReason,
+    );
+    syncAiCoachStrategyFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      operatorFromRole(operator.roleId, operator.id, operator.name),
       operationReason,
     );
 
@@ -5746,6 +5771,7 @@ export default {
       currentRoleId = '';
       currentAccountId = '';
       currentAccountName = '';
+      clearMockSession();
       res.send({
         status: 'error',
         type,
@@ -5759,6 +5785,7 @@ export default {
       currentRoleId = '';
       currentAccountId = '';
       currentAccountName = '';
+      clearMockSession();
       res.send({
         status: 'error',
         type,
@@ -5778,6 +5805,7 @@ export default {
       accountLastLoginAtMap[currentAccountId] = new Date().toLocaleString('zh-CN', {
         hour12: false,
       });
+      setMockSession(role.id, currentAccountId, currentAccountName);
       pushAuditLog(role.id, 'login', 'success', '/user/login', '登录成功。');
       res.send({
         status: 'ok',
@@ -5792,6 +5820,7 @@ export default {
     currentRoleId = '';
     currentAccountId = '';
     currentAccountName = '';
+    clearMockSession();
     res.send({
       status: 'error',
       type,
@@ -5803,6 +5832,7 @@ export default {
     currentRoleId = '';
     currentAccountId = '';
     currentAccountName = '';
+    clearMockSession();
     res.send({ data: {}, success: true });
   },
   'GET /api/500': (_req: Request, res: Response) => {

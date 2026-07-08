@@ -44,7 +44,7 @@ const objectTypeOptions = [
   { label: '题库内容', value: 'question_bank' },
   { label: '学习路径配置', value: 'learning_path_config' },
   { label: '学习路径规则', value: 'learning_rule' },
-  { label: 'AI 策略', value: 'ai_strategy' },
+  { label: 'AI 陪练策略', value: 'ai_coach_strategy' },
   { label: '写译题目', value: 'writing_translation' },
   { label: '模考试卷', value: 'mock_exam' },
 ];
@@ -92,11 +92,11 @@ const reviewActionsByStatus: Partial<
     {
       key: 'schedule',
       label: '安排发布',
-      nextStatus: 'pending_release',
+      nextStatus: 'pending_publish',
       permission: 'publish',
     },
   ],
-  pending_release: [
+  pending_publish: [
     {
       key: 'publish',
       label: '发布',
@@ -145,11 +145,17 @@ const roleCanOperateTask = (
   ) => boolean,
 ) => {
   if (!canAction?.('reviewRelease', action.permission)) return false;
+  if (['approved', 'rejected'].includes(action.nextStatus) && task.submitterId === accountId) {
+    return false;
+  }
   if (
-    task.objectType === 'learning_path_config' &&
-    ['approved', 'rejected'].includes(action.nextStatus) &&
-    task.submitterId === accountId
+    task.objectType === 'ai_coach_strategy' &&
+    task.riskLevel === 'high' &&
+    action.nextStatus === 'published'
   ) {
+    return roleId === 'super_admin' && task.submitterId !== accountId;
+  }
+  if (task.objectType === 'ai_coach_strategy' && action.nextStatus === 'published' && task.submitterId === accountId) {
     return false;
   }
   if (roleId === 'super_admin') return true;
@@ -163,7 +169,7 @@ const roleCanOperateTask = (
     ].includes(task.objectType);
   }
   if (roleId === 'ai_operator') {
-    return task.objectType === 'ai_strategy';
+    return task.objectType === 'ai_coach_strategy';
   }
   if (roleId === 'content_operator') {
     return action.nextStatus === 'pending_review';
@@ -358,7 +364,7 @@ const ReviewReleasePage: React.FC = () => {
         pending_review: { text: '待审核' },
         rejected: { text: '已驳回' },
         approved: { text: '已通过' },
-        pending_release: { text: '待发布' },
+        pending_publish: { text: '待发布' },
         published: { text: '已发布' },
         offline: { text: '已下架' },
         rolled_back: { text: '已回滚' },

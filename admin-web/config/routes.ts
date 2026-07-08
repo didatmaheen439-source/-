@@ -176,6 +176,24 @@ export default [
         name: 'prompts',
         component: './ai-coach/prompts',
       },
+      {
+        path: '/ai-coach/prompts/new',
+        name: 'prompt-new',
+        hideInMenu: true,
+        component: './ai-coach/prompts/edit/index',
+      },
+      {
+        path: '/ai-coach/prompts/:id/edit',
+        name: 'prompt-edit',
+        hideInMenu: true,
+        component: './ai-coach/prompts/edit/index',
+      },
+      {
+        path: '/ai-coach/prompts/:id',
+        name: 'prompt-detail',
+        hideInMenu: true,
+        component: './ai-coach/prompts/detail/index',
+      },
     ],
   },
   {

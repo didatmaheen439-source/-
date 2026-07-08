@@ -7,7 +7,7 @@ export type AuditObjectType =
   | 'analytics'
   | 'dashboard'
   | 'learning_path_config'
-  | 'ai_strategy'
+  | 'ai_coach_strategy'
   | 'review_release'
   | 'system_permission';
 

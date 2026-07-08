@@ -113,6 +113,182 @@ export async function updateReviewTaskStatus(
   });
 }
 
+/** 获取 AI 陪练策略列表 GET /api/ai-coach/strategies */
+export async function aiCoachStrategies(
+  params?: API.AiCoachStrategyQueryParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.AiCoachStrategyList>('/api/ai-coach/strategies', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取 AI 陪练策略详情 GET /api/ai-coach/strategies/:id */
+export async function aiCoachStrategyDetail(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiCoachStrategy;
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 创建 AI 陪练策略 POST /api/ai-coach/strategies */
+export async function createAiCoachStrategy(
+  body: API.AiCoachStrategySaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachStrategy;
+    success?: boolean;
+  }>('/api/ai-coach/strategies', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 更新 AI 陪练策略 PATCH /api/ai-coach/strategies/:id */
+export async function updateAiCoachStrategy(
+  id: string,
+  body: API.AiCoachStrategySaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachStrategy;
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 复制已发布策略为草稿 POST /api/ai-coach/strategies/:id/copy */
+export async function copyAiCoachStrategy(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiCoachStrategy;
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}/copy`, {
+    method: 'POST',
+    ...(options || {}),
+  });
+}
+
+/** 预校验 AI 陪练策略 POST /api/ai-coach/strategies/precheck */
+export async function precheckAiCoachStrategy(
+  body: API.AiCoachStrategySaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachPrecheckResult;
+    success?: boolean;
+  }>('/api/ai-coach/strategies/precheck', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 静态样例校验 AI 陪练策略 POST /api/ai-coach/strategies/validate-samples */
+export async function validateAiCoachStrategySamples(
+  body: API.AiCoachStrategySaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachStaticValidationResult;
+    success?: boolean;
+  }>('/api/ai-coach/strategies/validate-samples', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 提交 AI 陪练策略审核 POST /api/ai-coach/strategies/:id/submit-review */
+export async function submitAiCoachStrategyReview(
+  id: string,
+  body: API.AiCoachStrategySubmitParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachStrategy;
+    reviewTask?: API.ReviewTask;
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}/submit-review`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取 AI 陪练策略版本 GET /api/ai-coach/strategies/:id/versions */
+export async function aiCoachStrategyVersions(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiCoachVersionSnapshot[];
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}/versions`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 获取 AI 陪练策略版本差异 GET /api/ai-coach/strategies/:id/version-diff */
+export async function aiCoachStrategyVersionDiff(
+  id: string,
+  params?: { fromVersion?: string; toVersion?: string },
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiCoachVersionDiff;
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}/version-diff`, {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取可引用意图配置 GET /api/ai-coach/available-intents */
+export async function availableAiCoachIntents(options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiCoachStrategy[];
+    success?: boolean;
+  }>('/api/ai-coach/available-intents', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 获取可引用回答结构 GET /api/ai-coach/available-response-structures */
+export async function availableAiCoachResponseStructures(options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiCoachStrategy[];
+    success?: boolean;
+  }>('/api/ai-coach/available-response-structures', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
 /** 获取题库题目列表 GET /api/content/questions */
 export async function contentQuestions(options?: { [key: string]: any }) {
   return request<API.QuestionList>('/api/content/questions', {

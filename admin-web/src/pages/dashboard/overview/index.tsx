@@ -62,7 +62,7 @@ const sectionTitle: Record<API.DashboardVisibleSection, string> = {
 const todoTypeOptions: { label: string; value: API.DashboardTodoType | 'all' }[] = [
   { label: '全部待办', value: 'all' },
   { label: '待审核', value: 'pending_review' },
-  { label: '待发布', value: 'pending_release' },
+  { label: '待发布', value: 'pending_publish' },
   { label: '驳回待修改', value: 'rejected_content' },
   { label: '待处理反馈', value: 'pending_feedback' },
   { label: '反馈超时', value: 'stale_feedback' },

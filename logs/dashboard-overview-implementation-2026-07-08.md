@@ -55,7 +55,7 @@ node - <<'NODE' # 浏览器外 API 同步验收
 ## 待办与业务状态同步验证
 
 - 审核任务：`review-question-001` 从 `pending_review` 变为 `approved` 后，`pending_review` 待办从 1 变为 0。
-- 发布任务：将一个 `approved` 任务安排为 `pending_release` 后，待发布待办从 0 变为 1；发布后从 1 变为 0。
+- 发布任务：将一个 `approved` 任务安排为 `pending_publish` 后，待发布待办从 0 变为 1；发布后从 1 变为 0。
 - 驳回内容：`question-cet4-vocabulary-001` 重新提交审核后，`rejected_content` 待办从 1 变为 0。
 - 用户反馈：`app-user-014-feedback-2` 从 `pending` 更新为 `processing` 后，`pending_feedback` 待办从 4 变为 3。
 - 学习路径预校验：`template-cet4-empty` 补齐任务项并预校验通过后，`learning_path_precheck_error` 待办从 3 变为 2。

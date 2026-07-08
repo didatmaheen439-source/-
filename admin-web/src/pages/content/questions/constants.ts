@@ -27,7 +27,7 @@ export const reviewStatusOptions = [
   { label: '待审核', value: 'pending_review' },
   { label: '已驳回', value: 'rejected' },
   { label: '已通过', value: 'approved' },
-  { label: '待发布', value: 'pending_release' },
+  { label: '待发布', value: 'pending_publish' },
   { label: '已发布', value: 'published' },
   { label: '已下架', value: 'offline' },
   { label: '已回滚', value: 'rolled_back' },

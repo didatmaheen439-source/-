@@ -96,7 +96,7 @@ declare namespace API {
     | 'pending_review'
     | 'rejected'
     | 'approved'
-    | 'pending_release'
+    | 'pending_publish'
     | 'published'
     | 'offline'
     | 'rolled_back';
@@ -105,7 +105,7 @@ declare namespace API {
     | 'question_bank'
     | 'learning_path_config'
     | 'learning_rule'
-    | 'ai_strategy'
+    | 'ai_coach_strategy'
     | 'writing_translation'
     | 'mock_exam';
 
@@ -134,7 +134,7 @@ declare namespace API {
   type ReviewTask = {
     id: string;
     objectType: ReviewObjectType;
-    objectSubtype?: LearningPathConfigKind;
+    objectSubtype?: LearningPathConfigKind | AiCoachConfigType;
     objectTypeName: string;
     objectId: string;
     objectName: string;
@@ -162,6 +162,222 @@ declare namespace API {
   type ReviewTaskStatusUpdateParams = {
     status: ReviewTaskStatus;
     reason?: string;
+  };
+
+  type AiCoachConfigType =
+    | 'intent'
+    | 'prompt_template'
+    | 'response_structure'
+    | 'dependency_rule';
+
+  type AiCoachBusinessScene =
+    | 'listening_coach'
+    | 'speaking_coach'
+    | 'writing_explanation'
+    | 'error_explanation'
+    | 'learning_path_recommendation';
+
+  type AiCoachStrategyStatus = ReviewTaskStatus;
+
+  type AiCoachRiskLevel = 'low' | 'medium' | 'high';
+
+  type AiCoachPrecheckLevel = 'passed' | 'warning' | 'error';
+
+  type AiCoachInputVariable = {
+    name: string;
+    type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+    required: boolean;
+    description: string;
+    exampleValue?: string;
+    defaultValue?: string;
+  };
+
+  type AiCoachRiskPolicy = {
+    dependencyPrevention: boolean;
+    answerBoundary: string;
+    sensitivePolicy: string;
+    fallbackStrategy: string;
+    escalationRule?: string;
+    highRiskKeywords?: string[];
+  };
+
+  type AiCoachPrecheckIssue = {
+    id: string;
+    level: AiCoachPrecheckLevel;
+    field: string;
+    message: string;
+    suggestion: string;
+  };
+
+  type AiCoachPrecheckResult = {
+    level: AiCoachPrecheckLevel;
+    summary: string;
+    issues: AiCoachPrecheckIssue[];
+    checkedAt: string;
+  };
+
+  type AiCoachStaticValidationCase = {
+    id: string;
+    title: string;
+    input: string;
+    expected: string;
+    result?: AiCoachPrecheckLevel;
+    message?: string;
+  };
+
+  type AiCoachStaticValidationResult = {
+    level: AiCoachPrecheckLevel;
+    summary: string;
+    cases: AiCoachStaticValidationCase[];
+    checkedAt: string;
+    mockOnly: true;
+  };
+
+  type AiCoachVersionSnapshot = {
+    version: string;
+    title: string;
+    status: AiCoachStrategyStatus;
+    configType: AiCoachConfigType;
+    businessScenes: AiCoachBusinessScene[];
+    bodySummary: string;
+    createdBy: string;
+    createdAt: string;
+  };
+
+  type AiCoachVersionDiffItem = {
+    field: string;
+    before?: string;
+    after?: string;
+    changed: boolean;
+  };
+
+  type AiCoachVersionDiff = {
+    fromVersion: string;
+    toVersion: string;
+    items: AiCoachVersionDiffItem[];
+  };
+
+  type AiCoachIntentBody = {
+    intentKey: string;
+    description: string;
+    triggerExamples: string[];
+    outputIntent: string;
+    confidenceThreshold: number;
+  };
+
+  type AiCoachPromptTemplateBody = {
+    systemRole: string;
+    promptBody: string;
+    variables: AiCoachInputVariable[];
+    styleRules: string[];
+  };
+
+  type AiCoachResponseStructureBody = {
+    schemaName: string;
+    sections: {
+      key: string;
+      title: string;
+      required: boolean;
+      description: string;
+    }[];
+    outputExample: string;
+  };
+
+  type AiCoachDependencyRuleBody = {
+    dependencySignals: string[];
+    interventionMessage: string;
+    maxConsecutiveAnswers: number;
+    cooldownMinutes: number;
+  };
+
+  type AiCoachStrategyBase = {
+    id: string;
+    title: string;
+    description: string;
+    configType: AiCoachConfigType;
+    businessScenes: AiCoachBusinessScene[];
+    examTypes: ExamType[];
+    status: AiCoachStrategyStatus;
+    riskLevel: AiCoachRiskLevel;
+    version: string;
+    dataVersion: number;
+    creatorId: string;
+    creator: string;
+    updatedBy: string;
+    createdAt: string;
+    updatedAt: string;
+    changeSummary: string;
+    impactScope: string;
+    reviewTaskId?: string;
+    publishedVersion?: string;
+    rollbackTargetVersion?: string;
+    riskPolicy: AiCoachRiskPolicy;
+    validationCases: AiCoachStaticValidationCase[];
+    lastPrecheck?: AiCoachPrecheckResult;
+    lastValidation?: AiCoachStaticValidationResult;
+    versionSnapshots: AiCoachVersionSnapshot[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type AiCoachIntentStrategy = AiCoachStrategyBase & {
+    configType: 'intent';
+    body: AiCoachIntentBody;
+  };
+
+  type AiCoachPromptTemplateStrategy = AiCoachStrategyBase & {
+    configType: 'prompt_template';
+    body: AiCoachPromptTemplateBody;
+  };
+
+  type AiCoachResponseStructureStrategy = AiCoachStrategyBase & {
+    configType: 'response_structure';
+    body: AiCoachResponseStructureBody;
+  };
+
+  type AiCoachDependencyRuleStrategy = AiCoachStrategyBase & {
+    configType: 'dependency_rule';
+    body: AiCoachDependencyRuleBody;
+  };
+
+  type AiCoachStrategy =
+    | AiCoachIntentStrategy
+    | AiCoachPromptTemplateStrategy
+    | AiCoachResponseStructureStrategy
+    | AiCoachDependencyRuleStrategy;
+
+  type AiCoachStrategyQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    configType?: AiCoachConfigType;
+    businessScene?: AiCoachBusinessScene;
+    status?: AiCoachStrategyStatus;
+    riskLevel?: AiCoachRiskLevel;
+  };
+
+  type AiCoachStrategySaveParams = {
+    title: string;
+    description: string;
+    configType: AiCoachConfigType;
+    businessScenes: AiCoachBusinessScene[];
+    examTypes: ExamType[];
+    body: Partial<
+      AiCoachIntentBody &
+        AiCoachPromptTemplateBody &
+        AiCoachResponseStructureBody &
+        AiCoachDependencyRuleBody
+    >;
+    riskPolicy: AiCoachRiskPolicy;
+    validationCases?: AiCoachStaticValidationCase[];
+    changeSummary?: string;
+    impactScope?: string;
+    dataVersion?: number;
+  };
+
+  type AiCoachStrategySubmitParams = {
+    changeSummary: string;
+    dataVersion: number;
+    confirmWarnings?: boolean;
   };
 
   type ExamType = 'CET4' | 'CET6';
@@ -272,6 +488,12 @@ declare namespace API {
     success?: boolean;
   };
 
+  type AiCoachStrategyList = {
+    data?: AiCoachStrategy[];
+    total?: number;
+    success?: boolean;
+  };
+
   type QuestionList = {
     data?: QuestionItem[];
     total?: number;
@@ -357,7 +579,11 @@ declare namespace API {
     attachmentType: string;
     abnormalFlag: boolean;
     processStatus: 'pending' | 'processing' | 'resolved' | 'closed';
+    strategyId: string;
     strategyVersion: string;
+    configType: AiCoachConfigType;
+    businessScene: AiCoachBusinessScene;
+    strategyStatusAtTime: AiCoachStrategyStatus;
     summaryPreview: string;
     summaryAvailable: boolean;
     summaryContent?: string;
@@ -882,12 +1108,19 @@ declare namespace API {
 
   type DashboardTodoType =
     | 'pending_review'
-    | 'pending_release'
+    | 'pending_publish'
     | 'rejected_content'
     | 'pending_feedback'
     | 'stale_feedback'
     | 'learning_path_precheck_error'
     | 'learning_path_rejected'
+    | 'ai_strategy_pending_review'
+    | 'ai_strategy_pending_publish'
+    | 'ai_strategy_rejected'
+    | 'ai_strategy_precheck_error'
+    | 'ai_strategy_high_risk_publish'
+    | 'ai_strategy_release_failed'
+    | 'ai_strategy_rollback_failed'
     | 'publish_failed'
     | 'rollback_failed'
     | 'high_risk_audit'

@@ -45,7 +45,7 @@ export const reviewPublishStatuses: StatusConfig[] = [
     nextActions: ['scheduleRelease'],
   },
   {
-    value: 'pending_release',
+    value: 'pending_publish',
     label: '待发布',
     color: 'warning',
     editable: false,

@@ -98,7 +98,7 @@
 - 学习记录筛选和查看。
 - 反馈记录查看、反馈原文敏感访问、状态流转、版本冲突。
 - 客服备注新增和历史备注。
-- AI 摘要必要信息展示，完整会话不展示。
+- AI 摘要必要信息展示，完整会话不展示；摘要关联 `strategyId`、`strategyVersion`、`configType`、`businessScene` 和 `strategyStatusAtTime`，客服不显示策略管理跳转。
 - 敏感访问日志写入。
 - 系统审计日志支持 `operation`、`sensitive_access`、`permission_denied` 类型筛选。
 - Mock 数据覆盖 30 个用户及主要状态组合。

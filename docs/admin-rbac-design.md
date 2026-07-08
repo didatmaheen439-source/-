@@ -122,3 +122,12 @@ mock 接口：
 - `data_analyst` 返回指标摘要、数据质量提示和分析入口，不返回处理按钮。
 - `read_only_auditor` 返回审计风险、只读摘要和最近记录，不返回任何写操作按钮。
 - 工作台 mock API 在接口层过滤无权限待办、无权限快捷入口和无权限目标路由；目标业务页面继续执行自身路由与 API 权限校验。
+
+## 2026-07-08 AI 陪练策略权限补充
+
+- `super_admin` 可查看、新建、编辑、提交审核、复制草稿和处理高风险最终发布。
+- `ai_operator` 可查看、新建、编辑和提交 AI 策略；提交人不能审核自己，高风险策略不能由提交人最终发布。
+- `read_only_auditor` 增加 `aiCoach.read`，可只读查看策略，不显示写操作按钮。
+- `content_operator`、`customer_support`、`data_analyst` 等无 AI 菜单权限角色直访 `/ai-coach/prompts` 或 AI mock API 返回 403。
+- AI 策略审核任务使用 `objectType=ai_coach_strategy`，配置类型写入 `objectSubtype`，业务场景单独存储在 `businessScenes`。
+- AI mock API 对 `read/create/edit/submit` 均做接口层校验，并写入审计日志；审计日志不保存完整 Prompt 正文。

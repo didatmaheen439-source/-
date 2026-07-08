@@ -123,7 +123,7 @@ Ant Design Pro 基座已完成第一阶段后台业务骨架初始化：十个�
 - 审核任务列表覆盖任务 ID、对象类型、对象名称、业务模块、提交人、提交时间、版本号、优先级、审核状态、风险等级和更新时间。
 - 列表支持关键词、对象类型、状态、风险等级筛选，默认按更新时间倒序。
 - 详情抽屉展示基础信息、变更摘要、版本信息、影响范围、审核意见、版本记录和操作记录。
-- 已跑通 `pending_review -> approved/rejected`、`rejected -> pending_review`、`approved -> pending_release`、`pending_release -> published`、`published -> offline`、`published/offline -> rolled_back` 状态流转。
+- 已跑通 `pending_review -> approved/rejected`、`rejected -> pending_review`、`approved -> pending_publish`、`pending_publish -> published`、`published -> offline`、`published/offline -> rolled_back` 状态流转。
 - 驳回、下架、回滚强制填写原因；发布、下架、回滚确认展示影响范围和版本号。
 - 状态流转写入既有 `auditLogs`，`objectType` 使用 `review_release`，不破坏 `/system/accounts` 审计日志接口。
 - 新增 mock API：`GET /api/review-release/tasks`、`GET /api/review-release/tasks/:id`、`PATCH /api/review-release/tasks/:id/status`。
@@ -204,3 +204,18 @@ Ant Design Pro 基座已完成第一阶段后台业务骨架初始化：十个�
 - 新增 API 类型：`DashboardOverview`、`DashboardTodoItem`、`DashboardRiskItem`、`DashboardMetric`、`DashboardQuickAction`、`DashboardModuleSnapshot` 等。
 - 接口层支持整体失败、单区块部分成功、无待办、无风险、数据质量提示和风险处理同步。
 - 详细执行与验证记录见 `logs/dashboard-overview-implementation-2026-07-08.md`。
+
+## 2026-07-08 AI 陪练策略治理 MVP
+
+- `/ai-coach/prompts` 已从占位页升级为 `PageContainer + Tabs + ProTable` 真实业务页。
+- 新增隐藏路由 `/ai-coach/prompts/new`、`/ai-coach/prompts/:id`、`/ai-coach/prompts/:id/edit`。
+- 四种配置类型：`intent`、`prompt_template`、`response_structure`、`dependency_rule`。
+- 五种业务场景：听力陪练、口语陪练、写作讲解、错题讲解、学习路径推荐；配置类型和业务场景分开存储。
+- 新增 AI 策略共享 Store，集中维护 16 条策略 mock 数据、预校验、静态样例校验、版本快照、字段级差异和审核状态同步。
+- 新增 mock API：`GET/POST/PATCH /api/ai-coach/strategies`、复制草稿、预校验、静态样例校验、提交审核、版本和版本差异接口。
+- 提交审核会创建 `objectType=ai_coach_strategy`、`objectSubtype=configType` 的审核发布任务。
+- 审核发布中心状态流转会同步更新关联 AI 策略状态；发布操作对已发布策略幂等。
+- 已发布策略不能直接覆盖，只能创建新草稿版本；保存和提交使用 `dataVersion` 乐观锁，冲突返回 409。
+- 预校验区分通过、警告和阻断错误；阻断错误返回 422，不能提交审核。
+- 工作台 AI 待办来自共享 Store，不硬编码；用户详情 AI 摘要关联策略 ID、版本、配置类型和业务场景。
+- 详细执行与验证记录见 `logs/ai-coach-strategy-implementation-2026-07-08.md`。

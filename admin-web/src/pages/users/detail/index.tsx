@@ -65,6 +65,21 @@ const roleCanViewDetail = (roleId?: string) =>
 const roleCanHandleFeedback = (roleId?: string) =>
   roleId === 'super_admin' || roleId === 'customer_support';
 
+const aiConfigTypeText: Record<API.AiCoachConfigType, string> = {
+  intent: '意图分类',
+  prompt_template: 'Prompt 模板',
+  response_structure: '回答结构',
+  dependency_rule: '防依赖规则',
+};
+
+const aiBusinessSceneText: Record<API.AiCoachBusinessScene, string> = {
+  listening_coach: '听力陪练',
+  speaking_coach: '口语陪练',
+  writing_explanation: '写作讲解',
+  error_explanation: '错题讲解',
+  learning_path_recommendation: '学习路径推荐',
+};
+
 const UserDetailPage: React.FC = () => {
   const { id = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -448,7 +463,28 @@ const UserDetailPage: React.FC = () => {
         record.abnormalFlag ? <Tag color="error">异常</Tag> : <Tag>正常</Tag>,
     },
     { title: '处理状态', dataIndex: 'processStatus', width: 120 },
-    { title: '策略版本', dataIndex: 'strategyVersion', width: 120 },
+    { title: '策略 ID', dataIndex: 'strategyId', width: 180, copyable: true },
+    {
+      title: '配置类型',
+      dataIndex: 'configType',
+      width: 130,
+      render: (_, record) => aiConfigTypeText[record.configType],
+    },
+    {
+      title: '业务场景',
+      dataIndex: 'businessScene',
+      width: 140,
+      render: (_, record) => aiBusinessSceneText[record.businessScene],
+    },
+    { title: '策略版本', dataIndex: 'strategyVersion', width: 100 },
+    {
+      title: '当时状态',
+      dataIndex: 'strategyStatusAtTime',
+      width: 110,
+      render: (_, record) => (
+        <StatusTag domain="reviewPublish" value={record.strategyStatusAtTime} />
+      ),
+    },
     { title: '摘要预览', dataIndex: 'summaryPreview', ellipsis: true },
     {
       title: '操作',
