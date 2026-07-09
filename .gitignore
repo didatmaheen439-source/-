@@ -45,6 +45,8 @@ builds/*
 !builds/.gitkeep
 backups/*
 !backups/.gitkeep
+项目备份/*
+!项目备份/.gitkeep
 
 # Verification files that may contain local sessions
 logs/**/*.cookies
