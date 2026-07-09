@@ -1,0 +1,12 @@
+
+> guoji-dazi-admin-web@6.0.2 lint
+> npm run biome:lint && npm run tsc
+
+
+> guoji-dazi-admin-web@6.0.2 biome:lint
+> biome lint
+
+Checked 315 files in 62ms. No fixes applied.
+
+> guoji-dazi-admin-web@6.0.2 tsc
+> tsc --noEmit

@@ -26,12 +26,13 @@
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP：四类策略配置、五类业务场景、独立新建/详情/编辑页、预校验、静态样例校验、版本差异、审核发布同步和权限验证。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
+- 已完成第十一阶段全链路验收与后端接入准备：新增接口契约、核心数据模型、状态机/权限基线和全链路验收记录，不新增业务页面、不接真实后端。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
 - 已新增项目记忆 `MEMORY.md`，并在 `项目备份/` 保存 2026-07-09 最新备份。
 
 ## 目录说明
 
-- `docs/`：PRD、选型标准、选型报告和后续实施方案。
+- `docs/`：PRD、选型标准、选型报告和后续实施方案；第十一阶段新增后端接口契约、核心数据模型、状态机权限基线和全链路验收记录。
 - `assets/`：后续设计素材、截图、图标等。
 - `builds/`：后续构建产物。
 - `backups/`：阶段稳定备份。
@@ -63,3 +64,4 @@
 - 2026-07-08：`/writing-translation/topics` 写译批改管理 MVP 开发完成，验证记录见 `logs/writing-translation-topics-implementation-2026-07-08.md`。
 - 2026-07-09：`/mock-exam/papers` 模考试卷配置 MVP 开发完成，API、浏览器和命令验证记录见 `logs/mock-exam-papers-implementation-2026-07-09.md`。
 - 2026-07-09：已保存最新源码压缩包和 Git 历史包到 `项目备份/`，并更新 `MEMORY.md` 作为后续恢复上下文入口。
+- 2026-07-09：第十一阶段后端接入基线完成，新增 `docs/api-contract.md`、`docs/backend-data-models.md`、`docs/backend-state-permission-baseline.md`、`docs/stage-11-regression-and-backend-baseline.md`；`npm run test`、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，浏览器验收记录见 `logs/stage-11-backend-baseline-2026-07-09/`。

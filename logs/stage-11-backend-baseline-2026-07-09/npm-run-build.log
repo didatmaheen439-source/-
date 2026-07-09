@@ -1,0 +1,116 @@
+
+> guoji-dazi-admin-web@6.0.2 build
+> max build
+
+info  - [你知道吗？] 编写 src/loading.(jsx|tsx) 可以自定义页面的加载动画。
+info  - [plugin: ./node_modules/@umijs/plugins/dist/react-query] [reactQuery] use local package, version: 5.101.0
+Using openapi Plugin
+info  - Memory Usage: 177.14 MB (RSS: 992.3 MB)
+
+  utoo pack v1.4.17 built in 2052ms
+
+  ➜  Output:  dist
+  ➜  Assets:  53 files
+
+info  - File sizes after gzip:
+
+  833.24 kB  dist/_6cc3080d.51987526.async.js
+  441.15 kB  dist/node_modules_1ad9779b.396796bc.async.js
+  56.21 kB   dist/node_modules_251a0bdd.4ee54382.async.js
+  51.61 kB   dist/_3527b2da.6dde2c11.async.js
+  30.22 kB   dist/_7658fccb.0636e43e.async.js
+  13.2 kB    dist/_a5a13d36.0d4e06e0.async.js
+  12.88 kB   dist/_3c1c0aa8.71c87173.async.js
+  10.71 kB   dist/_f9ac7b1e.c7b667bd.async.js
+  10.65 kB   dist/_68e0cbf9.b80c9d9e.async.js
+  9.25 kB    dist/_17fd65c9.f315cea8.async.js
+  8.65 kB    dist/_9eae369d.c762e46d.async.js
+  8.49 kB    dist/_6b212b3a.8b7ba10d.async.js
+  8.01 kB    dist/_626123a9.bc0a74bd.async.js
+  7.72 kB    dist/src_pages_table-list_index_tsx_484bb308.d1147ad6.async.js
+  7.63 kB    dist/_c0d09941.6c839cba.async.js
+  7.56 kB    dist/_ee80be60.7bdf6557.async.js
+  7.17 kB    dist/_87a61406.3d9ee83b.async.js
+  6.88 kB    dist/_22a94c79.5b2f854b.async.js
+  6.85 kB    dist/_b51aa0bc.d1b320c3.async.js
+  6.27 kB    dist/_87a2064d.65c4bbf8.async.js
+  6.06 kB    dist/_3562d5de.b20f03e4.async.js
+  6.02 kB    dist/_b439fb7f.594ed14d.async.js
+  5.8 kB     dist/_7ba83e09.632f669e.async.js
+  5.69 kB    dist/_e95961bf.c54dc9a9.async.js
+  5.69 kB    dist/_6638eed4.19d251a2.async.js
+  5.61 kB    dist/_6e74b41e.38e5e24e.async.js
+  4.44 kB    dist/_69efc47c.3ee1123a.async.js
+  4.15 kB    dist/umi.20f69de7.js
+  4.15 kB    dist/_e7c2e3bf.d018164a.async.js
+  3.92 kB    dist/_486dd9b8.9f57224f.css
+  3.81 kB    dist/_54a26493.0314ff4f.async.js
+  3.8 kB     dist/_b3692c7d.523982b3.async.js
+  3.55 kB    dist/node_modules_0b46371b.b03134ad.async.js
+  2.76 kB    dist/_d622e5aa.23d2f76d.async.js
+  2.62 kB    dist/src_pages_system_accounts_index_tsx_0f96636d.ddd7d816.async.js
+  2.28 kB    dist/src_pages_user_register_index_tsx_d4c707a4.417100f9.async.js
+  1.72 kB    dist/node_modules_3546ab81.ec3748d8.async.js
+  1.29 kB    dist/scripts/loading.js
+  828 B      dist/src_pages_user_register-result_index_tsx_e6990751.069cecb3.async.js
+  395 B      dist/src_pages_exception_404_index_tsx_4c10811c.fcff7037.async.js
+  375 B      dist/src_pages_exception_403_index_tsx_3570ca2a.bbd81c16.async.js
+  369 B      dist/src__umi-production_plugin-layout_Layout_c37650f7.8353ca41.css
+  362 B      dist/src_pages_exception_500_index_tsx_1bf0eb97.a3de3ba1.async.js
+  245 B      dist/src__umi-production_core_EmptyRoute_tsx_1f63b8e9.5a517c0d.async.js
+  224 B      dist/src_pages_learning-path_task-templates_detail_index_tsx_f8f254d6.6f7ca0fe.async.js
+  220 B      dist/src_pages_learning-path_diagnosis-rules_detail_index_tsx_c7c01a98.d08bd750.async.js
+
+event - Build user/index.html
+event - Build user/login/index.html
+event - Build user/register-result/index.html
+event - Build user/register/index.html
+event - Build index.html
+event - Build dashboard/index.html
+event - Build dashboard/overview/index.html
+event - Build users/index.html
+event - Build users/list/index.html
+event - Build users/:id/index.html
+event - Build content/index.html
+event - Build content/questions/index.html
+event - Build content/questions/create/index.html
+event - Build content/questions/:id/edit/index.html
+event - Build learning-path/index.html
+event - Build learning-path/diagnosis-rules/index.html
+event - Build learning-path/diagnosis-rules/new/index.html
+event - Build learning-path/diagnosis-rules/:id/edit/index.html
+event - Build learning-path/diagnosis-rules/:id/index.html
+event - Build learning-path/task-templates/new/index.html
+event - Build learning-path/task-templates/:id/edit/index.html
+event - Build learning-path/task-templates/:id/index.html
+event - Build ai-coach/index.html
+event - Build ai-coach/prompts/index.html
+event - Build ai-coach/prompts/new/index.html
+event - Build ai-coach/prompts/:id/edit/index.html
+event - Build ai-coach/prompts/:id/index.html
+event - Build writing-translation/index.html
+event - Build writing-translation/topics/index.html
+event - Build writing-translation/topics/new/index.html
+event - Build writing-translation/topics/:id/edit/index.html
+event - Build writing-translation/topics/:id/index.html
+event - Build mock-exam/index.html
+event - Build mock-exam/papers/index.html
+event - Build mock-exam/papers/new/index.html
+event - Build mock-exam/papers/:id/edit/index.html
+event - Build mock-exam/papers/:id/index.html
+event - Build analytics/index.html
+event - Build analytics/overview/index.html
+event - Build review-release/index.html
+event - Build review-release/pending/index.html
+event - Build system/index.html
+event - Build system/accounts/index.html
+event - Build examples/index.html
+event - Build examples/list/table-list/index.html
+event - Build examples/form/basic-form/index.html
+event - Build examples/profile/basic/index.html
+event - Build examples/dashboard/analysis/index.html
+event - Build exception/index.html
+event - Build exception/403/index.html
+event - Build exception/404/index.html
+event - Build exception/500/index.html
+event - Build 404.html

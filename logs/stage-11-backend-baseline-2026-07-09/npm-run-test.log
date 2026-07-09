@@ -1,0 +1,12 @@
+
+> guoji-dazi-admin-web@6.0.2 test
+> vitest run
+
+
+ RUN  v4.1.8 /Users/inn/Desktop/workspace/projects/project-004-过级搭子后台管理系统/admin-web
+
+
+ Test Files  10 passed (10)
+      Tests  61 passed (61)
+   Start at  11:06:00
+   Duration  1.65s (transform 641ms, setup 601ms, import 4.07s, tests 402ms, environment 2.19s)
