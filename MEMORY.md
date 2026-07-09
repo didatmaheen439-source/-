@@ -48,8 +48,9 @@
 
 ### Backup
 - 2026-07-09 已在项目内 `项目备份/` 保存最新备份：
-  - 源码压缩包：`guojidazi-admin-backup-20260709-103406.tar.gz`
-  - Git 历史包：`guojidazi-admin-git-20260709-103406.bundle`
+  - 源码压缩包：`guojidazi-admin-backup-20260709-103633.tar.gz`
+  - Git 历史包：`guojidazi-admin-git-20260709-103633.bundle`
+  - 备份 manifest：`backup-manifest-20260709-103633.md`
 - 源码压缩包排除了 `node_modules`、`.turbopack`、`dist`、`src/.umi`、`.git`、`backups` 和 `项目备份`，避免重复和缓存膨胀。
 
 ### Next Context
