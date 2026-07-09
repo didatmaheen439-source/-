@@ -126,7 +126,7 @@ const UserListPage: React.FC = () => {
       valueEnum: toValueEnum(taskStatusOptions),
       width: 110,
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Typography.Text>
             {getOptionLabel(
               taskStatusOptions,

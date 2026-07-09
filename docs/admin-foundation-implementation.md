@@ -233,3 +233,15 @@ Ant Design Pro 基座已完成第一阶段后台业务骨架初始化：十个�
 - 工作台摘要、待办、风险和最近处理记录已接入写译共享 Store。
 - 审计日志记录对象、版本、状态、维度数量和 AI 引用数量，不记录完整题干、参考译文或真实用户答案。
 - 详细执行与验证记录见 `logs/writing-translation-topics-implementation-2026-07-08.md`。
+
+## 2026-07-09 模考试卷配置 MVP
+
+- `/mock-exam/papers` 已从占位页升级为 `PageContainer + ProTable` 真实业务页。
+- 新增隐藏路由 `/mock-exam/papers/new`、`/mock-exam/papers/:id`、`/mock-exam/papers/:id/edit`。
+- 新增 CET4/CET6 标准模板、四分区编排、题库与写译混合引用、上移下移排序和题目选择 Drawer。
+- 试卷保存来源 ID、绑定版本和内容快照；来源更新不覆盖已发布试卷快照。
+- 预校验覆盖结构、分值、时长、重复引用、无效引用、考试类型和标准模板偏差。
+- 提交审核创建 `objectType=mock_exam` 的任务，审核发布中心执行自审隔离、发布前复验、状态同步和幂等发布。
+- 详情页展示基础信息、试卷结构、参考答案、聚合统计、校验结果、版本差异和操作记录。
+- 工作台、运营数据和用户学习记录已接入模考摘要。
+- 新增纯函数测试和完整 API 冒烟；详细执行与验证记录见 `logs/mock-exam-papers-implementation-2026-07-09.md`。

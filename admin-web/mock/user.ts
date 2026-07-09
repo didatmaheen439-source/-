@@ -17,8 +17,29 @@ import {
   syncAiCoachStrategyFromReviewTask,
 } from './aiCoachStore';
 import { auditLogs, nowText, pushAuditLog, pushOperationAuditLog } from './auditStore';
+import {
+  buildQuestionReference,
+  buildQuestionReviewTask,
+  createQuestionRecord,
+  difficultyLabels,
+  examTypeLabels,
+  filterQuestions,
+  questionData,
+  questionGroupReferences,
+  questionTypeLabels,
+  referenceById,
+  skillLabels,
+  syncQuestionFromReviewTask,
+  updateQuestionRecord,
+  validateQuestionPayload,
+} from './contentQuestionStore';
 import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
+import {
+  mockExamDashboardStats,
+  syncMockExamFromReviewTask,
+  validateMockExamReviewTransition,
+} from './mockExamStore';
 import {
   buildWritingTranslationPrecheck,
   isWritingTranslationReviewTask,
@@ -93,24 +114,6 @@ const reviewStatusActionMap: Record<API.ReviewTaskStatus, string> = {
   rolled_back: '回滚',
 };
 
-const examTypeLabels: Record<API.ExamType, string> = {
-  CET4: '四级',
-  CET6: '六级',
-};
-
-const questionTypeLabels: Record<API.QuestionType, string> = {
-  single_choice: '单选题',
-  reading_choice: '阅读选择',
-  listening_choice: '听力选择',
-};
-
-const skillLabels: Record<API.QuestionSkill, string> = {
-  vocabulary: '词汇',
-  grammar: '语法',
-  reading: '阅读',
-  listening: '听力',
-};
-
 const learningPathModuleLabels: Record<API.LearningPathModule, string> = {
   vocabulary: '词汇',
   grammar: '语法',
@@ -119,12 +122,6 @@ const learningPathModuleLabels: Record<API.LearningPathModule, string> = {
   writing: '写作',
   translation: '翻译',
   mock_exam: '模考',
-};
-
-const difficultyLabels: Record<API.QuestionDifficulty, string> = {
-  easy: '基础',
-  medium: '中等',
-  hard: '较难',
 };
 
 const onboardingStatusLabels: Record<API.UserOnboardingStatus, string> = {
@@ -209,10 +206,13 @@ const buildLearningRecords = (userId: string, index: number): API.UserLearningRe
   if (index % 10 === 0) return [];
   return Array.from({ length: 4 + (index % 4) }).map((_, recordIndex) => {
     const hasAnswer = recordIndex % 5 !== 0;
+    const module =
+      learningModules[(index + recordIndex) % learningModules.length];
+    const isMockExam = module === '模考';
     return {
       id: `${userId}-learn-${recordIndex + 1}`,
       date: `2026-07-${String(7 - (recordIndex % 5)).padStart(2, '0')}`,
-      module: learningModules[(index + recordIndex) % learningModules.length],
+      module,
       taskType: taskTypes[(index + recordIndex) % taskTypes.length],
       status: (['not_started', 'in_progress', 'completed', 'interrupted'] as API.UserTaskStatus[])[
         (index + recordIndex) % 4
@@ -220,8 +220,12 @@ const buildLearningRecords = (userId: string, index: number): API.UserLearningRe
       accuracy: hasAnswer ? Math.min(96, 58 + ((index + recordIndex) % 8) * 5) : undefined,
       errorTags: hasAnswer ? [errorTagPool[(index + recordIndex) % errorTagPool.length]] : [],
       durationSeconds: hasAnswer ? 480 + recordIndex * 190 : 0,
-      relatedObjectId: `content-${index}-${recordIndex + 1}`,
-      relatedObjectSummary: `${learningModules[(index + recordIndex) % learningModules.length]}任务摘要 ${recordIndex + 1}`,
+      relatedObjectId: isMockExam
+        ? 'mock-exam-cet6-202607'
+        : `content-${index}-${recordIndex + 1}`,
+      relatedObjectSummary: isMockExam
+        ? '六级模考试卷 2026-07 / V2.1 / 聚合结果摘要，不含逐题答案'
+        : `${module}任务摘要 ${recordIndex + 1}`,
     };
   });
 };
@@ -684,291 +688,6 @@ if (!globalReviewStore.__GUOJI_ADMIN_REVIEW_TASKS__) {
 }
 
 export const reviewTasksData = globalReviewStore.__GUOJI_ADMIN_REVIEW_TASKS__;
-
-const questionData: API.QuestionItem[] = [
-  {
-    id: 'question-cet4-reading-001',
-    title: '四级阅读主旨判断题 A',
-    stem: 'According to the passage, what is the main reason students delay their daily reading practice?',
-    examType: 'CET4',
-    questionType: 'reading_choice',
-    skill: 'reading',
-    difficulty: 'medium',
-    tags: ['主旨题', '学习习惯', '阅读理解'],
-    options: [
-      { key: 'A', content: 'They cannot find enough reading materials.' },
-      { key: 'B', content: 'They do not have a clear starting task.' },
-      { key: 'C', content: 'They prefer listening practice.' },
-      { key: 'D', content: 'They have already mastered the topic.' },
-    ],
-    answer: 'B',
-    analysis: '文中强调学生拖延的主要原因是缺少明确起点，而不是材料不足或偏好问题。',
-    status: 'pending_review',
-    version: 'V1.2',
-    creator: '内容运营',
-    createdAt: '2026-07-06 16:00:00',
-    updatedBy: '内容运营',
-    updatedAt: '2026-07-07 09:40:00',
-    changeSummary: '补充阅读题干、选项和错因解析。',
-    referenceImpact: '影响 CET-4 阅读专项练习和今日任务推荐。',
-    reviewTaskId: 'review-question-001',
-    versionRecords: [
-      {
-        id: 'question-version-reading-001-v12',
-        version: 'V1.2',
-        status: 'pending_review',
-        summary: '补充阅读题干、选项和解析。',
-        createdBy: '内容运营',
-        createdAt: '2026-07-07 09:40:00',
-      },
-      {
-        id: 'question-version-reading-001-v11',
-        version: 'V1.1',
-        status: 'draft',
-        summary: '初始草稿。',
-        createdBy: '内容运营',
-        createdAt: '2026-07-06 16:00:00',
-      },
-    ],
-    operationRecords: [
-      {
-        id: 'question-op-reading-001-submit',
-        operator: '内容运营',
-        roleName: '内容运营',
-        action: '提交审核',
-        fromStatus: 'draft',
-        toStatus: 'pending_review',
-        reason: '阅读题内容完整，提交教研审核。',
-        time: '2026-07-07 09:40:00',
-      },
-    ],
-  },
-  {
-    id: 'question-cet6-listening-001',
-    title: '六级听力观点态度题 A',
-    stem: 'What is the speaker most likely to suggest at the end of the conversation?',
-    examType: 'CET6',
-    questionType: 'listening_choice',
-    skill: 'listening',
-    difficulty: 'hard',
-    tags: ['观点态度', '听力长对话'],
-    options: [
-      { key: 'A', content: 'Reschedule the meeting for next week.' },
-      { key: 'B', content: 'Collect more feedback before making a decision.' },
-      { key: 'C', content: 'Cancel the project immediately.' },
-      { key: 'D', content: 'Ignore the recent survey results.' },
-    ],
-    answer: 'B',
-    analysis: '说话人强调需要更多反馈再决定，选项 B 与语义一致。',
-    status: 'draft',
-    version: 'V0.3',
-    creator: '内容运营',
-    createdAt: '2026-07-07 10:20:00',
-    updatedBy: '内容运营',
-    updatedAt: '2026-07-07 10:35:00',
-    changeSummary: '新增六级听力观点态度题。',
-    referenceImpact: '当前为草稿，尚未影响线上练习。',
-    versionRecords: [
-      {
-        id: 'question-version-listening-001-v03',
-        version: 'V0.3',
-        status: 'draft',
-        summary: '补充选项和解析。',
-        createdBy: '内容运营',
-        createdAt: '2026-07-07 10:35:00',
-      },
-    ],
-    operationRecords: [
-      {
-        id: 'question-op-listening-001-create',
-        operator: '内容运营',
-        roleName: '内容运营',
-        action: '保存草稿',
-        toStatus: 'draft',
-        reason: '新增听力客观题草稿。',
-        time: '2026-07-07 10:20:00',
-      },
-    ],
-  },
-  {
-    id: 'question-cet4-vocabulary-001',
-    title: '四级词汇辨析题 A',
-    stem: 'The manager asked the team to ______ the report before Friday.',
-    examType: 'CET4',
-    questionType: 'single_choice',
-    skill: 'vocabulary',
-    difficulty: 'easy',
-    tags: ['词汇辨析', '动词搭配'],
-    options: [
-      { key: 'A', content: 'revise' },
-      { key: 'B', content: 'reserve' },
-      { key: 'C', content: 'reverse' },
-      { key: 'D', content: 'reveal' },
-    ],
-    answer: 'A',
-    analysis: 'revise the report 表示修改报告，符合语境。',
-    status: 'rejected',
-    version: 'V0.8',
-    creator: '内容运营',
-    createdAt: '2026-07-05 14:20:00',
-    updatedBy: '教研审核',
-    updatedAt: '2026-07-06 11:10:00',
-    changeSummary: '补充词汇辨析题。',
-    referenceImpact: '当前未发布，不影响线上练习。',
-    versionRecords: [
-      {
-        id: 'question-version-vocab-001-v08',
-        version: 'V0.8',
-        status: 'rejected',
-        summary: '教研驳回，要求补充干扰项解释。',
-        createdBy: '教研审核',
-        createdAt: '2026-07-06 11:10:00',
-      },
-    ],
-    operationRecords: [
-      {
-        id: 'question-op-vocab-001-reject',
-        operator: '教研审核',
-        roleName: '教研审核',
-        action: '驳回',
-        fromStatus: 'pending_review',
-        toStatus: 'rejected',
-        reason: '干扰项解释不足。',
-        time: '2026-07-06 11:10:00',
-      },
-    ],
-  },
-  {
-    id: 'question-cet6-grammar-001',
-    title: '六级语法结构题 A',
-    stem: 'Had it not been for the timely warning, the students ______ the deadline.',
-    examType: 'CET6',
-    questionType: 'single_choice',
-    skill: 'grammar',
-    difficulty: 'hard',
-    tags: ['虚拟语气', '语法结构'],
-    options: [
-      { key: 'A', content: 'would miss' },
-      { key: 'B', content: 'will miss' },
-      { key: 'C', content: 'would have missed' },
-      { key: 'D', content: 'had missed' },
-    ],
-    answer: 'C',
-    analysis: 'Had it not been for 表示与过去事实相反，主句使用 would have done。',
-    status: 'published',
-    version: 'V1.0',
-    creator: '教研审核',
-    createdAt: '2026-07-03 09:30:00',
-    updatedBy: '教研审核',
-    updatedAt: '2026-07-05 15:00:00',
-    changeSummary: '发布六级语法结构题。',
-    referenceImpact: '已用于 CET-6 语法专项练习。',
-    versionRecords: [
-      {
-        id: 'question-version-grammar-001-v10',
-        version: 'V1.0',
-        status: 'published',
-        summary: '当前线上版本。',
-        createdBy: '教研审核',
-        createdAt: '2026-07-05 15:00:00',
-      },
-    ],
-    operationRecords: [
-      {
-        id: 'question-op-grammar-001-publish',
-        operator: '教研审核',
-        roleName: '教研审核',
-        action: '发布',
-        fromStatus: 'pending_publish',
-        toStatus: 'published',
-        reason: '题目审核通过并发布。',
-        time: '2026-07-05 15:00:00',
-      },
-    ],
-  },
-];
-
-const moduleByQuestionSkill: Record<API.QuestionSkill, API.LearningPathModule> = {
-  vocabulary: 'vocabulary',
-  grammar: 'grammar',
-  reading: 'reading',
-  listening: 'listening',
-};
-
-const questionGroupReferences: API.LearningPathReference[] = [
-  {
-    id: 'group-cet4-reading-core',
-    type: 'question_group',
-    name: '四级阅读核心题组',
-    examType: 'CET4',
-    module: 'reading',
-    status: 'published',
-    available: true,
-  },
-  {
-    id: 'group-cet6-listening-core',
-    type: 'question_group',
-    name: '六级听力核心题组',
-    examType: 'CET6',
-    module: 'listening',
-    status: 'published',
-    available: true,
-  },
-  {
-    id: 'group-cet4-vocab-draft',
-    type: 'question_group',
-    name: '四级词汇草稿题组',
-    examType: 'CET4',
-    module: 'vocabulary',
-    status: 'draft',
-    available: false,
-  },
-  {
-    id: 'group-cet6-writing-offline',
-    type: 'question_group',
-    name: '六级写作下架题组',
-    examType: 'CET6',
-    module: 'writing',
-    status: 'offline',
-    available: false,
-  },
-  {
-    id: 'group-cet4-translation-core',
-    type: 'question_group',
-    name: '四级翻译基础题组',
-    examType: 'CET4',
-    module: 'translation',
-    status: 'published',
-    available: true,
-  },
-  {
-    id: 'group-cet6-reading-core',
-    type: 'question_group',
-    name: '六级阅读提升题组',
-    examType: 'CET6',
-    module: 'reading',
-    status: 'published',
-    available: true,
-  },
-];
-
-const buildQuestionReference = (question: API.QuestionItem): API.LearningPathReference => ({
-  id: question.id,
-  type: 'question',
-  name: question.title,
-  examType: question.examType,
-  module: moduleByQuestionSkill[question.skill],
-  status: question.status,
-  available: question.status === 'published',
-});
-
-const allLearningPathReferences = () => [
-  ...questionData.map(buildQuestionReference),
-  ...questionGroupReferences,
-];
-
-const referenceById = (id?: string) =>
-  allLearningPathReferences().find((item) => item.id === id);
 
 const baseLearningPathConfig = (params: {
   id: string;
@@ -1835,36 +1554,6 @@ const paginate = <T,>(items: T[], query: Request['query']) => {
   return items.slice(start, start + pageSize);
 };
 
-const filterQuestions = (query: Request['query']) => {
-  const keyword = getQueryValue(query.keyword).trim();
-  const examType = getQueryValue(query.examType);
-  const questionType = getQueryValue(query.questionType);
-  const status = getQueryValue(query.status);
-  const difficulty = getQueryValue(query.difficulty);
-
-  return [...questionData]
-    .filter((question) => {
-      if (
-        keyword &&
-        ![
-          question.id,
-          question.title,
-          question.stem,
-          question.analysis,
-          ...question.tags,
-        ].some((value) => value.includes(keyword))
-      ) {
-        return false;
-      }
-      if (examType && question.examType !== examType) return false;
-      if (questionType && question.questionType !== questionType) return false;
-      if (status && question.status !== status) return false;
-      if (difficulty && question.difficulty !== difficulty) return false;
-      return true;
-    })
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-};
-
 const roleCanReadContent = (roleId?: AdminRoleId | '') =>
   Boolean(roleId && roleCanPerformAction(roleId, 'content', 'read'));
 
@@ -1885,82 +1574,6 @@ const roleCanSubmitQuestion = (roleId: AdminRoleId | '', question: API.QuestionI
       roleCanPerformAction(roleId, 'content', 'submit') &&
       ['draft', 'rejected'].includes(question.status),
   );
-
-const normalizeTags = (tags?: string[]) =>
-  [...new Set((tags ?? []).map((item) => item.trim()).filter(Boolean))];
-
-const validateQuestionPayload = (body: Partial<API.QuestionSaveParams>) => {
-  if (!body.title?.trim()) return '题目标题是必填项。';
-  if (!body.stem?.trim()) return '题干是必填项。';
-  if (!body.examType || !examTypeLabels[body.examType]) return '考试类型无效。';
-  if (!body.questionType || !questionTypeLabels[body.questionType]) return '题型无效。';
-  if (!body.skill || !skillLabels[body.skill]) return '所属技能无效。';
-  if (!body.difficulty || !difficultyLabels[body.difficulty]) return '难度无效。';
-  if (!body.answer || !['A', 'B', 'C', 'D'].includes(body.answer)) return '正确答案无效。';
-  if (!body.analysis?.trim()) return '解析是必填项。';
-
-  const optionKeys = ['A', 'B', 'C', 'D'];
-  const options = body.options ?? [];
-  if (options.length !== 4) return '客观题必须包含 A、B、C、D 四个选项。';
-  for (const key of optionKeys) {
-    const option = options.find((item) => item.key === key);
-    if (!option?.content?.trim()) return `选项 ${key} 是必填项。`;
-  }
-  return '';
-};
-
-const nextQuestionVersion = (version: string) => {
-  const matched = /^V(\d+)\.(\d+)$/.exec(version);
-  if (!matched) return 'V0.1';
-  return `V${matched[1]}.${Number(matched[2]) + 1}`;
-};
-
-const buildQuestionFromPayload = (
-  question: API.QuestionItem,
-  body: API.QuestionSaveParams,
-  operatorName: string,
-) => {
-  const now = nowText();
-  const previousStatus = question.status;
-  question.title = body.title.trim();
-  question.stem = body.stem.trim();
-  question.examType = body.examType;
-  question.questionType = body.questionType;
-  question.skill = body.skill;
-  question.difficulty = body.difficulty;
-  question.tags = normalizeTags(body.tags);
-  question.options = body.options.map((item) => ({
-    key: item.key,
-    content: item.content.trim(),
-  }));
-  question.answer = body.answer;
-  question.analysis = body.analysis.trim();
-  question.status = 'draft';
-  question.version = nextQuestionVersion(question.version);
-  question.updatedBy = operatorName;
-  question.updatedAt = now;
-  question.changeSummary = body.changeSummary?.trim() || '更新题目草稿。';
-  question.referenceImpact = body.referenceImpact?.trim() || '当前为草稿，尚未影响线上练习。';
-  question.versionRecords.unshift({
-    id: `question-version-${question.id}-${Date.now()}`,
-    version: question.version,
-    status: question.status,
-    summary: question.changeSummary,
-    createdBy: operatorName,
-    createdAt: now,
-  });
-  question.operationRecords.unshift({
-    id: `question-op-${question.id}-${Date.now()}`,
-    operator: operatorName,
-    roleName: operatorName,
-    action: '保存草稿',
-    fromStatus: previousStatus,
-    toStatus: 'draft',
-    reason: question.changeSummary,
-    time: now,
-  });
-  return question;
-};
 
 const pushContentAuditLog = (
   roleId: AdminRoleId,
@@ -1984,128 +1597,6 @@ const pushContentAuditLog = (
     reason,
     result,
     changeSummary,
-  });
-};
-
-const buildQuestionReviewTask = (
-  question: API.QuestionItem,
-  operator: { id: AdminRoleId; name: string },
-  changeSummary: string,
-) => {
-  const now = nowText();
-  const existingTask = question.reviewTaskId
-    ? reviewTasksData.find((item) => item.id === question.reviewTaskId)
-    : reviewTasksData.find((item) => item.objectType === 'question_bank' && item.objectId === question.id);
-  const riskLevel: API.ReviewRiskLevel = question.difficulty === 'hard' ? 'high' : 'medium';
-  const taskPayload = {
-    objectType: 'question_bank' as API.ReviewObjectType,
-    objectTypeName: '题库内容',
-    objectId: question.id,
-    objectName: question.title,
-    moduleKey: 'content',
-    moduleName: '题库与内容管理',
-    submitter: operator.name,
-    submittedAt: now,
-    version: question.version,
-    priority: question.difficulty === 'hard' ? 'P0' as const : 'P1' as const,
-    status: 'pending_review' as API.ReviewTaskStatus,
-    riskLevel,
-    updatedAt: now,
-    changeSummary,
-    impactScope: question.referenceImpact,
-    reviewOpinion: '',
-    reviewer: '',
-    releasePlan: '审核通过后进入待发布队列。',
-    rollbackTargetVersion: question.version,
-  };
-
-  if (existingTask) {
-    Object.assign(existingTask, taskPayload);
-    existingTask.versionRecords.unshift({
-      id: `version-${existingTask.id}-${Date.now()}`,
-      version: question.version,
-      status: 'pending_review',
-      summary: changeSummary,
-      createdBy: operator.name,
-      createdAt: now,
-    });
-    existingTask.operationRecords.unshift({
-      id: `op-${existingTask.id}-${Date.now()}`,
-      operator: operator.name,
-      roleName: operator.name,
-      action: '提交审核',
-      fromStatus: question.status,
-      toStatus: 'pending_review',
-      reason: changeSummary,
-      time: now,
-    });
-    question.reviewTaskId = existingTask.id;
-    return existingTask;
-  }
-
-  const task: API.ReviewTask = {
-    id: `review-question-${Date.now()}`,
-    ...taskPayload,
-    versionRecords: [
-      {
-        id: `version-question-${question.id}-${Date.now()}`,
-        version: question.version,
-        status: 'pending_review',
-        summary: changeSummary,
-        createdBy: operator.name,
-        createdAt: now,
-      },
-    ],
-    operationRecords: [
-      {
-        id: `op-question-${question.id}-${Date.now()}`,
-        operator: operator.name,
-        roleName: operator.name,
-        action: '提交审核',
-        fromStatus: question.status,
-        toStatus: 'pending_review',
-        reason: changeSummary,
-        time: now,
-      },
-    ],
-  };
-  reviewTasksData.unshift(task);
-  question.reviewTaskId = task.id;
-  return task;
-};
-
-const syncQuestionFromReviewTask = (
-  task: API.ReviewTask,
-  previousStatus: API.ReviewTaskStatus,
-  nextStatus: API.ReviewTaskStatus,
-  operatorName: string,
-  reason: string,
-) => {
-  if (task.objectType !== 'question_bank') return;
-  const question = questionData.find((item) => item.id === task.objectId);
-  if (!question) return;
-  const now = task.updatedAt;
-  question.status = nextStatus;
-  question.updatedBy = operatorName;
-  question.updatedAt = now;
-  question.reviewTaskId = task.id;
-  question.operationRecords.unshift({
-    id: `question-op-${question.id}-${Date.now()}`,
-    operator: operatorName,
-    roleName: operatorName,
-    action: reviewStatusActionMap[nextStatus],
-    fromStatus: previousStatus,
-    toStatus: nextStatus,
-    reason,
-    time: now,
-  });
-  question.versionRecords.unshift({
-    id: `question-version-${question.id}-${Date.now()}`,
-    version: question.version,
-    status: nextStatus,
-    summary: `${reviewStatusActionMap[nextStatus]}：${task.changeSummary}`,
-    createdBy: operatorName,
-    createdAt: now,
   });
 };
 
@@ -2703,7 +2194,7 @@ const analyticsSectionLabels: Record<API.AnalyticsVisibleSection, string> = {
   feedback: '客服反馈',
   aiCoach: 'AI 陪练占位',
   writingTranslation: '写译批改占位',
-  mockExam: '模考占位',
+  mockExam: '模考管理',
   audit: '风险与审计摘要',
 };
 
@@ -2723,11 +2214,11 @@ const analyticsModuleSectionMap: Record<API.AnalyticsModule, API.AnalyticsVisibl
 const roleAnalyticsSections: Record<AdminRoleId, API.AnalyticsVisibleSection[]> = {
   super_admin: analyticsModuleSectionMap.all,
   content_operator: ['content', 'reviewRelease'],
-  teaching_reviewer: ['users', 'learningPath', 'content', 'reviewRelease', 'writingTranslation'],
+  teaching_reviewer: ['users', 'learningPath', 'content', 'reviewRelease', 'writingTranslation', 'mockExam'],
   ai_operator: ['users', 'reviewRelease', 'aiCoach', 'writingTranslation'],
   customer_support: ['users', 'feedback'],
   data_analyst: analyticsModuleSectionMap.all,
-  read_only_auditor: ['reviewRelease', 'audit'],
+  read_only_auditor: ['reviewRelease', 'mockExam', 'audit'],
 };
 
 const analyticsPlaceholderSnapshots: API.AnalyticsModuleSnapshot[] = [
@@ -2749,16 +2240,6 @@ const analyticsPlaceholderSnapshots: API.AnalyticsModuleSnapshot[] = [
     unit: '次 Mock 提交',
     status: 'placeholder',
     description: '完整模块尚未建设，仅展示结构占位。',
-    visible: true,
-  },
-  {
-    id: 'mockExam',
-    name: '模考',
-    value: 18,
-    displayValue: '18',
-    unit: '人 Mock 开始',
-    status: 'placeholder',
-    description: '基础占位指标，不参与顶部核心指标。',
     visible: true,
   },
 ];
@@ -3183,12 +2664,14 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'review_rollback_count', title: '区间回滚数', value: reviewStats.rolledBack, unit: '次', type: 'count', timeSemantic: 'interval', direction: 'risk', section: 'reviewRelease', tooltip: '筛选时间范围内审核任务状态变为已回滚的数量。', updatedAt }),
   ].filter((card) => visibleSections.includes(card.section));
 
+  const mockStats = mockExamDashboardStats();
   const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
     { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
     { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
     { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库和题组共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content/questions' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/list?feedbackStatus=pending' },
+    { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/papers' },
     ...analyticsPlaceholderSnapshots.map((item) => ({ ...item, visible: visibleSections.includes(item.id) })),
   ];
 
@@ -3263,7 +2746,7 @@ const buildAnalyticsOverview = (
       { section: 'feedback', source: 'operationUsersData.feedbacks', formal: true },
       { section: 'aiCoach', source: '固定 Mock 占位指标', formal: false },
       { section: 'writingTranslation', source: 'writingTranslationTopicsData、reviewTasksData', formal: true },
-      { section: 'mockExam', source: '固定 Mock 占位指标', formal: false },
+      { section: 'mockExam', source: 'mockExamPapersData、reviewTasksData、聚合统计', formal: true },
       { section: 'audit', source: 'auditLogs 聚合摘要', formal: true },
     ] as API.AnalyticsDataSource[]).filter((item) => visibleSections.includes(item.section)),
   };
@@ -3988,6 +3471,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
     { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
     { id: 'learning-path', title: '去学习路径配置', description: '检查诊断规则和今日任务模板。', icon: 'BranchesOutlined', targetRoute: '/learning-path/diagnosis-rules', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
     { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
+    { id: 'mock-exam', title: '去模考试卷管理', description: '检查试卷结构、题目引用和发布状态。', icon: 'FileDoneOutlined', targetRoute: '/mock-exam/papers', requiredModule: 'mockExam', requiredAction: 'read', todoCount: todos.filter((item) => item.objectType === '模考试卷').length },
     { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/overview', requiredModule: 'analytics', requiredAction: 'read' },
     { id: 'system-audit', title: '去审计日志', description: '查看权限拒绝、敏感访问和权限变更。', icon: 'SafetyCertificateOutlined', targetRoute: '/system/accounts', targetQuery: { tab: 'audit' }, requiredModule: 'system', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'system').length },
     { id: 'ai-coach', title: '去 AI 陪练管理', description: '查看 AI 策略占位摘要和审核入口。', icon: 'RobotOutlined', targetRoute: '/ai-coach/prompts', requiredModule: 'aiCoach', requiredAction: 'read' },
@@ -4006,6 +3490,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
 const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModuleSnapshot[] => {
   const today = dashboardTodayRange().today;
   const writingStats = writingTranslationDashboardStats();
+  const mockStats = mockExamDashboardStats();
   const snapshots: API.DashboardModuleSnapshot[] = [
     {
       id: 'reviewRelease',
@@ -4094,6 +3579,19 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
         { label: 'AI 引用失效', value: writingStats.aiInvalid.length, status: 'risk' },
       ],
     },
+    {
+      id: 'mockExam',
+      title: '模考管理',
+      sourceModule: 'mockExam',
+      targetRoute: '/mock-exam/papers',
+      items: [
+        { label: '草稿', value: mockStats.draft },
+        { label: '待审核', value: mockStats.pendingReview, status: 'warning' },
+        { label: '待发布', value: mockStats.pendingPublish, status: 'warning' },
+        { label: '已发布', value: mockStats.published },
+        { label: '预校验阻断', value: mockStats.precheckErrors, status: 'risk' },
+      ],
+    },
   ];
   return snapshots.filter((snapshot) => canReadRoute(roleId, snapshot.targetRoute));
 };
@@ -4102,10 +3600,10 @@ const buildDashboardRecentActivities = (roleId: AdminRoleId) =>
   auditLogs
     .filter((log) => {
       if (roleId === 'super_admin') return true;
-      if (roleId === 'read_only_auditor') return ['permission_denied', 'sensitive_access'].includes(log.logType ?? '') || ['permission_change', 'restricted_access'].includes(String(log.action)) || log.result === 'failed';
+      if (roleId === 'read_only_auditor') return ['permission_denied', 'sensitive_access'].includes(log.logType ?? '') || ['permission_change', 'restricted_access'].includes(String(log.action)) || log.objectType === 'mock_exam' || log.result === 'failed';
       if (roleId === 'customer_support') return log.objectType === 'user';
       if (roleId === 'content_operator') return ['content', 'writing_translation', 'review_release'].includes(log.objectType);
-      if (roleId === 'teaching_reviewer') return ['content', 'learning_path_config', 'writing_translation', 'review_release'].includes(log.objectType);
+      if (roleId === 'teaching_reviewer') return ['content', 'learning_path_config', 'writing_translation', 'mock_exam', 'review_release'].includes(log.objectType);
       if (roleId === 'ai_operator') return ['ai_coach_strategy', 'writing_translation', 'review_release', 'analytics'].includes(log.objectType);
       return false;
     })
@@ -4118,8 +3616,8 @@ const buildDashboardRecentActivities = (roleId: AdminRoleId) =>
       objectType: log.objectType,
       objectSummary: log.objectId,
       result: log.result,
-      sourceModule: log.objectType === 'user' ? 'users' : log.objectType === 'analytics' ? 'analytics' : log.objectType === 'review_release' ? 'reviewRelease' : log.objectType === 'learning_path_config' ? 'learningPath' : log.objectType === 'content' ? 'content' : log.objectType === 'writing_translation' ? 'writingTranslation' : 'system',
-      sourceModuleName: log.objectType === 'user' ? '用户管理' : log.objectType === 'analytics' ? '运营数据' : log.objectType === 'review_release' ? '审核发布' : log.objectType === 'learning_path_config' ? '学习路径配置' : log.objectType === 'content' ? '题库与内容管理' : log.objectType === 'writing_translation' ? '写译批改管理' : '权限与系统设置',
+      sourceModule: log.objectType === 'user' ? 'users' : log.objectType === 'analytics' ? 'analytics' : log.objectType === 'review_release' ? 'reviewRelease' : log.objectType === 'learning_path_config' ? 'learningPath' : log.objectType === 'content' ? 'content' : log.objectType === 'writing_translation' ? 'writingTranslation' : log.objectType === 'mock_exam' ? 'mockExam' : 'system',
+      sourceModuleName: log.objectType === 'user' ? '用户管理' : log.objectType === 'analytics' ? '运营数据' : log.objectType === 'review_release' ? '审核发布' : log.objectType === 'learning_path_config' ? '学习路径配置' : log.objectType === 'content' ? '题库与内容管理' : log.objectType === 'writing_translation' ? '写译批改管理' : log.objectType === 'mock_exam' ? '模考管理' : '权限与系统设置',
     }));
 
 const dashboardDataQualityIssues = (
@@ -4668,54 +4166,8 @@ export default {
     }
 
     const operator = roleConfigs[currentRoleId];
-    const now = nowText();
     const body = req.body as API.QuestionSaveParams;
-    const question: API.QuestionItem = {
-      id: `question-${Date.now()}`,
-      title: body.title.trim(),
-      stem: body.stem.trim(),
-      examType: body.examType,
-      questionType: body.questionType,
-      skill: body.skill,
-      difficulty: body.difficulty,
-      tags: normalizeTags(body.tags),
-      options: body.options.map((item) => ({
-        key: item.key,
-        content: item.content.trim(),
-      })),
-      answer: body.answer,
-      analysis: body.analysis.trim(),
-      status: 'draft',
-      version: 'V0.1',
-      creator: operator.name,
-      createdAt: now,
-      updatedBy: operator.name,
-      updatedAt: now,
-      changeSummary: body.changeSummary?.trim() || '新增题目草稿。',
-      referenceImpact: body.referenceImpact?.trim() || '当前为草稿，尚未影响线上练习。',
-      versionRecords: [
-        {
-          id: `question-version-create-${Date.now()}`,
-          version: 'V0.1',
-          status: 'draft',
-          summary: body.changeSummary?.trim() || '新增题目草稿。',
-          createdBy: operator.name,
-          createdAt: now,
-        },
-      ],
-      operationRecords: [
-        {
-          id: `question-op-create-${Date.now()}`,
-          operator: operator.name,
-          roleName: operator.name,
-          action: '保存草稿',
-          toStatus: 'draft',
-          reason: body.changeSummary?.trim() || '新增题目草稿。',
-          time: now,
-        },
-      ],
-    };
-    questionData.unshift(question);
+    const question = createQuestionRecord(body, operator.name);
     pushContentAuditLog(
       currentRoleId,
       'create',
@@ -4763,7 +4215,7 @@ export default {
     }
 
     const operator = roleConfigs[currentRoleId];
-    const updatedQuestion = buildQuestionFromPayload(
+    const updatedQuestion = updateQuestionRecord(
       question,
       req.body as API.QuestionSaveParams,
       operator.name,
@@ -4816,7 +4268,12 @@ export default {
 
     const operator = roleConfigs[currentRoleId];
     const previousStatus = question.status;
-    const task = buildQuestionReviewTask(question, operator, changeSummary);
+    const task = buildQuestionReviewTask(
+      question,
+      operator,
+      changeSummary,
+      reviewTasksData,
+    );
     question.status = 'pending_review';
     question.updatedBy = operator.name;
     question.updatedAt = task.updatedAt;
@@ -5133,7 +4590,8 @@ export default {
         task.status === 'published' &&
         (isLearningPathConfig(task) ||
           isAiCoachReviewTask(task) ||
-          isWritingTranslationReviewTask(task))
+          isWritingTranslationReviewTask(task) ||
+          task.objectType === 'mock_exam')
       ) {
         res.send({
           success: true,
@@ -5199,6 +4657,28 @@ export default {
       return;
     }
 
+    const mockExamTransitionCheck = validateMockExamReviewTransition(
+      task,
+      nextStatus,
+    );
+    if (!mockExamTransitionCheck.ok) {
+      pushReviewAuditLog(
+        currentRoleId,
+        task,
+        reviewStatusActionMap[nextStatus],
+        'failed',
+        mockExamTransitionCheck.errorMessage,
+        `模考试卷发布前复验失败：${mockExamTransitionCheck.errorMessage}`,
+      );
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: mockExamTransitionCheck.errorMessage,
+        data: mockExamTransitionCheck.precheck,
+      });
+      return;
+    }
+
     const previousStatus = task.status;
     const operator = getOperator();
     const action = reviewStatusActionMap[nextStatus];
@@ -5252,6 +4732,17 @@ export default {
       previousStatus,
       nextStatus,
       operatorFromWritingTranslationRole(operator.roleId, operator.id, operator.name),
+      operationReason,
+    );
+    syncMockExamFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      {
+        id: operator.id,
+        name: operator.name,
+        roleName: operator.roleName,
+      },
       operationReason,
     );
 

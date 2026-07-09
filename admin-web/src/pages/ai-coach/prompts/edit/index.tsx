@@ -58,7 +58,7 @@ const PrecheckResult: React.FC<{ result?: API.AiCoachPrecheckResult }> = ({ resu
     <Alert
       type={result.level === 'error' ? 'error' : result.level === 'warning' ? 'warning' : 'success'}
       showIcon
-      message={`预校验${precheckLevelText[result.level]}`}
+      title={`预校验${precheckLevelText[result.level]}`}
       description={
         <Space orientation="vertical" size={6}>
           <Typography.Text>{result.summary}</Typography.Text>
@@ -368,7 +368,7 @@ const AiCoachStrategyEditPage: React.FC = () => {
         <Alert
           type="warning"
           showIcon
-          message="当前版本不能直接编辑"
+          title="当前版本不能直接编辑"
           description={
             <Space>
               <StatusTag domain="reviewPublish" value={strategy?.status ?? ''} />

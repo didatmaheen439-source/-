@@ -25,6 +25,7 @@
 - 已完成 `/dashboard/overview` 运营工作台 MVP：欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP：四类策略配置、五类业务场景、独立新建/详情/编辑页、预校验、静态样例校验、版本差异、审核发布同步和权限验证。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
+- 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
 
 ## 目录说明
@@ -59,3 +60,4 @@
 - 2026-07-08：`/dashboard/overview` 运营工作台 MVP 开发完成，验证记录见 `logs/dashboard-overview-implementation-2026-07-08.md`。
 - 2026-07-08：`/ai-coach/prompts` AI 陪练策略治理 MVP 开发完成，验证记录见 `logs/ai-coach-strategy-implementation-2026-07-08.md`。
 - 2026-07-08：`/writing-translation/topics` 写译批改管理 MVP 开发完成，验证记录见 `logs/writing-translation-topics-implementation-2026-07-08.md`。
+- 2026-07-09：`/mock-exam/papers` 模考试卷配置 MVP 开发完成，API、浏览器和命令验证记录见 `logs/mock-exam-papers-implementation-2026-07-09.md`。

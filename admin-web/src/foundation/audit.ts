@@ -9,6 +9,7 @@ export type AuditObjectType =
   | 'learning_path_config'
   | 'ai_coach_strategy'
   | 'writing_translation'
+  | 'mock_exam'
   | 'review_release'
   | 'system_permission';
 

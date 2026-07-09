@@ -32,8 +32,9 @@
 - 已完成 `/dashboard/overview` 运营工作台 MVP，包含欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP，包含意图分类、Prompt 模板、回答结构、防依赖规则、五类业务场景、预校验、静态样例校验、版本差异和审核发布同步。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP，包含写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、版本差异、审核发布同步和工作台联动。
+- 已完成 `/mock-exam/papers` 模考试卷配置 MVP，包含 CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 暂未接入真实后端、真实用户数据或真实 AI。
-- 暂未开发完整 PRD 业务页面、题组编排、每日一句、外刊、真实写译批改记录和模考题库。
+- 暂未开发完整 PRD 业务页面、题组编排、每日一句、外刊、真实写译批改记录和学生端模考作答。
 
 ## 常用命令
 
@@ -65,3 +66,5 @@ npm run build
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/ai-coach-strategy-implementation-2026-07-08.md`
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/writing-translation-topics-mvp.md`
 - `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/writing-translation-topics-implementation-2026-07-08.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/docs/mock-exam-papers-mvp.md`
+- `/Users/inn/Desktop/Workspace/projects/project-004-过级搭子后台管理系统/logs/mock-exam-papers-implementation-2026-07-09.md`

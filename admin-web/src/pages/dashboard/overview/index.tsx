@@ -6,6 +6,7 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
+  FileDoneOutlined,
   LineChartOutlined,
   ReloadOutlined,
   RobotOutlined,
@@ -125,6 +126,7 @@ const actionIcons: Record<string, React.ReactNode> = {
   LineChartOutlined: <LineChartOutlined />,
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
   RobotOutlined: <RobotOutlined />,
+  FileDoneOutlined: <FileDoneOutlined />,
 };
 
 const cardSpan = { xs: 24, sm: 12, md: 12, lg: 8, xl: 6 };

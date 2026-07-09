@@ -24,6 +24,7 @@
 | `learning_path_config` | `diagnosis_rule` / `today_task_template` | 学习路径配置 | 学习路径 store 回写 |
 | `ai_coach_strategy` | `intent` / `prompt_template` / `response_structure` / `dependency_rule` | AI 陪练管理 | AI store 回写 |
 | `writing_translation` | `writing` / `translation` | 写译批改管理 | `writingTranslationStore.ts` 回写 |
+| `mock_exam` | 试卷考试类型 | 模考管理 | `mockExamStore.ts` 发布前复验并回写 |
 
 ## 写译批改接入
 
@@ -61,6 +62,15 @@
 - 发布前复验失败
 
 写译任务审计只记录对象、版本、状态、维度数量和 AI 引用数量，不记录完整题干、参考译文或真实用户答案。
+
+## 模考试卷接入
+
+- 提交审核创建 `objectType=mock_exam` 的任务，记录试卷版本、分区数、题目数、总分、总时长和影响范围。
+- 审核任务保留 `submitterId`，同一账号不能审核自己提交的试卷。
+- 审核通过、安排发布和发布沿用统一状态机；发布前调用模考试卷完整预校验。
+- 发布成功后同步试卷状态、在线版本和回滚目标；重复发布保持幂等。
+- 下架、回滚同步试卷状态并要求填写原因。
+- 审计只记录试卷结构摘要，不记录完整题干、答案或解析。
 
 ## 已知限制
 

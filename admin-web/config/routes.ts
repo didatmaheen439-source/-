@@ -246,6 +246,24 @@ export default [
         name: 'papers',
         component: './mock-exam/papers',
       },
+      {
+        path: '/mock-exam/papers/new',
+        name: 'paper-new',
+        hideInMenu: true,
+        component: './mock-exam/papers/edit/index',
+      },
+      {
+        path: '/mock-exam/papers/:id/edit',
+        name: 'paper-edit',
+        hideInMenu: true,
+        component: './mock-exam/papers/edit/index',
+      },
+      {
+        path: '/mock-exam/papers/:id',
+        name: 'paper-detail',
+        hideInMenu: true,
+        component: './mock-exam/papers/detail/index',
+      },
     ],
   },
   {

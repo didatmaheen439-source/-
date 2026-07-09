@@ -325,7 +325,7 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
           <Alert
             type="error"
             showIcon
-            message="AI 策略引用存在风险"
+            title="AI 策略引用存在风险"
             description="已发布题目不会自动下架，但新版本提交和发布前复验会阻止失效引用继续发布。"
           />
         ) : null}
@@ -470,7 +470,7 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
                     <Alert
                       type={topic.lastPrecheck.level === 'error' ? 'error' : topic.lastPrecheck.level === 'warning' ? 'warning' : 'success'}
                       showIcon
-                      message={`预校验${precheckLevelText[topic.lastPrecheck.level]}`}
+                      title={`预校验${precheckLevelText[topic.lastPrecheck.level]}`}
                       description={
                         <Space wrap>
                           {topic.lastPrecheck.issues.map((item) => (

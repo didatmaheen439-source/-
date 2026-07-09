@@ -57,7 +57,7 @@ const sectionTitle: Record<API.AnalyticsVisibleSection, string> = {
   feedback: '客服反馈指标',
   aiCoach: 'AI 陪练占位指标',
   writingTranslation: '写译批改占位指标',
-  mockExam: '模考占位指标',
+  mockExam: '模考表现',
   audit: '风险与审计摘要',
 };
 
@@ -109,7 +109,7 @@ const SectionCard: React.FC<{
         <Alert
           type="error"
           showIcon
-          message={error.message}
+          title={error.message}
           description="该区块按部分成功策略降级展示，其他区块不受影响。"
         />
       </Card>
@@ -124,7 +124,7 @@ const SectionCard: React.FC<{
 
 const MetricCard: React.FC<{ card: API.AnalyticsMetricCard }> = ({ card }) => (
   <Card size="small">
-    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
       <Flex justify="space-between" align="center" gap={8}>
         <Space size={6}>
           <Typography.Text type="secondary">{card.title}</Typography.Text>
@@ -219,7 +219,7 @@ const AnalyticsOverviewPage: React.FC = () => {
         modal.info({
           title: 'Mock 聚合导出预览',
           content: (
-            <Space direction="vertical">
+            <Space orientation="vertical">
               <Typography.Text>{result.data.message}</Typography.Text>
               <Typography.Text type="secondary">
                 区块数 {result.data.sectionCount}，指标数 {result.data.metricCount}，不包含敏感字段。
@@ -263,7 +263,7 @@ const AnalyticsOverviewPage: React.FC = () => {
         ) : undefined
       }
     >
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <Card size="small">
           <Flex wrap="wrap" gap={12} align="center">
             <RangePicker
@@ -325,7 +325,7 @@ const AnalyticsOverviewPage: React.FC = () => {
               <Alert
                 type={data.dataQualityIssues.some((item) => item.level === 'error') ? 'error' : 'warning'}
                 showIcon
-                message="数据质量提示"
+                title="数据质量提示"
                 description={data.dataQualityIssues.map((item) => item.message).join('；')}
               />
             ) : null}
@@ -361,7 +361,7 @@ const AnalyticsOverviewPage: React.FC = () => {
                     )}
                   </Col>
                   <Col xs={24} lg={8}>
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space orientation="vertical" style={{ width: '100%' }}>
                       {Object.entries(data.userDistributions).map(([key, rows]) => (
                         <Card key={key} size="small" title={key}>
                           {rows.length ? (
@@ -395,7 +395,7 @@ const AnalyticsOverviewPage: React.FC = () => {
                     )}
                   </Col>
                   <Col xs={24} lg={10}>
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space orientation="vertical" style={{ width: '100%' }}>
                       {data.learningPathFunnel.map((item) => (
                         <Flex key={item.step} justify="space-between" align="center">
                           <Typography.Text>{item.step}</Typography.Text>
@@ -464,7 +464,7 @@ const AnalyticsOverviewPage: React.FC = () => {
                     />
                   </Col>
                   <Col xs={24} lg={10}>
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space orientation="vertical" style={{ width: '100%' }}>
                       <Statistic title="平均审核时长" value={data.reviewReleaseStats?.averageReviewMinutes ?? '--'} suffix="分钟" />
                       <Statistic title="最长待审核时长" value={data.reviewReleaseStats?.longestPendingReviewHours ?? '--'} suffix="小时" />
                       {data.reviewRiskItems.map((item) => (
@@ -513,7 +513,40 @@ const AnalyticsOverviewPage: React.FC = () => {
               </SectionCard>
             ) : null}
 
-            {['aiCoach', 'writingTranslation', 'mockExam'].some((section) =>
+            {visible('mockExam') ? (
+              <SectionCard section="mockExam" data={data}>
+                {data.moduleSnapshots
+                  .filter((item) => item.id === 'mockExam' && item.visible)
+                  .map((item) => (
+                    <Flex
+                      key={item.id}
+                      justify="space-between"
+                      align="center"
+                      gap={16}
+                      wrap
+                    >
+                      <Space orientation="vertical" size={2}>
+                        <Statistic
+                          title={item.name}
+                          value={item.displayValue}
+                          suffix={item.unit}
+                        />
+                        <Typography.Text type="secondary">
+                          {item.description}
+                        </Typography.Text>
+                      </Space>
+                      <Button
+                        type="link"
+                        onClick={() => history.push(item.jumpTo || '/mock-exam/papers')}
+                      >
+                        查看模考试卷
+                      </Button>
+                    </Flex>
+                  ))}
+              </SectionCard>
+            ) : null}
+
+            {['aiCoach', 'writingTranslation'].some((section) =>
               visible(section as API.AnalyticsVisibleSection),
             ) ? (
               <SectionCard section="aiCoach" data={data}>
@@ -523,7 +556,7 @@ const AnalyticsOverviewPage: React.FC = () => {
                     .map((item) => (
                       <Col key={item.id} xs={24} md={8}>
                         <Card size="small">
-                          <Space direction="vertical">
+                          <Space orientation="vertical">
                             <Tag color="default">基础占位指标</Tag>
                             <Statistic title={item.name} value={item.displayValue} suffix={item.unit} />
                             <Typography.Text type="secondary">{item.description}</Typography.Text>

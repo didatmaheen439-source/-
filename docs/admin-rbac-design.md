@@ -142,3 +142,13 @@ mock 接口：
 - `customer_support`、`data_analyst` 等无写译模块权限角色直访写译页面或 mock API 返回 403，并写入权限拒绝审计。
 - 写译审核任务使用 `objectType=writing_translation`，题目类型写入 `objectSubtype=writing|translation`。
 - 写译 mock API 对 `read/create/edit/submit` 做接口层校验；审计日志不保存完整题干、参考译文或真实学生答案。
+
+## 2026-07-09 模考试卷权限补充
+
+- `super_admin` 可查看、新建、编辑、预校验、提交、复制，并可在审核发布中心审核、发布、下架和回滚。
+- `teaching_reviewer` 可查看、新建、编辑和提交试卷；审核发布中心继续执行提交人自审隔离。
+- `data_analyst` 增加 `mockExam.read`，只读查看试卷结构和聚合统计。
+- `read_only_auditor` 增加 `mockExam.read`，只读查看试卷、版本和操作记录。
+- `customer_support` 不进入模考管理，只在用户学习记录中查看试卷 ID、版本和聚合摘要。
+- `content_operator`、`ai_operator` 无模考菜单和 API 权限，直访返回 403。
+- 模考 Mock API 对 `read/create/edit/submit` 做接口层校验；审计日志不保存完整题干、答案或解析。
