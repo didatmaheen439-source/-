@@ -1,4 +1,4 @@
-import { CopyOutlined, EditOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CopyOutlined, EditOutlined } from '@ant-design/icons';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useModel, useParams } from '@umijs/max';
 import {
@@ -45,6 +45,10 @@ const DetailPage: React.FC<DetailPageProps> = ({ kind }) => {
   const canEdit = Boolean(
     canWrite && detail && editableStatuses.includes(detail.status),
   );
+  const listPath =
+    kind === 'diagnosis_rule'
+      ? '/learning-path/diagnosis-rules'
+      : '/learning-path/task-templates';
 
   const loadDetail = async () => {
     setLoading(true);
@@ -100,6 +104,7 @@ const DetailPage: React.FC<DetailPageProps> = ({ kind }) => {
         status="404"
         title="404"
         subTitle="学习路径配置不存在或类型不匹配。"
+        extra={<Button onClick={() => history.push(listPath)}>返回列表</Button>}
       />
     );
   }
@@ -109,6 +114,12 @@ const DetailPage: React.FC<DetailPageProps> = ({ kind }) => {
       title={detail.name}
       extra={
         <Space>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => history.push(listPath)}
+          >
+            返回
+          </Button>
           <StatusTag domain="reviewPublish" value={detail.status} />
           <Button
             icon={<EditOutlined />}

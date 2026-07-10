@@ -103,6 +103,7 @@ declare namespace API {
 
   type ReviewObjectType =
     | 'question_bank'
+    | 'wrong_reason_tag'
     | 'learning_path_config'
     | 'learning_rule'
     | 'ai_coach_strategy'
@@ -134,7 +135,11 @@ declare namespace API {
   type ReviewTask = {
     id: string;
     objectType: ReviewObjectType;
-    objectSubtype?: LearningPathConfigKind | AiCoachConfigType | WritingTranslationTopicType;
+    objectSubtype?:
+      | LearningPathConfigKind
+      | AiCoachConfigType
+      | WritingTranslationTopicType
+      | WrongReasonTagCategory;
     objectTypeName: string;
     objectId: string;
     objectName: string;
@@ -682,6 +687,52 @@ declare namespace API {
 
   type QuestionDifficulty = 'easy' | 'medium' | 'hard';
 
+  type WrongReasonTagCategory =
+    | 'comprehension_bias'
+    | 'knowledge_gap'
+    | 'question_review'
+    | 'expression_issue'
+    | 'strategy_issue';
+
+  type WrongReasonTagSeverity = ReviewRiskLevel;
+
+  type WrongReasonTagItem = {
+    id: string;
+    name: string;
+    category: WrongReasonTagCategory;
+    examTypes: ExamType[];
+    questionTypes: QuestionType[];
+    severity: WrongReasonTagSeverity;
+    description: string;
+    status: ReviewTaskStatus;
+    referenceCount: number;
+    version: string;
+    creator: string;
+    createdAt: string;
+    updatedBy: string;
+    updatedAt: string;
+    changeSummary: string;
+    referenceImpact: string;
+    reviewTaskId?: string;
+    versionRecords: ReviewVersionRecord[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type WrongReasonTagSaveParams = {
+    name: string;
+    category: WrongReasonTagCategory;
+    examTypes: ExamType[];
+    questionTypes: QuestionType[];
+    severity: WrongReasonTagSeverity;
+    description: string;
+    changeSummary?: string;
+    referenceImpact?: string;
+  };
+
+  type WrongReasonTagSubmitReviewParams = {
+    changeSummary: string;
+  };
+
   type QuestionOption = {
     key: 'A' | 'B' | 'C' | 'D';
     content: string;
@@ -790,6 +841,12 @@ declare namespace API {
 
   type QuestionList = {
     data?: QuestionItem[];
+    total?: number;
+    success?: boolean;
+  };
+
+  type WrongReasonTagList = {
+    data?: WrongReasonTagItem[];
     total?: number;
     success?: boolean;
   };

@@ -13,7 +13,13 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { history, useAccess, useParams, useSearchParams } from '@umijs/max';
+import {
+  history,
+  useAccess,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from '@umijs/max';
 import { Alert, App, Button, Form, Modal, Result, Skeleton, Space, Tag, Typography } from 'antd';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -50,6 +56,26 @@ type FormValues = API.WritingTranslationTopicSaveParams & {
   aiStrategyIds?: string[];
 };
 
+const topicTypePathMap: Record<API.WritingTranslationTopicType, string> = {
+  writing: '/writing-translation/writing-topics',
+  translation: '/writing-translation/translation-topics',
+};
+
+const getTopicPrefix = (topicType: API.WritingTranslationTopicType) =>
+  topicTypePathMap[topicType];
+
+const getTopicTypeFromPath = (
+  pathname: string,
+): API.WritingTranslationTopicType | undefined => {
+  if (pathname.startsWith('/writing-translation/translation-topics')) {
+    return 'translation';
+  }
+  if (pathname.startsWith('/writing-translation/writing-topics')) {
+    return 'writing';
+  }
+  return undefined;
+};
+
 const PrecheckResult: React.FC<{ result?: API.WritingTranslationPrecheckResult }> = ({ result }) => {
   if (!result) return null;
   return (
@@ -82,10 +108,13 @@ const usageByConfigType = (
 
 const WritingTranslationTopicEditPage: React.FC = () => {
   const { id } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const isCreate = !id || id === 'new';
   const initialTopicType =
-    (searchParams.get('topicType') as API.WritingTranslationTopicType) || 'writing';
+    getTopicTypeFromPath(location.pathname) ||
+    (searchParams.get('topicType') as API.WritingTranslationTopicType) ||
+    'writing';
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<FormValues>();
   const access = useAccess() as {
@@ -104,6 +133,8 @@ const WritingTranslationTopicEditPage: React.FC = () => {
   const [dirty, setDirty] = useState(false);
   const watchedTopicType =
     Form.useWatch('topicType', form) ?? initialTopicType;
+  const currentTopicType = topic?.topicType ?? watchedTopicType;
+  const currentListPath = getTopicPrefix(currentTopicType);
 
   const canEditCurrent = useMemo(
     () => !topic || editableStatuses.includes(topic.status),
@@ -164,7 +195,7 @@ const WritingTranslationTopicEditPage: React.FC = () => {
 
   const confirmBack = () => {
     if (!dirty) {
-      history.back();
+      history.push(currentListPath);
       return;
     }
     modal.confirm({
@@ -172,7 +203,7 @@ const WritingTranslationTopicEditPage: React.FC = () => {
       content: '未保存的修改会丢失。',
       okText: '离开',
       cancelText: '继续编辑',
-      onOk: () => history.back(),
+      onOk: () => history.push(currentListPath),
     });
   };
 
@@ -218,7 +249,9 @@ const WritingTranslationTopicEditPage: React.FC = () => {
         message.success('草稿已保存');
         setDirty(false);
         if (response.data) {
-          history.replace(`/writing-translation/topics/${response.data.id}/edit`);
+          history.replace(
+            `${getTopicPrefix(response.data.topicType)}/${response.data.id}/edit`,
+          );
         }
         return response.data;
       }
@@ -290,7 +323,7 @@ const WritingTranslationTopicEditPage: React.FC = () => {
         confirmWarnings,
       });
       message.success('已提交审核');
-      history.push('/writing-translation/topics');
+      history.push(getTopicPrefix(saved.topicType));
     } catch (error: any) {
       const precheck = error?.data?.data as
         | API.WritingTranslationPrecheckResult
@@ -315,7 +348,9 @@ const WritingTranslationTopicEditPage: React.FC = () => {
       const response = await copyWritingTranslationTopic(topic.id);
       if (response.data) {
         message.success('已创建新草稿版本');
-        history.replace(`/writing-translation/topics/${response.data.id}/edit`);
+        history.replace(
+          `${getTopicPrefix(response.data.topicType)}/${response.data.id}/edit`,
+        );
       }
     } catch (error: any) {
       message.error(error?.data?.errorMessage || error?.message || '创建草稿失败');
@@ -329,7 +364,7 @@ const WritingTranslationTopicEditPage: React.FC = () => {
           status="403"
           title="无写译题目写权限"
           subTitle="当前角色只能查看写译题目或没有模块权限。"
-          extra={<Button onClick={() => history.push('/writing-translation/topics')}>返回列表</Button>}
+          extra={<Button onClick={() => history.push(currentListPath)}>返回列表</Button>}
         />
       </PageContainer>
     );
@@ -349,7 +384,7 @@ const WritingTranslationTopicEditPage: React.FC = () => {
         <Result
           status="404"
           title="写译题目不存在"
-          extra={<Button onClick={() => history.push('/writing-translation/topics')}>返回列表</Button>}
+          extra={<Button onClick={() => history.push(currentListPath)}>返回列表</Button>}
         />
       </PageContainer>
     );
@@ -364,7 +399,7 @@ const WritingTranslationTopicEditPage: React.FC = () => {
           subTitle="待审核、已通过、待发布、已发布、已下架和已回滚题目不能直接覆盖。"
           extra={
             <Space>
-              <Button onClick={() => history.push(`/writing-translation/topics/${topic.id}`)}>查看详情</Button>
+              <Button onClick={() => history.push(`${getTopicPrefix(topic.topicType)}/${topic.id}`)}>查看详情</Button>
               {canCreate && topic.status === 'published' ? (
                 <Button type="primary" icon={<CopyOutlined />} onClick={copyDraft}>
                   创建新草稿

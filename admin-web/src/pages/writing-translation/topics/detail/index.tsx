@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { history, useAccess, useParams } from '@umijs/max';
+import { history, useAccess, useLocation, useParams } from '@umijs/max';
 import {
   Alert,
   App,
@@ -47,8 +47,24 @@ import {
 
 const listText = (items?: string[]) => (items?.length ? items.join('、') : '-');
 
+const topicTypePathMap: Record<API.WritingTranslationTopicType, string> = {
+  writing: '/writing-translation/writing-topics',
+  translation: '/writing-translation/translation-topics',
+};
+
+const getTopicPrefix = (topicType: API.WritingTranslationTopicType) =>
+  topicTypePathMap[topicType];
+
+const getTopicTypeFromPath = (
+  pathname: string,
+): API.WritingTranslationTopicType =>
+  pathname.startsWith('/writing-translation/translation-topics')
+    ? 'translation'
+    : 'writing';
+
 const WritingTranslationTopicDetailPage: React.FC = () => {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { message, modal } = App.useApp();
   const access = useAccess() as {
     canAction?: (
@@ -166,7 +182,9 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
       const response = await copyWritingTranslationTopic(topic.id);
       if (response.data) {
         message.success('已创建新草稿版本');
-        history.push(`/writing-translation/topics/${response.data.id}/edit`);
+        history.push(
+          `${getTopicPrefix(response.data.topicType)}/${response.data.id}/edit`,
+        );
       }
     } catch (error: any) {
       message.error(error?.data?.errorMessage || error?.message || '创建草稿失败');
@@ -249,7 +267,15 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
         <Result
           status="404"
           title="写译题目不存在"
-          extra={<Button onClick={() => history.push('/writing-translation/topics')}>返回列表</Button>}
+          extra={
+            <Button
+              onClick={() =>
+                history.push(getTopicPrefix(getTopicTypeFromPath(location.pathname)))
+              }
+            >
+              返回列表
+            </Button>
+          }
         />
       </PageContainer>
     );
@@ -290,14 +316,20 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
     <PageContainer
       title={topic.name}
       extra={[
-        <Button key="back" icon={<ArrowLeftOutlined />} onClick={() => history.back()}>
+        <Button
+          key="back"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => history.push(getTopicPrefix(topic.topicType))}
+        >
           返回
         </Button>,
         canEdit && isEditable ? (
           <Button
             key="edit"
             icon={<EditOutlined />}
-            onClick={() => history.push(`/writing-translation/topics/${topic.id}/edit`)}
+            onClick={() =>
+              history.push(`${getTopicPrefix(topic.topicType)}/${topic.id}/edit`)
+            }
           >
             编辑
           </Button>

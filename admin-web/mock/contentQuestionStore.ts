@@ -277,15 +277,184 @@ const initialQuestionData: API.QuestionItem[] = [
   ),
 ];
 
+export const wrongReasonCategoryLabels: Record<
+  API.WrongReasonTagCategory,
+  string
+> = {
+  comprehension_bias: '理解偏差',
+  knowledge_gap: '知识点缺失',
+  question_review: '审题问题',
+  expression_issue: '表达问题',
+  strategy_issue: '策略问题',
+};
+
+export const wrongReasonSeverityLabels: Record<
+  API.WrongReasonTagSeverity,
+  string
+> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+const wrongReasonTagSeed = (params: {
+  id: string;
+  name: string;
+  category: API.WrongReasonTagCategory;
+  examTypes: API.ExamType[];
+  questionTypes: API.QuestionType[];
+  severity: API.WrongReasonTagSeverity;
+  description: string;
+  status: API.ReviewTaskStatus;
+  referenceCount: number;
+  version: string;
+  updatedBy?: string;
+  updatedAt: string;
+  changeSummary: string;
+  referenceImpact: string;
+  reviewTaskId?: string;
+}): API.WrongReasonTagItem => ({
+  id: params.id,
+  name: params.name,
+  category: params.category,
+  examTypes: params.examTypes,
+  questionTypes: params.questionTypes,
+  severity: params.severity,
+  description: params.description,
+  status: params.status,
+  referenceCount: params.referenceCount,
+  version: params.version,
+  creator: '内容运营',
+  createdAt: '2026-07-06 09:20:00',
+  updatedBy: params.updatedBy ?? '内容运营',
+  updatedAt: params.updatedAt,
+  changeSummary: params.changeSummary,
+  referenceImpact: params.referenceImpact,
+  reviewTaskId: params.reviewTaskId,
+  versionRecords: [
+    {
+      id: `wrong-reason-version-${params.id}-${params.version}`,
+      version: params.version,
+      status: params.status,
+      summary: params.changeSummary,
+      createdBy: params.updatedBy ?? '内容运营',
+      createdAt: params.updatedAt,
+    },
+  ],
+  operationRecords: [
+    {
+      id: `wrong-reason-op-${params.id}-${params.status}`,
+      operator: params.updatedBy ?? '内容运营',
+      roleName: params.updatedBy ?? '内容运营',
+      action: reviewStatusActionMap[params.status],
+      toStatus: params.status,
+      reason: params.changeSummary,
+      time: params.updatedAt,
+    },
+  ],
+});
+
+const initialWrongReasonTagData: API.WrongReasonTagItem[] = [
+  wrongReasonTagSeed({
+    id: 'wrong-reason-main-idea-bias',
+    name: '主旨理解偏差',
+    category: 'comprehension_bias',
+    examTypes: ['CET4', 'CET6'],
+    questionTypes: ['reading_choice'],
+    severity: 'medium',
+    description: '学生将局部细节误判为全文主旨，适用于阅读主旨类错题归因。',
+    status: 'published',
+    referenceCount: 18,
+    version: 'V1.0',
+    updatedBy: '教研审核',
+    updatedAt: '2026-07-07 09:30:00',
+    changeSummary: '发布阅读主旨错因标签。',
+    referenceImpact: '已被阅读题解析、错因分布和复练推荐引用。',
+  }),
+  wrongReasonTagSeed({
+    id: 'wrong-reason-vocab-collocation',
+    name: '固定搭配缺失',
+    category: 'knowledge_gap',
+    examTypes: ['CET4'],
+    questionTypes: ['single_choice'],
+    severity: 'low',
+    description: '学生不了解常见动词、名词或介词搭配，导致词汇辨析错误。',
+    status: 'published',
+    referenceCount: 12,
+    version: 'V1.1',
+    updatedBy: '教研审核',
+    updatedAt: '2026-07-07 10:15:00',
+    changeSummary: '补充四级词汇固定搭配错因。',
+    referenceImpact: '可被四级词汇题和复练推荐引用。',
+  }),
+  wrongReasonTagSeed({
+    id: 'wrong-reason-keyword-missed',
+    name: '题干关键词遗漏',
+    category: 'question_review',
+    examTypes: ['CET4', 'CET6'],
+    questionTypes: ['single_choice', 'reading_choice', 'listening_choice'],
+    severity: 'high',
+    description: '学生忽略否定、比较、时间或因果关键词，导致审题方向错误。',
+    status: 'draft',
+    referenceCount: 0,
+    version: 'V0.2',
+    updatedAt: '2026-07-08 11:05:00',
+    changeSummary: '新增审题关键词遗漏错因草稿。',
+    referenceImpact: '当前为草稿，尚未影响线上题目。',
+  }),
+  wrongReasonTagSeed({
+    id: 'wrong-reason-template-expression',
+    name: '模板化表达过度',
+    category: 'expression_issue',
+    examTypes: ['CET6'],
+    questionTypes: ['single_choice'],
+    severity: 'medium',
+    description: '用于标记写译或表达类任务中过度套用模板导致内容空泛的问题。',
+    status: 'rejected',
+    referenceCount: 2,
+    version: 'V0.4',
+    updatedBy: '教研审核',
+    updatedAt: '2026-07-08 14:20:00',
+    changeSummary: '教研要求补充适用边界后再提交。',
+    referenceImpact: '被少量草稿内容引用，暂不影响线上发布内容。',
+  }),
+  wrongReasonTagSeed({
+    id: 'wrong-reason-low-review-frequency',
+    name: '复练频率不足',
+    category: 'strategy_issue',
+    examTypes: ['CET4', 'CET6'],
+    questionTypes: ['single_choice', 'reading_choice', 'listening_choice'],
+    severity: 'medium',
+    description: '用于学习路径分析，标记学生因复练间隔过长导致同类错误反复出现。',
+    status: 'pending_publish',
+    referenceCount: 5,
+    version: 'V0.9',
+    updatedBy: '教研审核',
+    updatedAt: '2026-07-08 16:40:00',
+    changeSummary: '审核通过，等待发布到错因标签字典。',
+    referenceImpact: '发布后可被学习路径复练推荐策略引用。',
+    reviewTaskId: 'review-wrong-reason-001',
+  }),
+];
+
 const globalQuestionStore = globalThis as typeof globalThis & {
   __GUOJI_ADMIN_QUESTIONS__?: API.QuestionItem[];
+  __GUOJI_ADMIN_WRONG_REASON_TAGS__?: API.WrongReasonTagItem[];
 };
 
 if (!globalQuestionStore.__GUOJI_ADMIN_QUESTIONS__) {
   globalQuestionStore.__GUOJI_ADMIN_QUESTIONS__ = initialQuestionData;
 }
 
+if (!globalQuestionStore.__GUOJI_ADMIN_WRONG_REASON_TAGS__) {
+  globalQuestionStore.__GUOJI_ADMIN_WRONG_REASON_TAGS__ =
+    initialWrongReasonTagData;
+}
+
 export const questionData = globalQuestionStore.__GUOJI_ADMIN_QUESTIONS__;
+
+export const wrongReasonTagData =
+  globalQuestionStore.__GUOJI_ADMIN_WRONG_REASON_TAGS__;
 
 export const moduleByQuestionSkill: Record<
   API.QuestionSkill,
@@ -377,6 +546,98 @@ export const referenceById = (id?: string) =>
 const getQueryValue = (value: unknown) =>
   Array.isArray(value) ? String(value[0] ?? '') : String(value ?? '');
 
+export const filterWrongReasonTags = (query: Request['query']) => {
+  const keyword = getQueryValue(query.keyword).trim();
+  const category = getQueryValue(query.category);
+  const examType = getQueryValue(query.examType);
+  const questionType = getQueryValue(query.questionType);
+  const severity = getQueryValue(query.severity);
+  const status = getQueryValue(query.status);
+  const updatedBy = getQueryValue(query.updatedBy).trim();
+
+  return [...wrongReasonTagData]
+    .filter((tag) => {
+      if (
+        keyword &&
+        ![
+          tag.id,
+          tag.name,
+          wrongReasonCategoryLabels[tag.category],
+          tag.description,
+          tag.changeSummary,
+        ].some((value) => value.includes(keyword))
+      ) {
+        return false;
+      }
+      if (category && tag.category !== category) return false;
+      if (examType && !tag.examTypes.includes(examType as API.ExamType)) {
+        return false;
+      }
+      if (
+        questionType &&
+        !tag.questionTypes.includes(questionType as API.QuestionType)
+      ) {
+        return false;
+      }
+      if (severity && tag.severity !== severity) return false;
+      if (status && tag.status !== status) return false;
+      if (updatedBy && !tag.updatedBy.includes(updatedBy)) return false;
+      return true;
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+};
+
+const normalizeExamTypes = (examTypes?: API.ExamType[]) =>
+  [...new Set((examTypes ?? []).filter((item) => examTypeLabels[item]))];
+
+const normalizeQuestionTypes = (questionTypes?: API.QuestionType[]) =>
+  [
+    ...new Set(
+      (questionTypes ?? []).filter((item) => questionTypeLabels[item]),
+    ),
+  ];
+
+export const validateWrongReasonTagPayload = (
+  body: Partial<API.WrongReasonTagSaveParams>,
+  currentId?: string,
+):
+  | {
+      errorCode: '400' | '409';
+      errorMessage: string;
+    }
+  | undefined => {
+  const name = body.name?.trim();
+  if (!name) return { errorCode: '400', errorMessage: '标签名是必填项。' };
+  if (!body.category || !wrongReasonCategoryLabels[body.category]) {
+    return { errorCode: '400', errorMessage: '分类无效。' };
+  }
+  if (!normalizeExamTypes(body.examTypes).length) {
+    return { errorCode: '400', errorMessage: '适用考试是必填项。' };
+  }
+  if (!normalizeQuestionTypes(body.questionTypes).length) {
+    return { errorCode: '400', errorMessage: '适用题型是必填项。' };
+  }
+  if (!body.severity || !wrongReasonSeverityLabels[body.severity]) {
+    return { errorCode: '400', errorMessage: '严重级别无效。' };
+  }
+  if (!body.description?.trim()) {
+    return { errorCode: '400', errorMessage: '说明是必填项。' };
+  }
+  const duplicated = wrongReasonTagData.some(
+    (tag) =>
+      tag.id !== currentId &&
+      tag.category === body.category &&
+      tag.name === name,
+  );
+  if (duplicated) {
+    return {
+      errorCode: '409',
+      errorMessage: '同一分类下已存在同名错因标签。',
+    };
+  }
+  return undefined;
+};
+
 export const filterQuestions = (query: Request['query']) => {
   const keyword = getQueryValue(query.keyword).trim();
   const examType = getQueryValue(query.examType);
@@ -439,6 +700,199 @@ const nextQuestionVersion = (version: string) => {
   const matched = /^V(\d+)\.(\d+)$/.exec(version);
   if (!matched) return 'V0.1';
   return `V${matched[1]}.${Number(matched[2]) + 1}`;
+};
+
+const defaultWrongReasonReferenceImpact = (tag: API.WrongReasonTagItem) =>
+  tag.referenceCount > 0
+    ? `当前被 ${tag.referenceCount} 个内容对象引用，状态变更会影响题目、题组或错因分布。`
+    : '当前未被内容对象引用。';
+
+export const createWrongReasonTagRecord = (
+  body: API.WrongReasonTagSaveParams,
+  operatorName: string,
+) => {
+  const now = nowText();
+  const tag: API.WrongReasonTagItem = {
+    id: `wrong-reason-${Date.now()}`,
+    name: body.name.trim(),
+    category: body.category,
+    examTypes: normalizeExamTypes(body.examTypes),
+    questionTypes: normalizeQuestionTypes(body.questionTypes),
+    severity: body.severity,
+    description: body.description.trim(),
+    status: 'draft',
+    referenceCount: 0,
+    version: 'V0.1',
+    creator: operatorName,
+    createdAt: now,
+    updatedBy: operatorName,
+    updatedAt: now,
+    changeSummary: body.changeSummary?.trim() || '新增错因标签草稿。',
+    referenceImpact:
+      body.referenceImpact?.trim() || '当前未被内容对象引用。',
+    versionRecords: [
+      {
+        id: `wrong-reason-version-create-${Date.now()}`,
+        version: 'V0.1',
+        status: 'draft',
+        summary: body.changeSummary?.trim() || '新增错因标签草稿。',
+        createdBy: operatorName,
+        createdAt: now,
+      },
+    ],
+    operationRecords: [
+      {
+        id: `wrong-reason-op-create-${Date.now()}`,
+        operator: operatorName,
+        roleName: operatorName,
+        action: '保存草稿',
+        toStatus: 'draft',
+        reason: body.changeSummary?.trim() || '新增错因标签草稿。',
+        time: now,
+      },
+    ],
+  };
+  wrongReasonTagData.unshift(tag);
+  return tag;
+};
+
+export const updateWrongReasonTagRecord = (
+  tag: API.WrongReasonTagItem,
+  body: API.WrongReasonTagSaveParams,
+  operatorName: string,
+) => {
+  const now = nowText();
+  const previousStatus = tag.status;
+  tag.name = body.name.trim();
+  tag.category = body.category;
+  tag.examTypes = normalizeExamTypes(body.examTypes);
+  tag.questionTypes = normalizeQuestionTypes(body.questionTypes);
+  tag.severity = body.severity;
+  tag.description = body.description.trim();
+  tag.status = 'draft';
+  tag.version = nextQuestionVersion(tag.version);
+  tag.updatedBy = operatorName;
+  tag.updatedAt = now;
+  tag.changeSummary = body.changeSummary?.trim() || '更新错因标签草稿。';
+  tag.referenceImpact =
+    body.referenceImpact?.trim() || defaultWrongReasonReferenceImpact(tag);
+  tag.versionRecords.unshift({
+    id: `wrong-reason-version-${tag.id}-${Date.now()}`,
+    version: tag.version,
+    status: 'draft',
+    summary: tag.changeSummary,
+    createdBy: operatorName,
+    createdAt: now,
+  });
+  tag.operationRecords.unshift({
+    id: `wrong-reason-op-${tag.id}-${Date.now()}`,
+    operator: operatorName,
+    roleName: operatorName,
+    action: '保存草稿',
+    fromStatus: previousStatus,
+    toStatus: 'draft',
+    reason: tag.changeSummary,
+    time: now,
+  });
+  return tag;
+};
+
+export const buildWrongReasonTagReviewTask = (
+  tag: API.WrongReasonTagItem,
+  operator: { id: string; name: string },
+  changeSummary: string,
+  reviewTasks: API.ReviewTask[],
+) => {
+  const now = nowText();
+  const existingTask = tag.reviewTaskId
+    ? reviewTasks.find((item) => item.id === tag.reviewTaskId)
+    : reviewTasks.find(
+        (item) =>
+          item.objectType === 'wrong_reason_tag' && item.objectId === tag.id,
+      );
+  const riskLevel: API.ReviewRiskLevel =
+    tag.severity === 'high' || tag.referenceCount > 0 ? 'high' : 'medium';
+  const impactScope =
+    tag.referenceCount > 0
+      ? `${tag.referenceImpact} 当前引用次数 ${tag.referenceCount}。`
+      : tag.referenceImpact;
+  const taskPayload = {
+    objectType: 'wrong_reason_tag' as API.ReviewObjectType,
+    objectSubtype: tag.category,
+    objectTypeName: '错因标签',
+    objectId: tag.id,
+    objectName: tag.name,
+    moduleKey: 'content',
+    moduleName: '题库与内容管理',
+    submitterId: operator.id,
+    submitter: operator.name,
+    submittedAt: now,
+    version: tag.version,
+    priority: riskLevel === 'high' ? ('P0' as const) : ('P1' as const),
+    status: 'pending_review' as API.ReviewTaskStatus,
+    riskLevel,
+    updatedAt: now,
+    changeSummary,
+    impactScope,
+    reviewOpinion: '',
+    reviewer: '',
+    releasePlan: '审核通过后进入待发布队列，发布后成为可引用错因字典项。',
+    rollbackTargetVersion: tag.version,
+  };
+
+  if (existingTask) {
+    Object.assign(existingTask, taskPayload);
+    existingTask.versionRecords.unshift({
+      id: `version-${existingTask.id}-${Date.now()}`,
+      version: tag.version,
+      status: 'pending_review',
+      summary: changeSummary,
+      createdBy: operator.name,
+      createdAt: now,
+    });
+    existingTask.operationRecords.unshift({
+      id: `op-${existingTask.id}-${Date.now()}`,
+      operator: operator.name,
+      roleName: operator.name,
+      action: '提交审核',
+      fromStatus: tag.status,
+      toStatus: 'pending_review',
+      reason: changeSummary,
+      time: now,
+    });
+    tag.reviewTaskId = existingTask.id;
+    return existingTask;
+  }
+
+  const task: API.ReviewTask = {
+    id: `review-wrong-reason-${Date.now()}`,
+    ...taskPayload,
+    versionRecords: [
+      {
+        id: `version-wrong-reason-${tag.id}-${Date.now()}`,
+        version: tag.version,
+        status: 'pending_review',
+        summary: changeSummary,
+        createdBy: operator.name,
+        createdAt: now,
+      },
+    ],
+    operationRecords: [
+      {
+        id: `op-wrong-reason-${tag.id}-${Date.now()}`,
+        operator: operator.name,
+        roleName: operator.name,
+        action: '提交审核',
+        fromStatus: tag.status,
+        toStatus: 'pending_review',
+        reason: changeSummary,
+        time: now,
+      },
+    ],
+  };
+  reviewTasks.unshift(task);
+  tag.reviewTaskId = task.id;
+  return task;
 };
 
 export const createQuestionRecord = (
@@ -667,6 +1121,41 @@ export const syncQuestionFromReviewTask = (
   question.versionRecords.unshift({
     id: `question-version-${question.id}-${Date.now()}`,
     version: question.version,
+    status: nextStatus,
+    summary: `${reviewStatusActionMap[nextStatus]}：${task.changeSummary}`,
+    createdBy: operatorName,
+    createdAt: now,
+  });
+};
+
+export const syncWrongReasonTagFromReviewTask = (
+  task: API.ReviewTask,
+  previousStatus: API.ReviewTaskStatus,
+  nextStatus: API.ReviewTaskStatus,
+  operatorName: string,
+  reason: string,
+) => {
+  if (task.objectType !== 'wrong_reason_tag') return;
+  const tag = wrongReasonTagData.find((item) => item.id === task.objectId);
+  if (!tag) return;
+  const now = task.updatedAt;
+  tag.status = nextStatus;
+  tag.updatedBy = operatorName;
+  tag.updatedAt = now;
+  tag.reviewTaskId = task.id;
+  tag.operationRecords.unshift({
+    id: `wrong-reason-op-${tag.id}-${Date.now()}`,
+    operator: operatorName,
+    roleName: operatorName,
+    action: reviewStatusActionMap[nextStatus],
+    fromStatus: previousStatus,
+    toStatus: nextStatus,
+    reason,
+    time: now,
+  });
+  tag.versionRecords.unshift({
+    id: `wrong-reason-version-${tag.id}-${Date.now()}`,
+    version: tag.version,
     status: nextStatus,
     summary: `${reviewStatusActionMap[nextStatus]}：${task.changeSummary}`,
     createdBy: operatorName,

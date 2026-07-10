@@ -42,6 +42,7 @@ type ReviewAction = {
 
 const objectTypeOptions = [
   { label: '题库内容', value: 'question_bank' },
+  { label: '错因标签', value: 'wrong_reason_tag' },
   { label: '学习路径配置', value: 'learning_path_config' },
   { label: '学习路径规则', value: 'learning_rule' },
   { label: 'AI 陪练策略', value: 'ai_coach_strategy' },
@@ -162,6 +163,7 @@ const roleCanOperateTask = (
   if (roleId === 'teaching_reviewer') {
     return [
       'question_bank',
+      'wrong_reason_tag',
       'learning_rule',
       'learning_path_config',
       'writing_translation',

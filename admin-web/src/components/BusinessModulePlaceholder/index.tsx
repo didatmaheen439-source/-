@@ -138,32 +138,37 @@ const BusinessModulePlaceholder: React.FC<BusinessModulePlaceholderProps> = ({
       updatedAt: '2026-07-07 10:00:00',
     },
   ];
+  const visibleActions = actionPriority.filter((action) =>
+    config.primaryActions.includes(action),
+  );
 
   return (
     <PageContainer
       title={config.title}
       content={config.description}
-      extra={actionPriority
-        .filter((action) => config.primaryActions.includes(action))
-        .map((action) => (
-          <PermissionButton
-            key={action}
-            moduleKey={config.moduleKey}
-            action={action}
-            type={
-              action === 'create' || action === 'publish'
-                ? 'primary'
-                : 'default'
-            }
-          />
-        ))}
+      extra={
+        visibleActions.length
+          ? visibleActions.map((action) => (
+              <PermissionButton
+                key={action}
+                moduleKey={config.moduleKey}
+                action={action}
+                type={
+                  action === 'create' || action === 'publish'
+                    ? 'primary'
+                    : 'default'
+                }
+              />
+            ))
+          : undefined
+      }
     >
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <Alert
           showIcon
           type="info"
-          title={`${moduleConfig?.name ?? config.title}基础骨架已接入`}
-          description="本页使用统一页面模板、权限按钮、状态标签和公共空态。后续按 PRD 接入真实列表、筛选、详情、弹窗和审核流。"
+          title={`${moduleConfig?.name ?? config.title}只读入口已接入`}
+          description="当前阶段暂未开放完整业务操作。本页用于承接 PRD 二级菜单、权限边界、筛选占位和表格占位，后续再接入真实列表、详情和审核流。"
         />
 
         <Card title="模块信息" size="small">
@@ -213,7 +218,7 @@ const BusinessModulePlaceholder: React.FC<BusinessModulePlaceholderProps> = ({
           dataSource={dataSource}
           headerTitle={config.tableTitle}
           toolBarRender={() =>
-            config.primaryActions.map((action) => (
+            visibleActions.map((action) => (
               <PermissionButton
                 key={action}
                 moduleKey={config.moduleKey}

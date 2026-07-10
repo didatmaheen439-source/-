@@ -8,10 +8,10 @@ import {
 } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { history, useModel, useSearchParams } from '@umijs/max';
+import { history, useLocation, useModel, useSearchParams } from '@umijs/max';
 import { App, Button, Empty, Space, Tabs, Tag, Typography } from 'antd';
 import type React from 'react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import StatusTag from '@/components/StatusTag';
 import {
   copyLearningPathConfig,
@@ -33,6 +33,11 @@ const getPrefix = (kind: API.LearningPathConfigKind) =>
   kind === 'diagnosis_rule'
     ? '/learning-path/diagnosis-rules'
     : '/learning-path/task-templates';
+
+const getKindFromPath = (pathname: string): API.LearningPathConfigKind =>
+  pathname.startsWith('/learning-path/task-templates')
+    ? 'today_task_template'
+    : 'diagnosis_rule';
 
 const canWriteLearningPath = (roleId?: string) =>
   roleId === 'super_admin' || roleId === 'teaching_reviewer';
@@ -80,13 +85,21 @@ const LearningPathListPage: React.FC = () => {
   const templateRef = useRef<ActionType | undefined>(undefined);
   const { initialState } = useModel('@@initialState');
   const roleId = initialState?.currentUser?.roleId;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [activeKey, setActiveKey] = useState(
-    searchParams.get('tab') ?? 'diagnosis_rule',
+    searchParams.get('tab') ?? getKindFromPath(location.pathname),
   );
 
   const canWrite = canWriteLearningPath(roleId);
   const canSubmit = canSubmitLearningPath(roleId);
+
+  useEffect(() => {
+    setActiveKey(
+      (searchParams.get('tab') as API.LearningPathConfigKind | null) ??
+        getKindFromPath(location.pathname),
+    );
+  }, [location.pathname, searchParams.toString()]);
 
   const reloadTables = () => {
     diagnosisRef.current?.reload();
@@ -405,8 +418,9 @@ const LearningPathListPage: React.FC = () => {
       <Tabs
         activeKey={activeKey}
         onChange={(key) => {
-          setActiveKey(key);
-          setSearchParams({ tab: key });
+          const nextKind = key as API.LearningPathConfigKind;
+          setActiveKey(nextKind);
+          history.push(getPrefix(nextKind));
         }}
         items={[
           {

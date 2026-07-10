@@ -4,7 +4,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { history, useModel, useSearchParams } from '@umijs/max';
+import { history, useLocation, useModel, useSearchParams } from '@umijs/max';
 import { Bar, Column, Line, Pie } from '@ant-design/plots';
 import {
   Alert,
@@ -49,6 +49,72 @@ const moduleOptions: { label: string; value: API.AnalyticsModule }[] = [
   { label: '模考', value: 'mockExam' },
 ];
 
+const pathModuleMap: Record<string, API.AnalyticsModule> = {
+  '/analytics/users': 'users',
+  '/analytics/learning-funnel': 'learningPath',
+  '/analytics/content': 'content',
+  '/analytics/questions': 'content',
+  '/analytics/wrong-reasons': 'content',
+  '/analytics/writing-translation': 'writingTranslation',
+  '/analytics/mock-exam': 'mockExam',
+  '/analytics/ai': 'aiCoach',
+  '/analytics/overview': 'all',
+};
+
+const analyticsEntryMap: Record<
+  string,
+  { title: string; description: string; module: API.AnalyticsModule }
+> = {
+  '/analytics/users': {
+    title: '用户增长',
+    description: '查看用户新增、活跃和分布数据。',
+    module: 'users',
+  },
+  '/analytics/learning-funnel': {
+    title: '学习路径漏斗',
+    description: '查看诊断、任务开始和任务完成的路径漏斗。',
+    module: 'learningPath',
+  },
+  '/analytics/content': {
+    title: '内容效果',
+    description: '查看题库与内容资产的状态、效果和质量趋势。',
+    module: 'content',
+  },
+  '/analytics/questions': {
+    title: '题库表现',
+    description: '查看题目使用、发布状态和内容表现。',
+    module: 'content',
+  },
+  '/analytics/wrong-reasons': {
+    title: '错因分布',
+    description: '查看错因相关内容表现和薄弱项分布。',
+    module: 'content',
+  },
+  '/analytics/writing-translation': {
+    title: '写译效果',
+    description: '查看写作、翻译题目和批改效果指标。',
+    module: 'writingTranslation',
+  },
+  '/analytics/mock-exam': {
+    title: '模考表现',
+    description: '查看模考试卷、完成情况和成绩表现。',
+    module: 'mockExam',
+  },
+  '/analytics/ai': {
+    title: 'AI 使用',
+    description: '查看 AI 陪练使用和策略效果指标。',
+    module: 'aiCoach',
+  },
+  '/analytics/overview': {
+    title: '数据总览',
+    description: '汇总用户、学习路径、内容、审核发布和客服反馈数据。',
+    module: 'all',
+  },
+};
+
+const getAnalyticsEntry = (pathname: string) =>
+  analyticsEntryMap[pathname] ?? analyticsEntryMap['/analytics/overview'];
+
 const sectionTitle: Record<API.AnalyticsVisibleSection, string> = {
   users: '用户增长与活跃',
   learningPath: '学习路径漏斗',
@@ -61,18 +127,20 @@ const sectionTitle: Record<API.AnalyticsVisibleSection, string> = {
   audit: '风险与审计摘要',
 };
 
-const defaultFilters = (): Required<Pick<API.AnalyticsFilterParams, 'startDate' | 'endDate' | 'granularity' | 'module'>> & {
+const defaultFilters = (
+  pathname = '/analytics/overview',
+): Required<Pick<API.AnalyticsFilterParams, 'startDate' | 'endDate' | 'granularity' | 'module'>> & {
   examType: API.ExamType | 'all';
 } => ({
   startDate: dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD'),
   examType: 'all',
   granularity: 'day',
-  module: 'all',
+  module: pathModuleMap[pathname] ?? 'all',
 });
 
-const readFilters = (searchParams: URLSearchParams) => {
-  const defaults = defaultFilters();
+const readFilters = (searchParams: URLSearchParams, pathname?: string) => {
+  const defaults = defaultFilters(pathname);
   return {
     startDate: searchParams.get('startDate') || defaults.startDate,
     endDate: searchParams.get('endDate') || defaults.endDate,
@@ -153,10 +221,12 @@ const MetricCard: React.FC<{ card: API.AnalyticsMetricCard }> = ({ card }) => (
 
 const AnalyticsOverviewPage: React.FC = () => {
   const { message, modal } = App.useApp();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const analyticsEntry = getAnalyticsEntry(location.pathname);
   const { initialState } = useModel('@@initialState');
   const canExport = initialState?.currentUser?.actionPermissions?.analytics?.includes('export');
-  const [filters, setFilters] = useState(readFilters(searchParams));
+  const [filters, setFilters] = useState(readFilters(searchParams, location.pathname));
   const [data, setData] = useState<API.AnalyticsOverview>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -193,11 +263,11 @@ const AnalyticsOverviewPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const next = readFilters(searchParams);
+    const next = readFilters(searchParams, location.pathname);
     setFilters(next);
     loadData(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.toString()]);
+  }, [location.pathname, searchParams.toString()]);
 
   const syncFilters = (next: typeof filters) => {
     setFilters(next);
@@ -209,7 +279,7 @@ const AnalyticsOverviewPage: React.FC = () => {
   };
 
   const resetFilters = () => {
-    syncFilters(defaultFilters());
+    syncFilters(defaultFilters(location.pathname));
   };
 
   const exportPreview = async () => {
@@ -253,8 +323,8 @@ const AnalyticsOverviewPage: React.FC = () => {
 
   return (
     <PageContainer
-      title="运营数据"
-      content="汇总用户、学习路径、内容、审核发布和客服反馈数据，辅助内部运营判断。"
+      title={analyticsEntry.title}
+      content={analyticsEntry.description}
       extra={
         canExport ? (
           <Button icon={<DownloadOutlined />} onClick={exportPreview}>

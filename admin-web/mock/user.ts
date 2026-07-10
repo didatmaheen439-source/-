@@ -20,18 +20,25 @@ import { auditLogs, nowText, pushAuditLog, pushOperationAuditLog } from './audit
 import {
   buildQuestionReference,
   buildQuestionReviewTask,
+  buildWrongReasonTagReviewTask,
+  createWrongReasonTagRecord,
   createQuestionRecord,
   difficultyLabels,
   examTypeLabels,
   filterQuestions,
+  filterWrongReasonTags,
   questionData,
   questionGroupReferences,
   questionTypeLabels,
   referenceById,
   skillLabels,
   syncQuestionFromReviewTask,
+  syncWrongReasonTagFromReviewTask,
   updateQuestionRecord,
   validateQuestionPayload,
+  updateWrongReasonTagRecord,
+  validateWrongReasonTagPayload,
+  wrongReasonTagData,
 } from './contentQuestionStore';
 import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
@@ -96,6 +103,7 @@ const accountLastLoginAtMap: Record<string, string> = {
 
 const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   question_bank: 'content',
+  wrong_reason_tag: 'content',
   learning_path_config: 'learningPath',
   learning_rule: 'learningPath',
   ai_coach_strategy: 'aiCoach',
@@ -442,6 +450,52 @@ const initialReviewTasksData: API.ReviewTask[] = [
         toStatus: 'rejected',
         reason: '阈值说明不足。',
         time: '2026-07-07 10:10:00',
+      },
+    ],
+  },
+  {
+    id: 'review-wrong-reason-001',
+    objectType: 'wrong_reason_tag',
+    objectSubtype: 'strategy_issue',
+    objectTypeName: '错因标签',
+    objectId: 'wrong-reason-low-review-frequency',
+    objectName: '复练频率不足',
+    moduleKey: 'content',
+    moduleName: '题库与内容管理',
+    submitterId: 'content_operator',
+    submitter: '内容运营',
+    submittedAt: '2026-07-08 15:40:00',
+    version: 'V0.9',
+    priority: 'P0',
+    status: 'pending_publish',
+    riskLevel: 'high',
+    updatedAt: '2026-07-08 16:40:00',
+    changeSummary: '审核通过，等待发布到错因标签字典。',
+    impactScope: '发布后可被学习路径复练推荐策略引用。当前引用次数 5。',
+    reviewOpinion: '错因定义清晰，可安排发布。',
+    reviewer: '教研审核',
+    releasePlan: '审核通过后进入错因标签字典。',
+    rollbackTargetVersion: 'V0.8',
+    versionRecords: [
+      {
+        id: 'version-wrong-reason-001-v09',
+        version: 'V0.9',
+        status: 'pending_publish',
+        summary: '新增复练策略类错因标签。',
+        createdBy: '内容运营',
+        createdAt: '2026-07-08 15:40:00',
+      },
+    ],
+    operationRecords: [
+      {
+        id: 'op-wrong-reason-001-schedule',
+        operator: '教研审核',
+        roleName: '教研审核',
+        action: '安排发布',
+        fromStatus: 'approved',
+        toStatus: 'pending_publish',
+        reason: '进入错因标签发布队列。',
+        time: '2026-07-08 16:40:00',
       },
     ],
   },
@@ -1468,9 +1522,14 @@ const roleCanOperateReviewTask = (
   if (roleId === 'super_admin') return true;
 
   if (roleId === 'teaching_reviewer') {
-    return ['question_bank', 'learning_rule', 'learning_path_config', 'writing_translation', 'mock_exam'].includes(
-      task.objectType,
-    );
+    return [
+      'question_bank',
+      'wrong_reason_tag',
+      'learning_rule',
+      'learning_path_config',
+      'writing_translation',
+      'mock_exam',
+    ].includes(task.objectType);
   }
 
   if (roleId === 'ai_operator') {
@@ -1575,6 +1634,30 @@ const roleCanSubmitQuestion = (roleId: AdminRoleId | '', question: API.QuestionI
       ['draft', 'rejected'].includes(question.status),
   );
 
+const roleCanCreateWrongReasonTag = (roleId?: AdminRoleId | '') =>
+  Boolean(roleId && roleCanPerformAction(roleId, 'content', 'create'));
+
+const roleCanEditWrongReasonTag = (
+  roleId: AdminRoleId | '',
+  tag: API.WrongReasonTagItem,
+) => {
+  if (!roleId || !roleCanPerformAction(roleId, 'content', 'edit')) return false;
+  if (roleId === 'super_admin') return ['draft', 'rejected'].includes(tag.status);
+  if (roleId === 'content_operator') return ['draft', 'rejected'].includes(tag.status);
+  if (roleId === 'teaching_reviewer') return ['draft', 'rejected'].includes(tag.status);
+  return false;
+};
+
+const roleCanSubmitWrongReasonTag = (
+  roleId: AdminRoleId | '',
+  tag: API.WrongReasonTagItem,
+) =>
+  Boolean(
+    roleId &&
+      roleCanPerformAction(roleId, 'content', 'submit') &&
+      ['draft', 'rejected'].includes(tag.status),
+  );
+
 const pushContentAuditLog = (
   roleId: AdminRoleId,
   action: string,
@@ -1582,6 +1665,7 @@ const pushContentAuditLog = (
   objectId: string,
   reason: string,
   changeSummary: string,
+  sourcePage = '/content/questions',
 ) => {
   const role = roleConfigs[roleId];
   auditLogs.unshift({
@@ -1592,7 +1676,7 @@ const pushContentAuditLog = (
     action: action as any,
     objectType: 'content',
     objectId,
-    sourcePage: '/content/questions',
+    sourcePage,
     time: nowText(),
     reason,
     result,
@@ -2429,6 +2513,8 @@ const countBy = <T,>(items: T[], getKey: (item: T) => string) =>
 const taskExamType = (task: API.ReviewTask): API.ExamType | undefined => {
   const question = questionData.find((item) => item.id === task.objectId);
   if (question) return question.examType;
+  const wrongReasonTag = wrongReasonTagData.find((item) => item.id === task.objectId);
+  if (wrongReasonTag) return wrongReasonTag.examTypes[0];
   const config = learningPathConfigsData.find((item) => item.id === task.objectId);
   return config?.examType;
 };
@@ -2547,9 +2633,12 @@ const buildAnalyticsOverview = (
   const contentObjects = [
     ...questions.map((item) => ({ status: item.status, examType: item.examType, type: '题目' })),
     ...questionGroupReferences.filter((item) => sameExam(filters.examType, item.examType)).map((item) => ({ status: item.status, examType: item.examType, type: '题组' })),
+    ...wrongReasonTagData
+      .filter((item) => filters.examType === 'all' || item.examTypes.includes(filters.examType))
+      .map((item) => ({ status: item.status, examType: item.examTypes[0], type: '错因标签' })),
   ];
   const contentStatusDistribution = countBy(contentObjects, (item) => reviewStatusActionMap[item.status as API.ReviewTaskStatus] ?? String(item.status));
-  const contentReviewTasks = reviewTasksData.filter((task) => task.objectType === 'question_bank' && sameExam(filters.examType, taskExamType(task)));
+  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'wrong_reason_tag'].includes(task.objectType) && sameExam(filters.examType, taskExamType(task)));
   const approvedContentReviews = contentReviewTasks.filter((task) => task.status === 'approved' && inRange(task.updatedAt, filters)).length;
   const rejectedContentReviews = contentReviewTasks.filter((task) => task.status === 'rejected' && inRange(task.updatedAt, filters)).length;
   const contentApprovalRate = percentValue(approvedContentReviews, approvedContentReviews + rejectedContentReviews);
@@ -2641,7 +2730,7 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'task_template_match_rate', title: '任务模板匹配率', value: percentValue(matchedTemplateUsers, matchedRuleUsers), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '匹配今日任务模板用户数 / 命中诊断规则用户数。', updatedAt }),
     metricCard({ id: 'average_task_minutes', title: '平均任务预计分钟', value: avgEstimatedMinutes, unit: '分钟', type: 'duration', timeSemantic: 'snapshot', direction: 'neutral', section: 'learningPath', tooltip: '用户匹配到的今日任务模板预计分钟均值。', updatedAt }),
     metricCard({ id: 'published_diagnosis_rules', title: '已发布诊断规则', value: publishedRules, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的诊断规则数。', updatedAt, jumpTo: '/learning-path/diagnosis-rules' }),
-    metricCard({ id: 'published_task_templates', title: '已发布任务模板', value: publishedTemplates, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的今日任务模板数。', updatedAt, jumpTo: '/learning-path/diagnosis-rules?tab=today_task_template' }),
+    metricCard({ id: 'published_task_templates', title: '已发布任务模板', value: publishedTemplates, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的今日任务模板数。', updatedAt, jumpTo: '/learning-path/task-templates' }),
   ];
 
   const contentMetrics = [
@@ -2660,7 +2749,7 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'today_task_completion_rate', title: '今日任务完成率', value: taskCompletionRate, comparisonValue: percentValue(previousCompletedTaskUsers, Math.max(previousActiveUserIds.size, 1)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'users', tooltip: '完成今日任务用户数 / 已开始今日任务用户数。', updatedAt }),
     metricCard({ id: 'pending_review_tasks', title: '当前待审核任务', value: reviewStats.pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'reviewRelease', tooltip: '当前审核任务状态为待审核的任务数。', updatedAt, jumpTo: '/review-release/pending?status=pending_review' }),
     metricCard({ id: 'pending_feedback', title: '当前待处理反馈', value: feedbackStats.pending, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'feedback', tooltip: '当前状态为待处理的反馈数。', updatedAt, jumpTo: '/users/list?feedbackStatus=pending' }),
-    metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目和已实现题组中当前状态为已发布的对象数。', updatedAt, jumpTo: '/content/questions?status=published' }),
+    metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目、题组和错因标签中当前状态为已发布的对象数。', updatedAt, jumpTo: '/content/questions?status=published' }),
     metricCard({ id: 'review_rollback_count', title: '区间回滚数', value: reviewStats.rolledBack, unit: '次', type: 'count', timeSemantic: 'interval', direction: 'risk', section: 'reviewRelease', tooltip: '筛选时间范围内审核任务状态变为已回滚的数量。', updatedAt }),
   ].filter((card) => visibleSections.includes(card.section));
 
@@ -2668,7 +2757,7 @@ const buildAnalyticsOverview = (
   const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
     { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
     { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
-    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库和题组共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content/questions' },
+    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组和错因标签共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content/questions' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/list?feedbackStatus=pending' },
     { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/papers' },
@@ -3190,7 +3279,10 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
       createdAt: topic.updatedAt,
       owner: topic.updatedBy,
       sourceModule: 'writingTranslation',
-      targetRoute: `/writing-translation/topics/${topic.id}`,
+      targetRoute:
+        topic.topicType === 'writing'
+          ? `/writing-translation/writing-topics/${topic.id}`
+          : `/writing-translation/translation-topics/${topic.id}`,
       description: precheck.issues.find((item) => item.level === 'error')?.message ?? precheck.summary,
       roleId,
       riskLevel: 'medium',
@@ -3209,7 +3301,10 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
       createdAt: topic.updatedAt,
       owner: topic.updatedBy,
       sourceModule: 'writingTranslation',
-      targetRoute: `/writing-translation/topics/${topic.id}`,
+      targetRoute:
+        topic.topicType === 'writing'
+          ? `/writing-translation/writing-topics/${topic.id}`
+          : `/writing-translation/translation-topics/${topic.id}`,
       description: 'AI 策略引用失效或未发布，需要重新绑定固定版本。',
       roleId,
       riskLevel: 'medium',
@@ -3310,7 +3405,7 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
         createdAt: item.time,
         owner: item.operator,
         sourceModule: 'system',
-        targetRoute: '/system/accounts',
+        targetRoute: '/system/operation-logs',
         targetQuery: { logType: 'permission_denied' },
         description: item.reason,
         roleId,
@@ -3398,7 +3493,14 @@ const buildDashboardRisks = (roleId: AdminRoleId, todos: API.DashboardTodoItem[]
       occurredAt: log.time,
       sourceModule: log.objectType === 'analytics' ? 'analytics' : log.objectType === 'user' ? 'users' : log.objectType === 'review_release' ? 'reviewRelease' : 'system',
       sourceModuleName: log.objectType === 'analytics' ? '运营数据' : log.objectType === 'user' ? '用户管理' : log.objectType === 'review_release' ? '审核发布' : '权限与系统设置',
-      targetRoute: log.objectType === 'analytics' ? '/analytics/overview' : log.objectType === 'review_release' ? '/review-release/pending' : '/system/accounts',
+      targetRoute:
+        log.objectType === 'analytics'
+          ? '/analytics/users'
+          : log.objectType === 'review_release'
+            ? '/review-release/pending'
+            : log.logType === 'sensitive_access'
+              ? '/system/sensitive-access-logs'
+              : '/system/operation-logs',
       targetQuery: { logType: log.logType ?? 'operation' },
       handled: false,
       description: log.reason,
@@ -3446,11 +3548,11 @@ const buildDashboardMetrics = (roleId: AdminRoleId, risks: API.DashboardRiskItem
   const allMetrics = [
     dashboardMetric({ id: 'today_new_users', title: '今日新增用户', value: todayRegistered, previousValue: yesterdayRegistered, unit: '人', type: 'count', timeSemantic: 'today', direction: 'positive', tooltip: 'createdAt 落在今日范围内的用户数。', targetRoute: '/users/list' }),
     dashboardMetric({ id: 'today_active_users', title: '今日活跃用户', value: todayActiveIds.size, previousValue: yesterdayActiveIds.size, unit: '人', type: 'count', timeSemantic: 'today', direction: 'positive', tooltip: '今日存在学习行为或 lastActiveAt 落入今日范围的去重用户数。', targetRoute: '/users/list' }),
-    dashboardMetric({ id: 'today_task_completion_rate', title: '今日任务完成率', value: percentValue(todayCompletedTaskUsers, todayStartedTaskUsers), unit: '%', type: 'rate', timeSemantic: 'today', direction: 'positive', tooltip: '今日完成任务用户数 / 今日开始任务用户数，分母为 0 时显示 --。', targetRoute: '/analytics/overview' }),
+    dashboardMetric({ id: 'today_task_completion_rate', title: '今日任务完成率', value: percentValue(todayCompletedTaskUsers, todayStartedTaskUsers), unit: '%', type: 'rate', timeSemantic: 'today', direction: 'positive', tooltip: '今日完成任务用户数 / 今日开始任务用户数，分母为 0 时显示 --。', targetRoute: '/analytics/learning-funnel' }),
     dashboardMetric({ id: 'pending_review', title: '当前待审核', value: pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_review 的审核任务数。', targetRoute: '/review-release/pending?status=pending_review' }),
     dashboardMetric({ id: 'pending_publish', title: '当前待发布', value: pendingRelease, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_publish 的审核任务数。', targetRoute: '/review-release/pending?status=pending_publish' }),
     dashboardMetric({ id: 'pending_feedback', title: '当前待处理反馈', value: pendingFeedback, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending 的用户反馈数。', targetRoute: '/users/list?feedbackStatus=pending' }),
-    dashboardMetric({ id: 'high_risk', title: '当前高风险事项', value: highRisk, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前 P0/P1 或高风险未关闭事项数。', targetRoute: '/system/accounts' }),
+    dashboardMetric({ id: 'high_risk', title: '当前高风险事项', value: highRisk, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前 P0/P1 或高风险未关闭事项数。', targetRoute: '/system/operation-logs' }),
   ];
   const roleMetricIds: Record<AdminRoleId, string[]> = {
     super_admin: allMetrics.map((metric) => metric.id),
@@ -3470,10 +3572,10 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
     { id: 'content-questions', title: '去题库管理', description: '查看题目草稿、驳回和审核状态。', icon: 'DatabaseOutlined', targetRoute: '/content/questions', requiredModule: 'content', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'content').length },
     { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
     { id: 'learning-path', title: '去学习路径配置', description: '检查诊断规则和今日任务模板。', icon: 'BranchesOutlined', targetRoute: '/learning-path/diagnosis-rules', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
-    { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
+    { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/writing-topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
     { id: 'mock-exam', title: '去模考试卷管理', description: '检查试卷结构、题目引用和发布状态。', icon: 'FileDoneOutlined', targetRoute: '/mock-exam/papers', requiredModule: 'mockExam', requiredAction: 'read', todoCount: todos.filter((item) => item.objectType === '模考试卷').length },
-    { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/overview', requiredModule: 'analytics', requiredAction: 'read' },
-    { id: 'system-audit', title: '去审计日志', description: '查看权限拒绝、敏感访问和权限变更。', icon: 'SafetyCertificateOutlined', targetRoute: '/system/accounts', targetQuery: { tab: 'audit' }, requiredModule: 'system', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'system').length },
+    { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/users', requiredModule: 'analytics', requiredAction: 'read' },
+    { id: 'system-audit', title: '去审计日志', description: '查看权限拒绝、敏感访问和权限变更。', icon: 'SafetyCertificateOutlined', targetRoute: '/system/operation-logs', requiredModule: 'system', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'system').length },
     { id: 'ai-coach', title: '去 AI 陪练管理', description: '查看 AI 策略占位摘要和审核入口。', icon: 'RobotOutlined', targetRoute: '/ai-coach/prompts', requiredModule: 'aiCoach', requiredAction: 'read' },
   ];
   return candidates
@@ -3544,7 +3646,7 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
       id: 'system',
       title: '审计风险',
       sourceModule: 'system',
-      targetRoute: '/system/accounts',
+      targetRoute: '/system/sensitive-access-logs',
       items: [
         { label: '今日权限拒绝', value: auditLogs.filter((item) => item.logType === 'permission_denied' && dateOnly(item.time) === today).length, status: 'risk' },
         { label: '今日敏感访问', value: auditLogs.filter((item) => item.logType === 'sensitive_access' && dateOnly(item.time) === today).length, status: 'warning' },
@@ -3568,7 +3670,7 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
       id: 'writingTranslation',
       title: '写译批改',
       sourceModule: 'writingTranslation',
-      targetRoute: '/writing-translation/topics',
+      targetRoute: '/writing-translation/writing-topics',
       items: [
         { label: '草稿', value: writingStats.draft },
         { label: '待审核', value: writingStats.pendingReview, status: 'warning' },
@@ -4311,6 +4413,226 @@ export default {
       reviewTask: task,
     });
   },
+  'GET /api/content/wrong-reason-tags': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '无权查看错因标签。',
+      });
+      return;
+    }
+
+    const filtered = filterWrongReasonTags(req.query);
+    res.send({
+      success: true,
+      data: paginate(filtered, req.query),
+      total: filtered.length,
+    });
+  },
+  'GET /api/content/wrong-reason-tags/:id': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '无权查看错因标签。',
+      });
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const tag = wrongReasonTagData.find((item) => item.id === id);
+
+    if (!tag) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '错因标签不存在。',
+      });
+      return;
+    }
+
+    res.send({
+      success: true,
+      data: tag,
+    });
+  },
+  'POST /api/content/wrong-reason-tags': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanCreateWrongReasonTag(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '无权新建错因标签。',
+      });
+      return;
+    }
+
+    const validation = validateWrongReasonTagPayload(req.body);
+    if (validation) {
+      res.status(Number(validation.errorCode)).send({
+        success: false,
+        errorCode: validation.errorCode,
+        errorMessage: validation.errorMessage,
+      });
+      return;
+    }
+
+    const operator = roleConfigs[currentRoleId];
+    const tag = createWrongReasonTagRecord(
+      req.body as API.WrongReasonTagSaveParams,
+      operator.name,
+    );
+    pushContentAuditLog(
+      currentRoleId,
+      'create',
+      'success',
+      tag.id,
+      '保存错因标签草稿。',
+      `创建错因标签 ${tag.name}。`,
+      '/content/wrong-reason-tags',
+    );
+
+    res.send({
+      success: true,
+      data: tag,
+    });
+  },
+  'PATCH /api/content/wrong-reason-tags/:id': (req: Request, res: Response) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const tag = wrongReasonTagData.find((item) => item.id === id);
+
+    if (!tag) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '错因标签不存在。',
+      });
+      return;
+    }
+
+    if (!currentRoleId || !roleCanEditWrongReasonTag(currentRoleId, tag)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '无权编辑当前状态的错因标签。',
+      });
+      return;
+    }
+
+    const validation = validateWrongReasonTagPayload(req.body, id);
+    if (validation) {
+      res.status(Number(validation.errorCode)).send({
+        success: false,
+        errorCode: validation.errorCode,
+        errorMessage: validation.errorMessage,
+      });
+      return;
+    }
+
+    const operator = roleConfigs[currentRoleId];
+    const updatedTag = updateWrongReasonTagRecord(
+      tag,
+      req.body as API.WrongReasonTagSaveParams,
+      operator.name,
+    );
+    pushContentAuditLog(
+      currentRoleId,
+      'edit',
+      'success',
+      tag.id,
+      updatedTag.changeSummary,
+      `编辑错因标签 ${tag.name}，版本更新为 ${tag.version}。`,
+      '/content/wrong-reason-tags',
+    );
+
+    res.send({
+      success: true,
+      data: updatedTag,
+    });
+  },
+  'POST /api/content/wrong-reason-tags/:id/submit-review': (
+    req: Request,
+    res: Response,
+  ) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const tag = wrongReasonTagData.find((item) => item.id === id);
+
+    if (!tag) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '错因标签不存在。',
+      });
+      return;
+    }
+
+    if (!currentRoleId || !roleCanSubmitWrongReasonTag(currentRoleId, tag)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '无权提交当前状态的错因标签。',
+      });
+      return;
+    }
+
+    const changeSummary = String(
+      req.body?.changeSummary ?? tag.changeSummary,
+    ).trim();
+    if (!changeSummary) {
+      res.status(400).send({
+        success: false,
+        errorCode: '400',
+        errorMessage: '提交审核必须填写变更说明。',
+      });
+      return;
+    }
+
+    const operator = roleConfigs[currentRoleId];
+    const previousStatus = tag.status;
+    const task = buildWrongReasonTagReviewTask(
+      tag,
+      operator,
+      changeSummary,
+      reviewTasksData,
+    );
+    tag.status = 'pending_review';
+    tag.updatedBy = operator.name;
+    tag.updatedAt = task.updatedAt;
+    tag.changeSummary = changeSummary;
+    tag.operationRecords.unshift({
+      id: `wrong-reason-op-submit-${tag.id}-${Date.now()}`,
+      operator: operator.name,
+      roleName: operator.name,
+      action: '提交审核',
+      fromStatus: previousStatus,
+      toStatus: 'pending_review',
+      reason: changeSummary,
+      time: task.updatedAt,
+    });
+    tag.versionRecords.unshift({
+      id: `wrong-reason-version-submit-${tag.id}-${Date.now()}`,
+      version: tag.version,
+      status: 'pending_review',
+      summary: changeSummary,
+      createdBy: operator.name,
+      createdAt: task.updatedAt,
+    });
+    pushContentAuditLog(
+      currentRoleId,
+      'submit',
+      'success',
+      tag.id,
+      changeSummary,
+      `错因标签 ${tag.name} 提交审核，审核任务 ${task.id}。`,
+      '/content/wrong-reason-tags',
+    );
+
+    res.send({
+      success: true,
+      data: tag,
+      reviewTask: task,
+    });
+  },
   'GET /api/learning-path/configs': (req: Request, res: Response) => {
     if (!roleCanReadLearningPath(currentRoleId)) {
       if (currentRoleId) {
@@ -4591,7 +4913,8 @@ export default {
         (isLearningPathConfig(task) ||
           isAiCoachReviewTask(task) ||
           isWritingTranslationReviewTask(task) ||
-          task.objectType === 'mock_exam')
+          task.objectType === 'mock_exam' ||
+          task.objectType === 'wrong_reason_tag')
       ) {
         res.send({
           success: true,
@@ -4707,6 +5030,13 @@ export default {
       createdAt: task.updatedAt,
     });
     syncQuestionFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      operator.name,
+      operationReason,
+    );
+    syncWrongReasonTagFromReviewTask(
       task,
       previousStatus,
       nextStatus,

@@ -599,6 +599,96 @@ export async function submitContentQuestionReview(
   });
 }
 
+/** 获取错因标签列表 GET /api/content/wrong-reason-tags */
+export async function wrongReasonTags(
+  params?: {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    category?: API.WrongReasonTagCategory;
+    examType?: API.ExamType;
+    questionType?: API.QuestionType;
+    severity?: API.WrongReasonTagSeverity;
+    status?: API.ReviewTaskStatus;
+    updatedBy?: string;
+  },
+  options?: { [key: string]: any },
+) {
+  return request<API.WrongReasonTagList>('/api/content/wrong-reason-tags', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取错因标签详情 GET /api/content/wrong-reason-tags/:id */
+export async function wrongReasonTagDetail(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.WrongReasonTagItem;
+    success?: boolean;
+  }>(`/api/content/wrong-reason-tags/${id}`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 创建错因标签 POST /api/content/wrong-reason-tags */
+export async function createWrongReasonTag(
+  body: API.WrongReasonTagSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WrongReasonTagItem;
+    success?: boolean;
+  }>('/api/content/wrong-reason-tags', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 更新错因标签 PATCH /api/content/wrong-reason-tags/:id */
+export async function updateWrongReasonTag(
+  id: string,
+  body: API.WrongReasonTagSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WrongReasonTagItem;
+    success?: boolean;
+  }>(`/api/content/wrong-reason-tags/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 提交错因标签审核 POST /api/content/wrong-reason-tags/:id/submit-review */
+export async function submitWrongReasonTagReview(
+  id: string,
+  body: API.WrongReasonTagSubmitReviewParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.WrongReasonTagItem;
+    reviewTask?: API.ReviewTask;
+    success?: boolean;
+  }>(`/api/content/wrong-reason-tags/${id}/submit-review`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 获取运营用户列表 GET /api/operation/users */
 export async function operationUsers(
   params?: {

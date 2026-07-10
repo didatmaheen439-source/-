@@ -1,8 +1,10 @@
 import {
   AlipayCircleOutlined,
+  DownOutlined,
   LockOutlined,
   MobileOutlined,
   TaobaoCircleOutlined,
+  TeamOutlined,
   UserOutlined,
   WeiboCircleOutlined,
 } from '@ant-design/icons';
@@ -11,6 +13,7 @@ import {
   ProFormCaptcha,
   ProFormCheckbox,
   ProFormText,
+  type ProFormInstance,
 } from '@ant-design/pro-components';
 import {
   FormattedMessage,
@@ -19,10 +22,11 @@ import {
   useIntl,
   useModel,
 } from '@umijs/max';
-import { Alert, App, Button, Tabs } from 'antd';
+import { Alert, App, Button, Dropdown, Tabs, type MenuProps } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useState } from 'react';
 import { Footer } from '@/components';
+import { MOCK_LOGIN_PASSWORD, roleList } from '@/foundation/permissions';
 import { login } from '@/services/ant-design-pro/api';
 import { getFakeCaptcha } from '@/services/ant-design-pro/login';
 import Settings from '../../../../config/defaultSettings';
@@ -78,6 +82,15 @@ const useStyles = createStyles(({ token }) => {
         "url('https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/V-_oS6r-i7wAAAAAAAAAAAAAFl94AQBr')",
       backgroundSize: '100% 100%',
     },
+    accountSelector: {
+      paddingInline: 4,
+      color: token.colorTextSecondary,
+      fontSize: 13,
+      '&:hover': {
+        color: token.colorPrimary,
+        background: 'transparent',
+      },
+    },
   };
 });
 
@@ -130,6 +143,7 @@ const LoginMessage: React.FC<{
 const Login: React.FC = () => {
   const [userLoginState, setUserLoginState] = useState<API.LoginResult>({});
   const [type, setType] = useState<string>('account');
+  const formRef = React.useRef<ProFormInstance>(undefined);
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
@@ -174,6 +188,19 @@ const Login: React.FC = () => {
     }
   };
   const { status, type: loginType } = userLoginState;
+  const roleAccountMenuItems: MenuProps['items'] = roleList.map((role) => ({
+    key: role.id,
+    label: `${role.name} / ${role.username}`,
+  }));
+  const handleRoleAccountSelect: MenuProps['onClick'] = ({ key }) => {
+    const role = roleList.find((item) => item.id === key);
+    if (!role) return;
+    formRef.current?.setFieldsValue({
+      username: role.username,
+      password: MOCK_LOGIN_PASSWORD,
+    });
+    setUserLoginState({});
+  };
 
   return (
     <div className={styles.container}>
@@ -194,6 +221,7 @@ const Login: React.FC = () => {
         }}
       >
         <LoginForm
+          formRef={formRef}
           contentStyle={{
             minWidth: 280,
             maxWidth: '75vw',
@@ -255,6 +283,27 @@ const Login: React.FC = () => {
                 fieldProps={{
                   size: 'large',
                   prefix: <UserOutlined />,
+                  suffix: (
+                    <Dropdown
+                      menu={{
+                        items: roleAccountMenuItems,
+                        onClick: handleRoleAccountSelect,
+                      }}
+                      placement="bottomRight"
+                      trigger={['click']}
+                    >
+                      <Button
+                        aria-label="选择测试账号"
+                        className={styles.accountSelector}
+                        htmlType="button"
+                        icon={<TeamOutlined />}
+                        size="small"
+                        type="text"
+                      >
+                        账号 <DownOutlined />
+                      </Button>
+                    </Dropdown>
+                  ),
                 }}
                 placeholder={intl.formatMessage({
                   id: 'pages.login.username.placeholder',
@@ -280,7 +329,7 @@ const Login: React.FC = () => {
                 }}
                 placeholder={intl.formatMessage({
                   id: 'pages.login.password.placeholder',
-                  defaultMessage: '密码: ant.design',
+                  defaultMessage: `密码: ${MOCK_LOGIN_PASSWORD}`,
                 })}
                 rules={[
                   {

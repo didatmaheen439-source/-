@@ -9,11 +9,15 @@
 - 当前分支：`codex/ai-coach-strategy-mvp`
 - 最新阶段提交：`df542ab feat(mock-exam): complete paper configuration MVP`
 - 第十一阶段已完成：当前 mock MVP 已固化为后端接入前的接口契约、数据模型、状态机权限和全链路验收基线。
+- PRD v1.3 P0 二级菜单拆分已完成：左侧菜单补齐题组、错因标签、每日一句、外刊、学习路径策略、AI 治理子项、写作题目、翻译题目、运营数据分区、发布版本和系统日志入口；未完整实现的 P0 入口统一接入只读占位页。
+- 已有聚合页拆实补强已完成：写作题目、翻译题目、今日任务模板、操作日志、敏感访问日志和运营数据分区都可通过独立业务语义 URL 进入；底层仍复用现有列表、表单、详情、Tab、筛选、权限和审计能力。
+- `/content/wrong-reason-tags` 错因标签字典 MVP 已完成：基础字典型 CRUD、引用次数、版本记录、操作记录、提交审核、`wrong_reason_tag` 审核任务和发布状态回写已打通。
 
 ### 已完成模块
 - `/system/accounts`：权限与系统设置 MVP，包含账号列表、角色权限矩阵、审计日志和按钮权限验证。
 - `/review-release/pending`：审核发布中心 MVP，包含审核任务列表、详情抽屉、状态流转、审计日志和角色权限验证。
 - `/content/questions`：题库内容 MVP，包含题目列表、详情抽屉、新增/编辑页、提交审核、审核发布状态同步和审计日志。
+- `/content/wrong-reason-tags`：错因标签字典 MVP，包含标签列表、详情页、新增/编辑页、分类、适用考试、适用题型、严重级别、引用次数、提交审核、审核发布状态同步和审计日志。
 - `/users/list`：用户管理 MVP，包含用户列表、详情页、学习记录、反馈处理、AI 摘要、敏感访问审计和权限验证。
 - `/analytics/overview`：运营数据总览 MVP，包含增长、学习路径漏斗、题库、审核发布、客服反馈和 mock 导出预览。
 - `/dashboard/overview`：运营工作台 MVP，包含今日待办、风险提醒、关键指标、快捷入口、模块摘要和最近处理记录。
@@ -26,9 +30,12 @@
 - `README.md`：项目状态、常用命令和最近验证。
 - `PRODUCT.md`：后台定位、用户、原则和边界。
 - `admin-web/config/routes.ts`：后台路由和菜单。
+- `admin-web/src/pages/prd-placeholder/index.tsx`：PRD P0 未完整实现入口的统一只读占位页。
+- `admin-web/src/foundation/module-placeholders.ts`：PRD P0 占位入口配置。
 - `admin-web/src/foundation/permissions.ts`：RBAC 权限矩阵。
 - `admin-web/mock/user.ts`：用户、审核发布、工作台和运营数据等核心 mock 聚合。
 - `admin-web/mock/contentQuestionStore.ts`：题库共享数据源。
+- `admin-web/src/pages/content/wrong-reason-tags/`：错因标签列表、详情、编辑页面和 store 单测。
 - `admin-web/mock/mockExamStore.ts`：模考试卷共享 Store 和校验逻辑。
 - `admin-web/mock/mockExam.ts`：模考试卷 Mock API。
 - `docs/api-contract.md`：当前 mock API 到真实后端的接口契约基线。
@@ -44,6 +51,8 @@
 - UI 继续沿用 Ant Design Pro、ProTable、ProForm、Drawer、Tabs、Tag、Tooltip 和既有状态标签，不新增 UI 组件库。
 - 业务改造必须保持内部运营后台风格：高密度、克制、可扫描，避免营销页和装饰化设计。
 - 真实后端接入前，mock API 也要表达权限、乐观锁、状态流转、预校验和审计，不能只靠前端隐藏按钮。
+- 左侧菜单只承载稳定业务对象集合；详情、新建、编辑、动态 `:id`、审核状态切换和版本差异页继续隐藏，不放入左侧菜单。
+- 二级入口优先表达“业务对象”，不按菜单数量复制页面。写译题目、学习路径配置、系统设置和运营数据的拆分要继续复用共享组件，只有对象模型、权限边界、状态机或后端表真正不同才拆独立实现。
 
 ### Verification
 - 最近完整验证来自第十一阶段全链路验收与后端接入基线。
@@ -52,6 +61,9 @@
 - 角色验收已覆盖 7 类角色的工作台入口和典型越权 403。
 - 第一次 `npm run test` 暴露 `src/access.test.ts` 仍使用旧 `admin/user` 权限断言，已修正为当前 RBAC 角色断言后复测通过。
 - 验证日志位于 `logs/stage-11-backend-baseline-2026-07-09/`。
+- PRD P0 二级菜单拆分验证已通过：`npm run tsc`、`npm run lint`、`npm run test`、`npx antd lint ./src`、`npm run build`；浏览器抽查见 `logs/prd-p0-menu-split-2026-07-09.md`。
+- 已有聚合页拆实补强验证已通过：`npm run tsc`、`npm run lint`、`npm run test`、`npx antd lint ./src`、`npm run build`；浏览器抽查覆盖 `/writing-translation/writing-topics`、`/writing-translation/translation-topics`、对应新建页、`/learning-path/task-templates`、`/system/operation-logs`、`/system/sensitive-access-logs`、`/analytics/users`、`/analytics/ai`、`/analytics/questions`。
+- 错因标签 MVP 验证已通过：`npm run test -- wrongReasonTagStore`、`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build`；API smoke 覆盖列表、详情、400 校验、403 权限、新建、提交审核和审核发布状态回写。浏览器控制层本轮连接 in-app browser 超时，需后续补视觉验收。
 - 已知非阻断问题：浏览器控制层出现外部 Statsig 网络超时日志，不属于本地后台页面错误；当前仍为内存 mock，真实后端接入前必须重新实现权限、状态机、审计、脱敏和版本一致性。
 
 ### Backup

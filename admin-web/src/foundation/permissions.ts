@@ -134,7 +134,7 @@ export const adminModules: AdminModuleConfig[] = [
     key: 'writingTranslation',
     name: '写译批改管理',
     routePrefix: '/writing-translation',
-    defaultRoute: '/writing-translation/topics',
+    defaultRoute: '/writing-translation/writing-topics',
     description: '写作、翻译题目、批改规则、评分维度和异常处理。',
   },
   {
@@ -148,7 +148,7 @@ export const adminModules: AdminModuleConfig[] = [
     key: 'analytics',
     name: '运营数据',
     routePrefix: '/analytics',
-    defaultRoute: '/analytics/overview',
+    defaultRoute: '/analytics/users',
     description: '增长、留存、内容效果、题库表现和 AI 使用数据看板。',
   },
   {
@@ -178,12 +178,14 @@ const reviewActions: PermissionAction[] = [
 ];
 const fullActions: PermissionAction[] = permissionActions;
 
+export const MOCK_LOGIN_PASSWORD = '123456789';
+
 export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
   super_admin: {
     id: 'super_admin',
     name: '超级管理员',
     username: 'super_admin',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '拥有全部菜单、动作和配置权限。',
     modules: adminModules.map((item) => item.key),
     actions: adminModules.reduce((acc, item) => {
@@ -203,7 +205,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     id: 'content_operator',
     name: '内容运营',
     username: 'content_operator',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '维护内容资产，可提交审核，不可发布和配置系统。',
     modules: [
       'dashboard',
@@ -227,7 +229,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     id: 'teaching_reviewer',
     name: '教研审核',
     username: 'teaching_reviewer',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '负责内容质量审核、发布前复核和教研规则校验。',
     modules: [
       'dashboard',
@@ -253,7 +255,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     id: 'ai_operator',
     name: 'AI 策略运营',
     username: 'ai_operator',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '维护 AI 策略、提示词、风险规则和相关效果指标。',
     modules: [
       'dashboard',
@@ -277,7 +279,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     id: 'customer_support',
     name: '客服',
     username: 'customer_support',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '查看用户与反馈信息，处理异常，不具备内容编辑和系统配置权限。',
     modules: ['dashboard', 'users', 'analytics'],
     actions: {
@@ -291,7 +293,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     id: 'data_analyst',
     name: '数据分析',
     username: 'data_analyst',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '查看聚合看板和导出分析数据，不处理内容与系统配置。',
     modules: ['dashboard', 'users', 'mockExam', 'analytics'],
     actions: {
@@ -306,7 +308,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     id: 'read_only_auditor',
     name: '只读审计',
     username: 'read_only_auditor',
-    password: 'ant.design',
+    password: MOCK_LOGIN_PASSWORD,
     description: '只读查看审核发布、系统记录和权限审计，不具备写操作。',
     modules: [
       'dashboard',

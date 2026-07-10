@@ -48,6 +48,11 @@ type FormValues = API.LearningPathSaveParams & {
   submitAfterSave?: boolean;
 };
 
+const getPrefix = (kind: API.LearningPathConfigKind) =>
+  kind === 'diagnosis_rule'
+    ? '/learning-path/diagnosis-rules'
+    : '/learning-path/task-templates';
+
 const toReferenceItems = (
   ids: string[] = [],
   references: API.LearningPathReference[],
@@ -176,6 +181,7 @@ const EditPage: React.FC<EditPageProps> = ({ kind }) => {
   );
   const canEdit =
     canWrite && (!detail || editableStatuses.includes(detail.status));
+  const listPath = getPrefix(kind);
 
   const loadData = async () => {
     setLoading(true);
@@ -224,6 +230,7 @@ const EditPage: React.FC<EditPageProps> = ({ kind }) => {
         status="403"
         title="403"
         subTitle="当前账号无学习路径配置写入权限。"
+        extra={<Button onClick={() => history.push(listPath)}>返回列表</Button>}
       />
     );
   }
@@ -242,6 +249,7 @@ const EditPage: React.FC<EditPageProps> = ({ kind }) => {
         status="404"
         title="404"
         subTitle="学习路径配置不存在或类型不匹配。"
+        extra={<Button onClick={() => history.push(listPath)}>返回列表</Button>}
       />
     );
   }
@@ -252,6 +260,7 @@ const EditPage: React.FC<EditPageProps> = ({ kind }) => {
         status="403"
         title="当前状态不可直接编辑"
         subTitle="已发布、待发布、已下架或已回滚配置需要先复制为新草稿。"
+        extra={<Button onClick={() => history.push(listPath)}>返回列表</Button>}
       />
     );
   }
@@ -315,7 +324,7 @@ const EditPage: React.FC<EditPageProps> = ({ kind }) => {
       history.push('/review-release/pending');
       return true;
     }
-    history.push('/learning-path/diagnosis-rules');
+    history.push(listPath);
     return true;
   };
 
@@ -342,7 +351,7 @@ const EditPage: React.FC<EditPageProps> = ({ kind }) => {
             searchConfig: { submitText: '保存草稿', resetText: '取消' },
             render: (_, doms) => (
               <Space>
-                <Button onClick={() => history.push('/learning-path/diagnosis-rules')}>
+                <Button onClick={() => history.push(listPath)}>
                   取消
                 </Button>
                 <Button onClick={runPrecheck}>预校验</Button>

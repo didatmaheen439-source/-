@@ -7,7 +7,7 @@ export default {
   'pages.login.username.placeholder':
     'Username: super_admin and other test accounts',
   'pages.login.username.required': 'Please input your username!',
-  'pages.login.password.placeholder': 'Password: ant.design',
+  'pages.login.password.placeholder': 'Password: 123456789',
   'pages.login.password.required': 'Please input your password!',
   'pages.login.phoneLogin.tab': 'Phone Login',
   'pages.login.phoneLogin.errorMessage': 'Verification Code Error',

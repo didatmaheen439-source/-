@@ -9,10 +9,16 @@ import {
 } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { history, useAccess, useModel, useSearchParams } from '@umijs/max';
+import {
+  history,
+  useAccess,
+  useLocation,
+  useModel,
+  useSearchParams,
+} from '@umijs/max';
 import { App, Button, Modal, Space, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type React from 'react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PermissionButton from '@/components/PermissionButton';
 import StatusTag from '@/components/StatusTag';
 import type { AdminModuleKey, PermissionAction } from '@/foundation/permissions';
@@ -38,12 +44,29 @@ import {
   topicTypeText,
 } from './config';
 
+const topicTypePathMap: Record<API.WritingTranslationTopicType, string> = {
+  writing: '/writing-translation/writing-topics',
+  translation: '/writing-translation/translation-topics',
+};
+
+const getTopicPrefix = (topicType: API.WritingTranslationTopicType) =>
+  topicTypePathMap[topicType];
+
+const getTopicTypeFromPath = (
+  pathname: string,
+): API.WritingTranslationTopicType =>
+  pathname.startsWith('/writing-translation/translation-topics')
+    ? 'translation'
+    : 'writing';
+
 const WritingTranslationTopicsPage: React.FC = () => {
   const { message, modal } = App.useApp();
   const actionRef = useRef<ActionType | undefined>(undefined);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [activeKey, setActiveKey] = useState<API.WritingTranslationTopicType>(
-    (searchParams.get('topicType') as API.WritingTranslationTopicType) || 'writing',
+    (searchParams.get('topicType') as API.WritingTranslationTopicType) ||
+      getTopicTypeFromPath(location.pathname),
   );
   const { initialState } = useModel('@@initialState');
   const roleId = initialState?.currentUser?.roleId;
@@ -57,6 +80,14 @@ const WritingTranslationTopicsPage: React.FC = () => {
   const canCreate = Boolean(access.canAction?.('writingTranslation', 'create'));
   const canEdit = Boolean(access.canAction?.('writingTranslation', 'edit'));
   const canSubmit = Boolean(access.canAction?.('writingTranslation', 'submit'));
+
+  useEffect(() => {
+    setActiveKey(
+      (searchParams.get('topicType') as API.WritingTranslationTopicType | null) ||
+        getTopicTypeFromPath(location.pathname),
+    );
+    actionRef.current?.reloadAndRest?.();
+  }, [location.pathname, searchParams.toString()]);
 
   const reload = () => actionRef.current?.reload();
 
@@ -144,7 +175,9 @@ const WritingTranslationTopicsPage: React.FC = () => {
       const response = await copyWritingTranslationTopic(record.id);
       if (response.data) {
         message.success('已创建新草稿版本');
-        history.push(`/writing-translation/topics/${response.data.id}/edit`);
+        history.push(
+          `${getTopicPrefix(response.data.topicType)}/${response.data.id}/edit`,
+        );
       }
     } catch (error: any) {
       message.error(error?.data?.errorMessage || error?.message || '创建草稿失败');
@@ -179,7 +212,9 @@ const WritingTranslationTopicsPage: React.FC = () => {
               size="small"
               title={record.name}
               style={{ ...textEllipsisStyle, height: 22, padding: 0, textAlign: 'left' }}
-              onClick={() => history.push(`/writing-translation/topics/${record.id}`)}
+              onClick={() =>
+                history.push(`${getTopicPrefix(record.topicType)}/${record.id}`)
+              }
             >
               {record.name}
             </Button>
@@ -312,20 +347,26 @@ const WritingTranslationTopicsPage: React.FC = () => {
           const isEditable = editableStatuses.includes(record.status);
           return (
             <Space size={4} wrap>
-              <Button
-                type="link"
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => history.push(`/writing-translation/topics/${record.id}`)}
-              >
-                查看
-              </Button>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<EyeOutlined />}
+                  onClick={() =>
+                    history.push(`${getTopicPrefix(record.topicType)}/${record.id}`)
+                  }
+                >
+                  查看
+                </Button>
               {canEdit && isEditable ? (
                 <Button
                   type="link"
                   size="small"
                   icon={<EditOutlined />}
-                  onClick={() => history.push(`/writing-translation/topics/${record.id}/edit`)}
+                  onClick={() =>
+                    history.push(
+                      `${getTopicPrefix(record.topicType)}/${record.id}/edit`,
+                    )
+                  }
                 >
                   编辑
                 </Button>
@@ -399,7 +440,7 @@ const WritingTranslationTopicsPage: React.FC = () => {
         onChange={(key) => {
           const nextKey = key as API.WritingTranslationTopicType;
           setActiveKey(nextKey);
-          setSearchParams({ topicType: nextKey });
+          history.push(getTopicPrefix(nextKey));
           actionRef.current?.reloadAndRest?.();
         }}
       />
@@ -432,9 +473,7 @@ const WritingTranslationTopicsPage: React.FC = () => {
               action="create"
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() =>
-                history.push(`/writing-translation/topics/new?topicType=${activeKey}`)
-              }
+              onClick={() => history.push(`${getTopicPrefix(activeKey)}/new`)}
             >
               新增{topicTypeText[activeKey]}
             </PermissionButton>,

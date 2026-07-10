@@ -1,5 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { history, useLocation } from '@umijs/max';
 import {
   App,
   Button,
@@ -55,6 +56,20 @@ const logTypeTextMap: Record<
   permission_denied: '权限拒绝',
 };
 
+const getActiveTabFromPath = (pathname: string) => {
+  if (pathname === '/system/roles') return 'roles';
+  if (pathname === '/system/operation-logs') return 'operationLogs';
+  if (pathname === '/system/sensitive-access-logs') return 'sensitiveAccessLogs';
+  return 'accounts';
+};
+
+const tabPathMap: Record<string, string> = {
+  accounts: '/system/accounts',
+  roles: '/system/roles',
+  operationLogs: '/system/operation-logs',
+  sensitiveAccessLogs: '/system/sensitive-access-logs',
+};
+
 const renderDataScopes = (dataScopes?: string[]) => (
   <Space wrap size={[4, 4]}>
     {(dataScopes ?? []).map((scope) => (
@@ -77,8 +92,10 @@ const renderActionTags = (actions?: string[]) => (
 
 const AccountsPage: React.FC = () => {
   const { message } = App.useApp();
+  const location = useLocation();
   const accountTableRef = useRef<ActionType | undefined>(undefined);
   const auditTableRef = useRef<ActionType | undefined>(undefined);
+  const activeTab = getActiveTabFromPath(location.pathname);
 
   const handleStatusChange = async (
     account: API.AdminAccount,
@@ -348,6 +365,37 @@ const AccountsPage: React.FC = () => {
     },
   ];
 
+  const renderAuditTable = (logType: API.AuditLogType) => (
+    <ProTable<API.AuditLogItem>
+      actionRef={auditTableRef}
+      rowKey="id"
+      columns={auditColumns}
+      request={async (params) => {
+        const result = await adminAuditLogs({
+          params: {
+            logType: params.logType || logType,
+            objectType: params.objectType,
+          },
+        });
+        return {
+          data: result.data ?? [],
+          success: result.success,
+          total: result.total,
+        };
+      }}
+      pagination={{ pageSize: 20 }}
+      scroll={{ x: 1300 }}
+      search={{
+        labelWidth: 80,
+      }}
+      toolBarRender={() => [
+        <Button key="refresh" onClick={() => auditTableRef.current?.reload()}>
+          刷新
+        </Button>,
+      ]}
+    />
+  );
+
   return (
     <PageContainer
       title="账号与角色"
@@ -374,6 +422,8 @@ const AccountsPage: React.FC = () => {
     >
       <Card>
         <Tabs
+          activeKey={activeTab}
+          onChange={(key) => history.push(tabPathMap[key] ?? '/system/accounts')}
           items={[
             {
               key: 'accounts',
@@ -431,41 +481,14 @@ const AccountsPage: React.FC = () => {
               ),
             },
             {
-              key: 'audit',
-              label: '审计日志',
-              children: (
-                <ProTable<API.AuditLogItem>
-                  actionRef={auditTableRef}
-                  rowKey="id"
-                  columns={auditColumns}
-                  request={async (params) => {
-                    const result = await adminAuditLogs({
-                      params: {
-                        logType: params.logType,
-                        objectType: params.objectType,
-                      },
-                    });
-                    return {
-                      data: result.data ?? [],
-                      success: result.success,
-                      total: result.total,
-                    };
-                  }}
-                  pagination={{ pageSize: 20 }}
-                  scroll={{ x: 1300 }}
-                  search={{
-                    labelWidth: 80,
-                  }}
-                  toolBarRender={() => [
-                    <Button
-                      key="refresh"
-                      onClick={() => auditTableRef.current?.reload()}
-                    >
-                      刷新
-                    </Button>,
-                  ]}
-                />
-              ),
+              key: 'operationLogs',
+              label: '操作日志',
+              children: renderAuditTable('operation'),
+            },
+            {
+              key: 'sensitiveAccessLogs',
+              label: '敏感访问日志',
+              children: renderAuditTable('sensitive_access'),
             },
           ]}
         />
