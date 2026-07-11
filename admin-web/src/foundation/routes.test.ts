@@ -54,6 +54,7 @@ const visibleSecondLevelPaths = [
   '/users/list',
   '/content/questions',
   '/content/wrong-reason-tags',
+  '/learning-path/onboarding',
   '/learning-path/diagnosis-rules',
   '/learning-path/task-templates',
   '/ai-coach/prompts',
@@ -77,7 +78,7 @@ describe('admin navigation structure', () => {
     ]);
   });
 
-  it('exposes only the fifteen implemented second-level entries', () => {
+  it('exposes only the sixteen implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];
@@ -119,6 +120,11 @@ describe('admin navigation structure', () => {
         (route) => route.path === '/analytics',
       )?.redirect,
     ).toBe('/analytics/overview');
+    expect(
+      findRoute('/learning-path')?.routes?.find(
+        (route) => route.path === '/learning-path',
+      )?.redirect,
+    ).toBe('/learning-path/onboarding');
   });
 
   it('maps hidden semantic views back to their consolidated menu entry', () => {

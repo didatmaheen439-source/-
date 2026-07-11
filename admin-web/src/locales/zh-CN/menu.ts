@@ -30,6 +30,8 @@ export default {
   'menu.content-operations.daily-sentences': '每日一句',
   'menu.content-operations.articles': '外刊内容',
   'menu.learning-path': '学习路径配置',
+  'menu.learning-path.onboarding': 'Onboarding 配置',
+  'menu.learning-path.onboarding-edit': '编辑 Onboarding 配置',
   'menu.learning-path.diagnosis-rules': '诊断规则',
   'menu.learning-path.task-templates': '今日任务模板',
   'menu.learning-path.light-task-strategies': '轻量任务策略',
