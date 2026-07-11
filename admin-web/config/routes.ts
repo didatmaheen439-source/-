@@ -1,6 +1,7 @@
 /**
  * 过级搭子运营管理后台路由。
- * 官方示例页保留在隐藏的 /examples 下，业务菜单只暴露 PRD 对应的十个一级模块。
+ * 官方示例页保留在隐藏的 /examples 下，业务路由按 PRD 对应的十一个一级模块组织。
+ * 尚无可用页面的内容运营模块保留结构但不在生产菜单展示。
  */
 export default [
   {
@@ -56,8 +57,7 @@ export default [
       },
       {
         path: '/dashboard/review-tasks',
-        name: 'review-tasks',
-        component: './prd-placeholder',
+        redirect: '/review-release/pending',
       },
       {
         path: '/dashboard/overview',
@@ -85,6 +85,7 @@ export default [
       {
         path: '/users/feedback',
         name: 'feedback',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
@@ -113,6 +114,7 @@ export default [
       {
         path: '/content/question-groups',
         name: 'question-groups',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
@@ -140,13 +142,11 @@ export default [
       },
       {
         path: '/content/daily-sentences',
-        name: 'daily-sentences',
-        component: './prd-placeholder',
+        redirect: '/content-operations/daily-sentences',
       },
       {
         path: '/content/articles',
-        name: 'articles',
-        component: './prd-placeholder',
+        redirect: '/content-operations/articles',
       },
       {
         path: '/content/questions/create',
@@ -159,6 +159,27 @@ export default [
         name: 'question-edit',
         hideInMenu: true,
         component: './content/questions/edit/index',
+      },
+    ],
+  },
+  {
+    path: '/content-operations',
+    name: 'content-operations',
+    icon: 'read',
+    access: 'canAccessContent',
+    hideInMenu: true,
+    routes: [
+      {
+        path: '/content-operations/daily-sentences',
+        name: 'daily-sentences',
+        hideInMenu: true,
+        component: './prd-placeholder',
+      },
+      {
+        path: '/content-operations/articles',
+        name: 'articles',
+        hideInMenu: true,
+        component: './prd-placeholder',
       },
     ],
   },
@@ -185,16 +206,19 @@ export default [
       {
         path: '/learning-path/light-task-strategies',
         name: 'light-task-strategies',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/learning-path/extra-practice-strategies',
         name: 'extra-practice-strategies',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/learning-path/review-recommendation-strategies',
         name: 'review-recommendation-strategies',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
@@ -248,6 +272,7 @@ export default [
       {
         path: '/ai-coach/intents',
         name: 'intents',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
@@ -258,26 +283,31 @@ export default [
       {
         path: '/ai-coach/response-structures',
         name: 'response-structures',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/ai-coach/dependency-rules',
         name: 'dependency-rules',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/ai-coach/session-review',
         name: 'session-review',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/ai-coach/abnormal-replies',
         name: 'abnormal-replies',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/ai-coach/strategy-versions',
         name: 'strategy-versions',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
@@ -359,11 +389,13 @@ export default [
       {
         path: '/writing-translation/scoring-dimensions',
         name: 'scoring-dimensions',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
         path: '/writing-translation/feedback-templates',
         name: 'feedback-templates',
+        hideInMenu: true,
         component: './prd-placeholder',
       },
       {
@@ -435,52 +467,67 @@ export default [
     routes: [
       {
         path: '/analytics',
-        redirect: '/analytics/users',
+        redirect: '/analytics/overview',
       },
       {
         path: '/analytics/users',
         name: 'users',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/learning-funnel',
         name: 'learning-funnel',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/content',
         name: 'content',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/questions',
         name: 'questions',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/wrong-reasons',
         name: 'wrong-reasons',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/writing-translation',
         name: 'writing-translation',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/mock-exam',
         name: 'mock-exam',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/ai',
         name: 'ai',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
       },
       {
         path: '/analytics/overview',
         name: 'overview',
-        hideInMenu: true,
         component: './analytics/overview',
       },
     ],
@@ -503,6 +550,8 @@ export default [
       {
         path: '/review-release/versions',
         name: 'versions',
+        hideInMenu: true,
+        parentKeys: ['/review-release/pending'],
         component: './prd-placeholder',
       },
     ],
@@ -535,6 +584,8 @@ export default [
       {
         path: '/system/sensitive-access-logs',
         name: 'sensitive-access-logs',
+        hideInMenu: true,
+        parentKeys: ['/system/operation-logs'],
         component: './system/accounts',
       },
     ],

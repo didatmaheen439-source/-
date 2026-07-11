@@ -104,14 +104,14 @@ export const adminModules: AdminModuleConfig[] = [
   },
   {
     key: 'users',
-    name: '用户管理',
+    name: '用户与反馈',
     routePrefix: '/users',
     defaultRoute: '/users/list',
     description: '用户资料、学习状态、反馈记录和敏感访问审计。',
   },
   {
     key: 'content',
-    name: '题库与内容管理',
+    name: '题库与内容运营',
     routePrefix: '/content',
     defaultRoute: '/content/questions',
     description: '题库、题组、每日一句、外刊、写作题目和翻译题目管理。',
@@ -125,14 +125,14 @@ export const adminModules: AdminModuleConfig[] = [
   },
   {
     key: 'aiCoach',
-    name: 'AI 陪练管理',
+    name: 'AI 陪练',
     routePrefix: '/ai-coach',
     defaultRoute: '/ai-coach/prompts',
     description: '提示词、策略参数、风险规则和 AI 使用效果管理。',
   },
   {
     key: 'writingTranslation',
-    name: '写译批改管理',
+    name: '写译批改',
     routePrefix: '/writing-translation',
     defaultRoute: '/writing-translation/writing-topics',
     description: '写作、翻译题目、批改规则、评分维度和异常处理。',
@@ -148,7 +148,7 @@ export const adminModules: AdminModuleConfig[] = [
     key: 'analytics',
     name: '运营数据',
     routePrefix: '/analytics',
-    defaultRoute: '/analytics/users',
+    defaultRoute: '/analytics/overview',
     description: '增长、留存、内容效果、题库表现和 AI 使用数据看板。',
   },
   {
@@ -160,7 +160,7 @@ export const adminModules: AdminModuleConfig[] = [
   },
   {
     key: 'system',
-    name: '权限与系统设置',
+    name: '系统与审计',
     routePrefix: '/system',
     defaultRoute: '/system/accounts',
     description: '账号、角色、菜单、按钮权限、审计日志和安全配置。',

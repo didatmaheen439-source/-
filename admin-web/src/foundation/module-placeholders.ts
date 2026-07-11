@@ -83,7 +83,7 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
       tableTitle: '错因标签占位',
       columns: ['标签名称', '启用状态', '负责人', '更新时间'],
     },
-    'content-daily-sentences': {
+    'content-operations-daily-sentences': {
       moduleKey: 'content',
       title: '每日一句',
       description:
@@ -92,7 +92,7 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
       tableTitle: '每日一句占位',
       columns: ['内容标题', '发布状态', '负责人', '更新时间'],
     },
-    'content-articles': {
+    'content-operations-articles': {
       moduleKey: 'content',
       title: '外刊内容',
       description:

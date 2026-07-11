@@ -29,9 +29,10 @@
 - 已完成第十一阶段全链路验收与后端接入准备：新增接口契约、核心数据模型、状态机/权限基线和全链路验收记录，不新增业务页面、不接真实后端。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
 - 已新增项目记忆 `MEMORY.md`，并在 `项目备份/` 保存 2026-07-09 最新备份。
-- 已按 PRD v1.3 P0 范围拆出完整左侧二级菜单：题库、题组、错因标签、每日一句、外刊、写作题目、翻译题目、运营数据分区、系统日志等入口已接入；未完整实现的 P0 页面统一进入只读占位页。
+- 已按 PRD v1.3 P0 范围完成业务对象和语义路由建模；尚未达到可用标准的入口保留路由与产品定义，但不在生产侧边栏展示。
 - 已完成“已有聚合页拆实”补强：写作题目、翻译题目、今日任务模板、系统日志入口和运营数据分区均以独立业务语义 URL 进入，但底层继续复用现有聚合页、表单、详情、审计和权限能力。
 - 已完成 `/content/wrong-reason-tags` 错因标签字典 MVP：列表、详情、新建、编辑、提交审核、审核发布联动、引用次数、权限和审计闭环。
+- 已完成导航减法第一阶段：代码中建立 11 个一级业务模块；内容运营因暂无可用子页面暂时隐藏，当前生产侧边栏展示 10 个一级模块、15 个已实现二级入口，不再暴露统一占位页。
 
 ## 目录说明
 
@@ -71,3 +72,4 @@
 - 2026-07-09：PRD P0 二级菜单拆分完成，`npm run tsc`、`npm run lint`、`npm run test`、`npx antd lint ./src`、`npm run build` 均通过，浏览器抽查记录见 `logs/prd-p0-menu-split-2026-07-09.md`。
 - 2026-07-09：已有聚合页拆实补强完成，写译、学习路径、系统设置和运营数据入口语义化；`npm run tsc`、`npm run lint`、`npm run test`、`npx antd lint ./src`、`npm run build` 均通过，浏览器补充验收记录见 `logs/prd-p0-menu-split-2026-07-09.md`。
 - 2026-07-09：`/content/wrong-reason-tags` 错因标签 MVP 完成，`npm run test -- wrongReasonTagStore`、`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；API smoke 通过，浏览器控制层超时限制见 `logs/wrong-reason-tags-implementation-2026-07-09.md`。
+- 2026-07-10：导航减法第一阶段完成，保留今日任务模板、写作题目、翻译题目、后台账号和角色权限等独立业务入口；运营数据、审计日志和审核发布收敛为稳定入口，未完成页面暂时隐藏。`npm run test`（13 文件、71 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，浏览器验收覆盖 7 类角色、旧 URL 跳转、隐藏语义 URL 高亮和客服直访系统页 403。
