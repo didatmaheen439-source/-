@@ -1389,7 +1389,8 @@ declare namespace API {
   type SensitiveAccessObjectType =
     | 'user_private_profile'
     | 'feedback_original_content'
-    | 'ai_conversation_summary';
+    | 'ai_conversation_summary'
+    | 'ai_session_review_context';
 
   type UserExamProfile = {
     examType: ExamType;
@@ -1540,6 +1541,138 @@ declare namespace API {
     sourcePage: string;
     requestedFields: string[];
     simulateFailure?: boolean;
+  };
+
+  type AiSessionReviewStatus = 'pending' | 'in_review' | 'completed';
+
+  type AiSessionReviewConclusion = 'normal' | 'abnormal';
+
+  type AiSessionAbnormalType =
+    | 'answer_dependency'
+    | 'boundary_violation'
+    | 'incorrect_guidance'
+    | 'sensitive_content'
+    | 'other';
+
+  type AiSessionAbnormalSeverity = 'P0' | 'P1' | 'P2';
+
+  type AiSessionSensitiveFieldKey =
+    | 'context_excerpt'
+    | 'user_input_excerpt'
+    | 'assistant_reply_excerpt'
+    | 'attachment_summary';
+
+  type AiSessionRiskSignal = {
+    id: string;
+    label: string;
+    level: AiCoachRiskLevel;
+    summary: string;
+  };
+
+  type AiSessionStrategySnapshot = {
+    strategyId: string;
+    strategyTitle: string;
+    strategyVersion: string;
+    configType: AiCoachConfigType;
+    businessScene: AiCoachBusinessScene;
+    statusAtTime: AiCoachStrategyStatus;
+  };
+
+  type AiSessionReviewTimelineItem = {
+    id: string;
+    operator: string;
+    roleName: string;
+    action: string;
+    fromStatus?: AiSessionReviewStatus;
+    toStatus?: AiSessionReviewStatus;
+    reason: string;
+    time: string;
+    result: 'success' | 'failed';
+  };
+
+  type AiAbnormalHandlingItem = {
+    id: string;
+    sourceSessionReviewId: string;
+    sourceSessionId: string;
+    abnormalType: AiSessionAbnormalType;
+    severity: AiSessionAbnormalSeverity;
+    evidenceSummary: string;
+    reviewNote: string;
+    strategySnapshot: AiSessionStrategySnapshot;
+    status: 'pending';
+    creatorId: string;
+    creator: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+
+  type AiSessionReview = {
+    id: string;
+    sessionId: string;
+    sessionTime: string;
+    userLabel: string;
+    examType: ExamType;
+    intentKey: string;
+    intentName: string;
+    businessScene: AiCoachBusinessScene;
+    summaryPreview: string;
+    summary: string;
+    riskLevel: AiCoachRiskLevel;
+    riskSignals: AiSessionRiskSignal[];
+    strategySnapshot: AiSessionStrategySnapshot;
+    reviewStatus: AiSessionReviewStatus;
+    conclusion?: AiSessionReviewConclusion;
+    reviewNote?: string;
+    reviewerId?: string;
+    reviewer?: string;
+    reviewedAt?: string;
+    abnormalItemId?: string;
+    abnormalItem?: AiAbnormalHandlingItem;
+    timeline: AiSessionReviewTimelineItem[];
+    dataVersion: number;
+    updatedAt: string;
+  };
+
+  type AiSessionReviewQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    intentKey?: string;
+    strategyVersion?: string;
+    riskLevel?: AiCoachRiskLevel;
+    reviewStatus?: AiSessionReviewStatus;
+    conclusion?: AiSessionReviewConclusion;
+    sessionTimeRange?: string[];
+  };
+
+  type AiSessionReviewList = {
+    data?: AiSessionReview[];
+    total?: number;
+    current?: number;
+    pageSize?: number;
+    success?: boolean;
+  };
+
+  type AiSessionSensitiveAccessParams = {
+    requestedFields: AiSessionSensitiveFieldKey[];
+    accessReason: string;
+    dataVersion?: number;
+    simulateFailure?: boolean;
+  };
+
+  type AiSessionSensitiveAccessResult = {
+    accessLog: UserSensitiveAccessLog;
+    fields: Partial<Record<AiSessionSensitiveFieldKey, string>>;
+  };
+
+  type AiSessionReviewConclusionParams = {
+    conclusion: AiSessionReviewConclusion;
+    reviewNote: string;
+    dataVersion: number;
+    abnormalType?: AiSessionAbnormalType;
+    severity?: AiSessionAbnormalSeverity;
+    evidenceSummary?: string;
+    idempotencyKey?: string;
   };
 
   type LearningPathConfigKind = 'diagnosis_rule' | 'today_task_template';

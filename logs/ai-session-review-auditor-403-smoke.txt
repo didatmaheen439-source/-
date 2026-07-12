@@ -1,0 +1,12 @@
+HTTP/1.1 403 Forbidden
+X-Powered-By: Express
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 84
+ETag: W/"54-lhq/9AGK/NkQdReqcPy0C9N6Gmw"
+Date: Sun, 12 Jul 2026 09:51:31 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"errorCode":"403","errorMessage":"无权访问 AI 会话抽检。"}

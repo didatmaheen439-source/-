@@ -58,6 +58,7 @@ export default {
   'menu.ai-coach.response-structures': '回答结构',
   'menu.ai-coach.dependency-rules': '防依赖规则',
   'menu.ai-coach.session-review': '会话抽检',
+  'menu.ai-coach.session-review-detail': '会话抽检详情',
   'menu.ai-coach.abnormal-replies': '异常回复',
   'menu.ai-coach.abnormal-reply-detail': '异常回复详情',
   'menu.ai-coach.strategy-versions': '策略版本',

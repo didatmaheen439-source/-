@@ -497,6 +497,90 @@ export async function availableAiCoachResponseStructures(options?: { [key: strin
   });
 }
 
+/** 获取 AI 会话抽检列表 GET /api/ai-coach/session-reviews */
+export async function aiSessionReviews(
+  params?: API.AiSessionReviewQueryParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.AiSessionReviewList>('/api/ai-coach/session-reviews', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取 AI 会话抽检详情 GET /api/ai-coach/session-reviews/:id */
+export async function aiSessionReviewDetail(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiSessionReview;
+    success?: boolean;
+  }>(`/api/ai-coach/session-reviews/${id}`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 认领 AI 会话抽检 POST /api/ai-coach/session-reviews/:id/claim */
+export async function claimAiSessionReview(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiSessionReview;
+    success?: boolean;
+  }>(`/api/ai-coach/session-reviews/${id}/claim`, {
+    method: 'POST',
+    ...(options || {}),
+  });
+}
+
+/** 释放 AI 会话抽检 POST /api/ai-coach/session-reviews/:id/release */
+export async function releaseAiSessionReview(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiSessionReview;
+    success?: boolean;
+  }>(`/api/ai-coach/session-reviews/${id}/release`, {
+    method: 'POST',
+    ...(options || {}),
+  });
+}
+
+/** 申请查看 AI 会话必要信息 POST /api/ai-coach/session-reviews/:id/sensitive-access */
+export async function requestAiSessionSensitiveAccess(
+  id: string,
+  body: API.AiSessionSensitiveAccessParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiSessionSensitiveAccessResult;
+    success?: boolean;
+  }>(`/api/ai-coach/session-reviews/${id}/sensitive-access`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 提交 AI 会话抽检结论 POST /api/ai-coach/session-reviews/:id/conclusion */
+export async function submitAiSessionReviewConclusion(
+  id: string,
+  body: API.AiSessionReviewConclusionParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiSessionReview;
+    abnormalItem?: API.AiAbnormalHandlingItem;
+    success?: boolean;
+  }>(`/api/ai-coach/session-reviews/${id}/conclusion`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 获取写译题目列表 GET /api/writing-translation/topics */
 export async function writingTranslationTopics(
   params?: API.WritingTranslationTopicQueryParams,

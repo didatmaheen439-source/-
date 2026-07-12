@@ -33,6 +33,39 @@
 - 后续若继续 AI 会话抽检，应先建设会话样本来源和手动标记异常入口，再复用异常回复 Store 的状态机。
 - 真实后端接入需优先实现异常表、证据表、复检记录、操作审计和 `dataVersion` 乐观锁。
 
+## 2026-07-12 AI Session Review MVP
+
+### Summary
+- `/ai-coach/session-review` 已从隐藏占位入口升级为可用二级模块，包含列表筛选、详情、认领、释放、必要信息申请、正常结论和异常结论。
+- 会话抽检只展示脱敏摘要；必要信息必须由当前认领人填写原因并选择字段后即时授权，审计失败时不返回字段。
+- 异常结论会原子生成 `AiAbnormalHandlingItem`，并固化当次会话关联的策略 ID、标题、版本、场景和状态快照。
+- `read_only_auditor` 仍可只读查看 AI 策略，但不能进入会话抽检业务处置流；页面和 Mock API 都收紧到 `super_admin` 与 `ai_operator`。
+
+### Key Files
+- `admin-web/mock/aiCoachSessionReviewStore.ts`
+- `admin-web/mock/aiCoach.ts`
+- `admin-web/src/pages/ai-coach/session-review/`
+- `docs/ai-coach-session-review-mvp.md`
+- `docs/api-contract.md`
+
+### Decisions
+- 本阶段只做后台 Mock，不接真实后端、真实 AI、真实用户完整会话或真实附件。
+- 会话抽检状态机为 `pending -> in_review -> completed`；完成态 MVP 不支持重开。
+- 敏感字段白名单限定为上下文片段、用户输入片段、AI 回复片段和附件摘要。
+- 异常处理项只创建和交接；主干已有 `/ai-coach/abnormal-replies` 处置模块，后续需要统一两者的数据来源和状态口径。
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test`：通过，19 个测试文件、102 条测试。
+- `npm run lint`：通过，Biome 扫描 350 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 315 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，70 个资源文件。
+- dev server smoke：`ai_operator` 列表、异常结论和异常处理项生成通过；`read_only_auditor` 访问会话抽检 API 返回 403；记录见 `logs/ai-session-review-implementation-2026-07-12.md`。
+
+### Next Context
+- 与异常回复模块联动时，复用 `AiAbnormalHandlingItem` 的来源会话、异常类型、优先级、证据摘要和策略快照，不要重新设计来源模型。
+- 接真实后端时必须保留服务端权限、字段白名单、审计先写、乐观锁、异常处理项幂等和策略版本快照。
+
 ## 2026-07-12 Daily Sentence Operations MVP
 
 ### Summary
