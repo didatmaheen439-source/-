@@ -43,6 +43,7 @@ type ReviewAction = {
 const objectTypeOptions = [
   { label: '题库内容', value: 'question_bank' },
   { label: '题组', value: 'question_group' },
+  { label: '外刊内容', value: 'external_article' },
   { label: '错因标签', value: 'wrong_reason_tag' },
   { label: '学习路径配置', value: 'learning_path_config' },
   { label: '学习路径规则', value: 'learning_rule' },
@@ -171,6 +172,7 @@ const roleCanOperateTask = (
     return [
       'question_bank',
       'question_group',
+      'external_article',
       'wrong_reason_tag',
       'learning_rule',
       'learning_path_config',
@@ -255,8 +257,10 @@ const ReviewReleasePage: React.FC = () => {
   };
 
   const renderTaskActions = (task: API.ReviewTask) => {
-    const actions = (reviewActionsByStatus[task.status] ?? []).filter(
-      (action) => roleCanOperateTask(roleId, accountId, task, action, access.canAction),
+  const actions = (reviewActionsByStatus[task.status] ?? []).filter(
+      (action) =>
+        !(task.objectType === 'external_article' && action.nextStatus === 'rolled_back' && !task.rollbackTargetVersion) &&
+        roleCanOperateTask(roleId, accountId, task, action, access.canAction),
     );
 
     if (!actions.length) {
