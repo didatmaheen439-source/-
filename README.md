@@ -35,6 +35,7 @@
 - 已完成 `/content/wrong-reason-tags` 错因标签字典 MVP：列表、详情、新建、编辑、提交审核、审核发布联动、引用次数、权限和审计闭环。
 - 已完成导航减法第一阶段：代码中建立 11 个一级业务模块；内容运营因暂无可用子页面暂时隐藏，当前生产侧边栏展示 10 个一级模块、16 个已实现二级入口，不再暴露统一占位页。
 - 已建立远程唯一主干与并行开发规范：`origin/main` 是唯一线上基线，功能分支通过 Pull Request 和 GitHub Actions `Verify` 校验后合并，详见 `docs/git-parallel-development-workflow.md`。
+- 本机项目根目录固定为 `main`，二级模块在 `-worktrees/<module>-<purpose>/` 独立开发；`scripts/git/` 提供主干状态检查与标准工作树创建命令。
 
 ## 目录说明
 
@@ -53,6 +54,8 @@
 - `npm run tsc`
 - `npm run lint`
 - `npm run build`
+- `./scripts/git/check-mainline.sh --refresh`
+- `./scripts/git/new-module-worktree.sh <module> <purpose>`
 
 ## 最近验证
 
@@ -78,3 +81,4 @@
 - 2026-07-10：导航减法第一阶段完成，保留今日任务模板、写作题目、翻译题目、后台账号和角色权限等独立业务入口；运营数据、审计日志和审核发布收敛为稳定入口，未完成页面暂时隐藏。`npm run test`（13 文件、71 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，浏览器验收覆盖 7 类角色、旧 URL 跳转、隐藏语义 URL 高亮和客服直访系统页 403。
 - 2026-07-11：建立 `origin/main` 唯一线上主干、功能分支命名和 Pull Request 合并规范；新增 GitHub Actions `Verify`，统一执行 TypeScript、71 项单测、lint 和生产构建。
 - 2026-07-11：`/learning-path/onboarding` 配置闭环完成，覆盖五字段维护、预校验、审核发布、Mock 用户、版本快照、诊断/任务命中和漏斗回看；`npm run tsc`、`npm run test`（14 文件、77 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，详见 `logs/onboarding-config-implementation-2026-07-11.md`。
+- 2026-07-12：完成本机工作树收口：项目根目录与 `origin/main` 同步，已合并历史工作树已清理，`question-groups` 未提交改动原地保留；恢复包与迁移记录见 `backups/git-worktree-baseline-20260712/`、`logs/git-mainline-migration-2026-07-12.md`。
