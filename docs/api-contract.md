@@ -165,6 +165,19 @@
 
 后端必须持久化字段：配置类型、业务场景、策略主体、风险等级、测试样例、预校验结果、版本快照、发布版本、审计摘要。禁止保存真实密钥或用户完整会话到审计日志。
 
+## AI 会话抽检 `/ai-coach/session-review`
+
+| 接口 | 请求参数 | 返回要点 | 权限要求 | 审计要求 |
+| --- | --- | --- | --- | --- |
+| `GET /api/ai-coach/session-reviews` | 关键词、意图、策略版本、风险、状态、结论、会话时间、分页 | 脱敏会话摘要列表 | `super_admin` 或 `ai_operator` 且 `aiCoach.read` | 无权限访问记录 |
+| `GET /api/ai-coach/session-reviews/:id` | `id` | 脱敏详情、风险信号、策略快照、操作记录 | `super_admin` 或 `ai_operator` 且 `aiCoach.read` | 不返回完整会话 |
+| `POST /api/ai-coach/session-reviews/:id/claim` | `id` | 认领后的抽检详情 | 当前允许角色 | 记录认领摘要 |
+| `POST /api/ai-coach/session-reviews/:id/release` | `id` | 释放后的抽检详情 | 当前认领人 | 记录释放摘要 |
+| `POST /api/ai-coach/session-reviews/:id/sensitive-access` | 字段白名单、访问原因、`dataVersion` | 审计成功后的必要字段 | 当前认领人 | 先写敏感访问审计，失败不得返回字段 |
+| `POST /api/ai-coach/session-reviews/:id/conclusion` | 结论、说明、异常类型、优先级、依据、`dataVersion`、幂等键 | 完成后的抽检详情；异常时返回处理项 | 当前认领人 | 记录正常/异常结论和策略版本 |
+
+后端必须持久化字段：会话抽检状态、脱敏摘要、风险信号、策略版本快照、认领人、结论、异常处理项、操作记录和 `dataVersion`。敏感字段必须按字段白名单即时授权，禁止默认返回完整会话或把敏感内容写入审计日志。
+
 ## 写译批改管理 `/writing-translation/topics`
 
 | 接口 | 请求参数 | 返回要点 | 权限要求 | 审计要求 |

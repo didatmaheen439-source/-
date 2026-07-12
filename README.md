@@ -26,6 +26,7 @@
 - 已完成 `/dashboard/overview` 运营工作台 MVP：欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP：四类策略配置、五类业务场景、独立新建/详情/编辑页、预校验、静态样例校验、版本差异、审核发布同步和权限验证。
 - 已完成 `/ai-coach/abnormal-replies` AI 异常回复处置 Mock MVP：异常队列、归因、受控证据、修复草稿、审核发布联动、Mock 复检、关闭和权限审计。
+- 已完成 `/ai-coach/session-review` AI 会话抽检 Mock MVP：按意图、策略版本和风险筛选会话摘要，认领抽检，申请查看必要信息，标记正常/异常，异常时生成处理项并关联策略版本。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
@@ -92,3 +93,4 @@
 - 2026-07-12：完成本机工作树收口：项目根目录与 `origin/main` 同步，已合并历史工作树已清理，`question-groups` 未提交改动原地保留；恢复包与迁移记录见 `backups/git-worktree-baseline-20260712/`、`logs/git-mainline-migration-2026-07-12.md`。
 - 2026-07-12：`/content/question-groups` 题组管理 Mock MVP 完成，实施与验证记录见 `docs/question-groups-mvp.md` 和 `logs/question-groups-implementation-2026-07-11.md`。
 - 2026-07-12：`/content-operations/articles` 外刊内容运营 Mock MVP 完成，领域说明和实施验证见 `docs/articles-operations-mvp.md`、`logs/articles-operations-implementation-2026-07-12.md`。
+- 2026-07-12：`/ai-coach/session-review` AI 会话抽检 Mock MVP 完成；`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过，dev server smoke 覆盖运营角色、异常处理项生成和审计员 403；记录见 `docs/ai-coach-session-review-mvp.md`、`logs/ai-session-review-implementation-2026-07-12.md`。
