@@ -1,5 +1,20 @@
 import type { Request, Response } from 'express';
 import {
+  articleAssets,
+  articleData,
+  buildArticleReviewTask,
+  calculateArticleEffects,
+  copyArticle,
+  createArticle,
+  filterArticles,
+  onlineArticleCatalog,
+  precheckArticle,
+  recordArticleEvent,
+  syncArticleFromReviewTask,
+  updateArticle,
+  validateArticleReviewTransition,
+} from './articleStore';
+import {
   getRolePermissionsPayload,
   roleCanPerformAction,
   roleConfigs,
@@ -130,6 +145,7 @@ const accountLastLoginAtMap: Record<string, string> = {
 const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   question_bank: 'content',
   question_group: 'content',
+  external_article: 'content',
   wrong_reason_tag: 'content',
   learning_path_config: 'learningPath',
   learning_rule: 'learningPath',
@@ -1564,6 +1580,7 @@ const roleCanOperateReviewTask = (
     return [
       'question_bank',
       'question_group',
+      'external_article',
       'wrong_reason_tag',
       'learning_rule',
       'learning_path_config',
@@ -1655,6 +1672,15 @@ const paginate = <T,>(items: T[], query: Request['query']) => {
 
 const roleCanReadContent = (roleId?: AdminRoleId | '') =>
   Boolean(roleId && roleCanPerformAction(roleId, 'content', 'read'));
+
+const roleCanCreateArticle = (roleId?: AdminRoleId | '') =>
+  Boolean(roleId && ['super_admin', 'content_operator'].includes(roleId) && roleCanPerformAction(roleId, 'content', 'create'));
+
+const roleCanEditArticle = (roleId: AdminRoleId | '', article: API.ArticleItem) =>
+  Boolean(roleId && ['super_admin', 'content_operator'].includes(roleId) && roleCanPerformAction(roleId, 'content', 'edit') && ['draft', 'rejected'].includes(article.status));
+
+const roleCanSubmitArticle = (roleId: AdminRoleId | '', article: API.ArticleItem) =>
+  Boolean(roleId && ['super_admin', 'content_operator'].includes(roleId) && roleCanPerformAction(roleId, 'content', 'submit') && ['draft', 'rejected'].includes(article.status));
 
 const roleCanCreateQuestion = (roleId?: AdminRoleId | '') =>
   Boolean(roleId && roleCanPerformAction(roleId, 'content', 'create'));
@@ -2689,6 +2715,8 @@ const taskExamType = (task: API.ReviewTask): API.ExamType | undefined => {
   if (question) return question.examType;
   const questionGroup = questionGroupData.find((item) => item.id === task.objectId);
   if (questionGroup) return questionGroup.examType;
+  const article = articleData.find((item) => item.id === task.objectId);
+  if (article) return article.examTypes[0];
   const wrongReasonTag = wrongReasonTagData.find((item) => item.id === task.objectId);
   if (wrongReasonTag) return wrongReasonTag.examTypes[0];
   const config = learningPathConfigsData.find((item) => item.id === task.objectId);
@@ -2812,9 +2840,12 @@ const buildAnalyticsOverview = (
     ...wrongReasonTagData
       .filter((item) => filters.examType === 'all' || item.examTypes.includes(filters.examType))
       .map((item) => ({ status: item.status, examType: item.examTypes[0], type: '错因标签' })),
+    ...articleData
+      .filter((item) => filters.examType === 'all' || item.examTypes.includes(filters.examType))
+      .map((item) => ({ status: item.status, examType: item.examTypes[0], type: '外刊' })),
   ];
   const contentStatusDistribution = countBy(contentObjects, (item) => reviewStatusActionMap[item.status as API.ReviewTaskStatus] ?? String(item.status));
-  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'question_group', 'wrong_reason_tag'].includes(task.objectType) && sameExam(filters.examType, taskExamType(task)));
+  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'question_group', 'wrong_reason_tag', 'external_article'].includes(task.objectType) && sameExam(filters.examType, taskExamType(task)));
   const approvedContentReviews = contentReviewTasks.filter((task) => task.status === 'approved' && inRange(task.updatedAt, filters)).length;
   const rejectedContentReviews = contentReviewTasks.filter((task) => task.status === 'rejected' && inRange(task.updatedAt, filters)).length;
   const contentApprovalRate = percentValue(approvedContentReviews, approvedContentReviews + rejectedContentReviews);
@@ -2916,6 +2947,8 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'rejected_questions', title: '已驳回题目', value: questions.filter((item) => item.status === 'rejected').length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'content', tooltip: '当前状态为已驳回的题目数。', updatedAt }),
     metricCard({ id: 'recent_new_questions', title: '最近新增题目', value: questions.filter((item) => inRange(item.createdAt, filters)).length, unit: '题', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '筛选时间范围内 createdAt 落入范围的题目数。', updatedAt }),
     metricCard({ id: 'content_review_approval_rate', title: '内容审核通过率', value: contentApprovalRate, unit: '%', type: 'rate', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '审核通过数量 /（审核通过数量 + 审核驳回数量）。', updatedAt }),
+    metricCard({ id: 'published_articles', title: '在线外刊', value: articleData.filter((item) => item.isOnline).length, unit: '篇', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '当前存在有效线上版本的外刊数量。', updatedAt, jumpTo: '/content-operations/articles' }),
+    metricCard({ id: 'article_completion_rate', title: '外刊完成率', value: percentValue(articleData.reduce((sum, item) => sum + item.effects.completions, 0), articleData.reduce((sum, item) => sum + item.effects.readers, 0)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '外刊完成人数 / 外刊阅读 UV，按文章版本聚合。', updatedAt, jumpTo: '/content-operations/articles' }),
   ];
 
   const summaryCards = [
@@ -2925,7 +2958,7 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'today_task_completion_rate', title: '今日任务完成率', value: taskCompletionRate, comparisonValue: percentValue(previousCompletedTaskUsers, Math.max(previousActiveUserIds.size, 1)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'users', tooltip: '完成今日任务用户数 / 已开始今日任务用户数。', updatedAt }),
     metricCard({ id: 'pending_review_tasks', title: '当前待审核任务', value: reviewStats.pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'reviewRelease', tooltip: '当前审核任务状态为待审核的任务数。', updatedAt, jumpTo: '/review-release/pending?status=pending_review' }),
     metricCard({ id: 'pending_feedback', title: '当前待处理反馈', value: feedbackStats.pending, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'feedback', tooltip: '当前状态为待处理的反馈数。', updatedAt, jumpTo: '/users/list?feedbackStatus=pending' }),
-    metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目、题组和错因标签中当前状态为已发布的对象数。', updatedAt, jumpTo: '/content/questions?status=published' }),
+    metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目、题组、错因标签和外刊中当前状态为已发布的对象数。', updatedAt, jumpTo: '/content-operations/articles' }),
     metricCard({ id: 'review_rollback_count', title: '区间回滚数', value: reviewStats.rolledBack, unit: '次', type: 'count', timeSemantic: 'interval', direction: 'risk', section: 'reviewRelease', tooltip: '筛选时间范围内审核任务状态变为已回滚的数量。', updatedAt }),
   ].filter((card) => visibleSections.includes(card.section));
 
@@ -2933,7 +2966,7 @@ const buildAnalyticsOverview = (
   const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
     { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
     { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
-    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组和错因标签共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content/questions' },
+    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组、错因标签和外刊共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content-operations/articles' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/list?feedbackStatus=pending' },
     { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/papers' },
@@ -3097,7 +3130,7 @@ const dashboardOverdueThresholdHours: Record<API.DashboardTodoType, number> = {
 
 const dashboardRoleSections: Record<AdminRoleId, API.DashboardVisibleSection[]> = {
   super_admin: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
-  content_operator: ['welcome', 'todos', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
+  content_operator: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
   teaching_reviewer: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
   ai_operator: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities', 'aiPlaceholder'],
   customer_support: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
@@ -3142,6 +3175,7 @@ const reviewStatusLabels: Record<API.ReviewTaskStatus, string> = {
 const dashboardRouteModuleMap: { prefix: string; module: AdminModuleKey }[] = [
   { prefix: '/dashboard', module: 'dashboard' },
   { prefix: '/users', module: 'users' },
+  { prefix: '/content-operations', module: 'content' },
   { prefix: '/content', module: 'content' },
   { prefix: '/learning-path', module: 'learningPath' },
   { prefix: '/ai-coach', module: 'aiCoach' },
@@ -3646,6 +3680,28 @@ const buildDashboardRisks = (roleId: AdminRoleId, todos: API.DashboardTodoItem[]
       description: todo.description,
     }));
 
+  articleData.forEach((article) => {
+    calculateArticleEffects(article).risks
+      .filter((risk) => risk.code !== 'insufficient_sample')
+      .forEach((risk) => {
+        riskItems.push({
+          id: `risk-article-${article.id}-${risk.code}`,
+          type: 'content_effect_risk',
+          typeName: '外刊效果风险',
+          level: risk.level === 'high' ? 'high' : 'medium',
+          title: article.title,
+          objectId: article.id,
+          occurredAt: article.updatedAt,
+          sourceModule: 'content',
+          sourceModuleName: '内容运营',
+          targetRoute: `/content-operations/articles/${article.id}`,
+          targetQuery: { tab: 'effects' },
+          handled: false,
+          description: risk.description,
+        });
+      });
+  });
+
   auditLogs.forEach((log) => {
     const isRisk =
       log.logType === 'permission_denied' ||
@@ -3746,6 +3802,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
   const candidates: API.DashboardQuickAction[] = [
     { id: 'review-release', title: '去审核发布', description: '查看审核、发布、下架和回滚记录。', icon: 'AuditOutlined', targetRoute: '/review-release/pending', requiredModule: 'reviewRelease', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'reviewRelease').length },
     { id: 'content-questions', title: '去题库管理', description: '查看题目草稿、驳回和审核状态。', icon: 'DatabaseOutlined', targetRoute: '/content/questions', requiredModule: 'content', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'content').length },
+    { id: 'content-articles', title: '去外刊内容', description: '查看外刊草稿、审核状态和内容效果风险。', icon: 'ReadOutlined', targetRoute: '/content-operations/articles', requiredModule: 'content', requiredAction: 'read', todoCount: articleData.filter((item) => item.effects.risks.some((risk) => risk.code !== 'insufficient_sample')).length },
     { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
     { id: 'learning-path', title: '去学习路径配置', description: '检查诊断规则和今日任务模板。', icon: 'BranchesOutlined', targetRoute: '/learning-path/diagnosis-rules', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
     { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/writing-topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
@@ -3784,14 +3841,14 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
     },
     {
       id: 'content',
-      title: '题库内容',
+      title: '内容运营',
       sourceModule: 'content',
-      targetRoute: '/content/questions',
+      targetRoute: '/content-operations/articles',
       items: [
-        { label: '草稿', value: questionData.filter((item) => item.status === 'draft').length },
-        { label: '待审核', value: questionData.filter((item) => item.status === 'pending_review').length, status: 'warning' },
-        { label: '已发布', value: questionData.filter((item) => item.status === 'published').length },
-        { label: '被驳回', value: questionData.filter((item) => item.status === 'rejected').length, status: 'risk' },
+        { label: '外刊草稿', value: articleData.filter((item) => item.status === 'draft').length },
+        { label: '外刊待审核', value: articleData.filter((item) => item.status === 'pending_review').length, status: 'warning' },
+        { label: '在线外刊', value: articleData.filter((item) => item.isOnline).length },
+        { label: '效果风险', value: articleData.filter((item) => item.effects.risks.some((risk) => risk.code !== 'insufficient_sample')).length, status: 'risk' },
       ],
     },
     {
@@ -4378,6 +4435,175 @@ export default {
       success: true,
       data: result,
     });
+  },
+  'GET /api/content/article-assets': (_req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看内容素材。' });
+      return;
+    }
+    res.send({ success: true, data: articleAssets });
+  },
+  'GET /api/content/articles': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看外刊内容。' });
+      return;
+    }
+    const filtered = filterArticles(req.query);
+    res.send({ success: true, data: paginate(filtered, req.query), total: filtered.length });
+  },
+  'POST /api/content/articles': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanCreateArticle(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权新建外刊内容。' });
+      return;
+    }
+    const params = req.body as API.ArticleSaveParams;
+    const precheck = precheckArticle(params);
+    if (!precheck.passed) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '外刊基础信息不完整。', data: precheck });
+      return;
+    }
+    const article = createArticle(params, getOperator());
+    pushContentAuditLog(currentRoleId, 'create', 'success', article.id, article.changeSummary, `创建外刊 ${article.title}。`, '/content-operations/articles');
+    res.send({ success: true, data: article, precheck });
+  },
+  'GET /api/content/articles/:id/effects': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看内容效果。' });
+      return;
+    }
+    const article = articleData.find((item) => item.id === req.params.id);
+    if (!article) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '外刊不存在。' });
+      return;
+    }
+    res.send({ success: true, data: calculateArticleEffects(article) });
+  },
+  'POST /api/content/articles/:id/precheck': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权校验外刊内容。' });
+      return;
+    }
+    const article = articleData.find((item) => item.id === req.params.id);
+    if (!article) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '外刊不存在。' });
+      return;
+    }
+    article.lastPrecheck = precheckArticle(article);
+    res.send({ success: true, data: article.lastPrecheck });
+  },
+  'POST /api/content/articles/:id/copy': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanCreateArticle(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权复制外刊内容。' });
+      return;
+    }
+    const source = articleData.find((item) => item.id === req.params.id);
+    if (!source) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '外刊不存在。' });
+      return;
+    }
+    const article = copyArticle(source, getOperator());
+    pushContentAuditLog(currentRoleId, 'create', 'success', article.id, article.changeSummary, `复制外刊 ${source.id} 为新草稿。`, '/content-operations/articles');
+    res.send({ success: true, data: article });
+  },
+  'POST /api/content/articles/:id/submit-review': (req: Request, res: Response) => {
+    const article = articleData.find((item) => item.id === req.params.id);
+    if (!article) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '外刊不存在。' });
+      return;
+    }
+    if (!currentRoleId || !roleCanSubmitArticle(currentRoleId, article)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权提交当前状态的外刊。' });
+      return;
+    }
+    const body = req.body as API.ArticleSubmitReviewParams;
+    if (body.dataVersion !== article.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '外刊已被更新，请刷新后重试。' });
+      return;
+    }
+    const changeSummary = String(body.changeSummary ?? '').trim();
+    if (!changeSummary) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '提交审核必须填写变更说明。' });
+      return;
+    }
+    const precheck = precheckArticle(article);
+    article.lastPrecheck = precheck;
+    const warnings = precheck.issues.filter((item) => item.level === 'warning');
+    if (!precheck.passed || (warnings.length && !body.confirmWarnings)) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: precheck.passed ? '存在需要确认的发布警告。' : '外刊校验未通过。', data: precheck });
+      return;
+    }
+    const previousStatus = article.status;
+    const operator = getOperator();
+    article.changeSummary = changeSummary;
+    const task = buildArticleReviewTask(article, operator, reviewTasksData);
+    article.status = 'pending_review';
+    article.updatedById = operator.id;
+    article.updatedBy = operator.name;
+    article.updatedAt = task.updatedAt;
+    article.dataVersion += 1;
+    article.operationRecords.unshift({ id: `article-op-submit-${Date.now()}`, operator: operator.name, roleName: operator.roleName, action: '提交审核', fromStatus: previousStatus, toStatus: 'pending_review', reason: changeSummary, time: task.updatedAt });
+    pushContentAuditLog(currentRoleId, 'submit', 'success', article.id, changeSummary, `外刊 ${article.title} 提交审核，任务 ${task.id}。`, '/content-operations/articles');
+    res.send({ success: true, data: article, reviewTask: task });
+  },
+  'PATCH /api/content/articles/:id': (req: Request, res: Response) => {
+    const article = articleData.find((item) => item.id === req.params.id);
+    if (!article) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '外刊不存在。' });
+      return;
+    }
+    if (!currentRoleId || !roleCanEditArticle(currentRoleId, article)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权编辑当前状态的外刊。' });
+      return;
+    }
+    const params = req.body as API.ArticleSaveParams;
+    if (params.dataVersion !== article.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '外刊已被更新，请刷新后重试。' });
+      return;
+    }
+    const precheck = precheckArticle(params);
+    if (!precheck.passed) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '外刊基础信息不完整。', data: precheck });
+      return;
+    }
+    const updated = updateArticle(article, params, getOperator());
+    pushContentAuditLog(currentRoleId, 'edit', 'success', updated.id, updated.changeSummary, `编辑外刊 ${updated.title}。`, '/content-operations/articles');
+    res.send({ success: true, data: updated, precheck });
+  },
+  'GET /api/content/articles/:id': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看外刊内容。' });
+      return;
+    }
+    const article = articleData.find((item) => item.id === req.params.id);
+    if (!article) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '外刊不存在。' });
+      return;
+    }
+    res.send({ success: true, data: { ...article, effects: calculateArticleEffects(article) } });
+  },
+  'GET /api/mock-app/articles': (_req: Request, res: Response) => {
+    res.send({ success: true, data: onlineArticleCatalog() });
+  },
+  'GET /api/mock-app/articles/:id': (req: Request, res: Response) => {
+    const item = onlineArticleCatalog().find((article) => article?.articleId === req.params.id);
+    if (!item) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '文章已下架或不存在。' });
+      return;
+    }
+    res.send({ success: true, data: item });
+  },
+  'POST /api/mock-app/articles/:id/events': (req: Request, res: Response) => {
+    const article = articleData.find((item) => item.id === req.params.id);
+    if (!article) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '文章不存在。' });
+      return;
+    }
+    const result = recordArticleEvent(article, req.body as API.ArticleUserEventParams);
+    if (!result.ok) {
+      res.status(409).send({ success: false, errorCode: result.errorCode, errorMessage: result.errorMessage });
+      return;
+    }
+    res.send({ success: true, data: result.event, duplicate: result.duplicate, effects: result.effects });
   },
   'GET /api/content/questions': (req: Request, res: Response) => {
     if (!roleCanReadContent(currentRoleId)) {
@@ -5600,6 +5826,13 @@ export default {
       return;
     }
 
+    const articleTransitionCheck = validateArticleReviewTransition(task, nextStatus);
+    if (!articleTransitionCheck.ok) {
+      pushReviewAuditLog(currentRoleId, task, reviewStatusActionMap[nextStatus], 'failed', articleTransitionCheck.errorMessage, `外刊发布前复验失败：${articleTransitionCheck.errorMessage}`);
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: articleTransitionCheck.errorMessage, data: articleTransitionCheck.precheck });
+      return;
+    }
+
     if (task.objectType === 'question_group' && nextStatus === 'published') {
       const group = questionGroupData.find((item) => item.id === task.objectId);
       const groupPrecheck = group ? precheckQuestionGroup(group) : undefined;
@@ -5673,6 +5906,13 @@ export default {
       operationReason,
     );
     syncQuestionGroupFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      operator.name,
+      operationReason,
+    );
+    syncArticleFromReviewTask(
       task,
       previousStatus,
       nextStatus,
