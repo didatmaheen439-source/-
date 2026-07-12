@@ -530,6 +530,119 @@ declare namespace API {
     confirmWarnings?: boolean;
   };
 
+  type AiAbnormalReplyStatus = 'pending' | 'processing' | 'resolved' | 'closed';
+
+  type AiAbnormalReplyType =
+    | 'intent_mismatch'
+    | 'answer_deviation'
+    | 'structure_missing'
+    | 'dependency_boundary_violation';
+
+  type AiAbnormalResolutionType =
+    | 'strategy_fix'
+    | 'false_positive'
+    | 'no_strategy_change';
+
+  type AiAbnormalEvidence = {
+    userInput: string;
+    aiReply: string;
+    expectedOutcome: string;
+    observedIssue: string;
+    sessionSummary: string;
+    redactionNote: string;
+  };
+
+  type AiAbnormalRetestResult = {
+    id: string;
+    strategyId: string;
+    strategyTitle: string;
+    strategyVersion: string;
+    result: AiCoachPrecheckLevel;
+    summary: string;
+    checkedAt: string;
+    operator: string;
+    mockOnly: true;
+    cases: AiCoachStaticValidationCase[];
+  };
+
+  type AiAbnormalOperationRecord = ReviewOperationRecord;
+
+  type AiAbnormalReply = {
+    id: string;
+    title: string;
+    abnormalType: AiAbnormalReplyType;
+    severity: AiCoachRiskLevel;
+    status: AiAbnormalReplyStatus;
+    businessScene: AiCoachBusinessScene;
+    examType: ExamType;
+    userId: string;
+    userNickname: string;
+    sessionId: string;
+    sessionStartedAt: string;
+    source: 'mock_session_review';
+    linkedStrategyId: string;
+    linkedStrategyTitle: string;
+    linkedStrategyVersion: string;
+    linkedStrategyStatus: AiCoachStrategyStatus;
+    rootCauseType?: AiCoachConfigType;
+    diagnosis?: string;
+    fixStrategyId?: string;
+    fixStrategyTitle?: string;
+    fixStrategyVersion?: string;
+    fixReviewTaskId?: string;
+    latestRetest?: AiAbnormalRetestResult;
+    resolutionType?: AiAbnormalResolutionType;
+    resolutionSummary?: string;
+    handlerId?: string;
+    handler?: string;
+    handledAt?: string;
+    closedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+    dataVersion: number;
+    evidenceAccessed: boolean;
+    operationRecords: AiAbnormalOperationRecord[];
+  };
+
+  type AiAbnormalReplyQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    status?: AiAbnormalReplyStatus;
+    abnormalType?: AiAbnormalReplyType;
+    rootCauseType?: AiCoachConfigType;
+    severity?: AiCoachRiskLevel;
+    businessScene?: AiCoachBusinessScene;
+    handler?: string;
+  };
+
+  type AiAbnormalDiagnosisParams = {
+    dataVersion: number;
+    rootCauseType: AiCoachConfigType;
+    diagnosis: string;
+    linkedStrategyId: string;
+  };
+
+  type AiAbnormalCreateFixDraftParams = {
+    dataVersion: number;
+    changeSummary: string;
+  };
+
+  type AiAbnormalRetestParams = {
+    dataVersion: number;
+  };
+
+  type AiAbnormalCloseParams = {
+    dataVersion: number;
+    resolutionSummary: string;
+  };
+
+  type AiAbnormalCloseWithoutFixParams = {
+    dataVersion: number;
+    resolutionType: Exclude<AiAbnormalResolutionType, 'strategy_fix'>;
+    resolutionSummary: string;
+  };
+
   type WritingTranslationTopicType = 'writing' | 'translation';
 
   type WritingTranslationStatus = ReviewTaskStatus;
@@ -1237,6 +1350,12 @@ declare namespace API {
 
   type AiCoachStrategyList = {
     data?: AiCoachStrategy[];
+    total?: number;
+    success?: boolean;
+  };
+
+  type AiAbnormalReplyList = {
+    data?: AiAbnormalReply[];
     total?: number;
     success?: boolean;
   };

@@ -345,6 +345,136 @@ export async function aiCoachStrategyVersionDiff(
   });
 }
 
+/** 获取 AI 异常回复列表 GET /api/ai-coach/abnormal-replies */
+export async function aiAbnormalReplies(
+  params?: API.AiAbnormalReplyQueryParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.AiAbnormalReplyList>('/api/ai-coach/abnormal-replies', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取 AI 异常回复详情 GET /api/ai-coach/abnormal-replies/:id */
+export async function aiAbnormalReplyDetail(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiAbnormalReply;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 接手 AI 异常回复 POST /api/ai-coach/abnormal-replies/:id/start */
+export async function startAiAbnormalReply(id: string, options?: { [key: string]: any }) {
+  return request<{
+    data?: API.AiAbnormalReply;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/start`, {
+    method: 'POST',
+    ...(options || {}),
+  });
+}
+
+/** 访问 AI 异常回复受控证据 POST /api/ai-coach/abnormal-replies/:id/access-evidence */
+export async function accessAiAbnormalEvidence(
+  id: string,
+  body: { reason: string },
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiAbnormalEvidence;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/access-evidence`, {
+    method: 'POST',
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 保存 AI 异常回复归因 PATCH /api/ai-coach/abnormal-replies/:id/diagnosis */
+export async function updateAiAbnormalDiagnosis(
+  id: string,
+  body: API.AiAbnormalDiagnosisParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiAbnormalReply;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/diagnosis`, {
+    method: 'PATCH',
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 创建 AI 异常修复草稿 POST /api/ai-coach/abnormal-replies/:id/create-fix-draft */
+export async function createAiAbnormalFixDraft(
+  id: string,
+  body: API.AiAbnormalCreateFixDraftParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: { abnormal: API.AiAbnormalReply; strategy: API.AiCoachStrategy };
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/create-fix-draft`, {
+    method: 'POST',
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** Mock 复检 AI 异常回复 POST /api/ai-coach/abnormal-replies/:id/retest */
+export async function retestAiAbnormalReply(
+  id: string,
+  body: API.AiAbnormalRetestParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiAbnormalReply;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/retest`, {
+    method: 'POST',
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 关闭已修复 AI 异常回复 POST /api/ai-coach/abnormal-replies/:id/close */
+export async function closeAiAbnormalReply(
+  id: string,
+  body: API.AiAbnormalCloseParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiAbnormalReply;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/close`, {
+    method: 'POST',
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 无策略变更关闭 AI 异常回复 POST /api/ai-coach/abnormal-replies/:id/close-without-fix */
+export async function closeAiAbnormalReplyWithoutFix(
+  id: string,
+  body: API.AiAbnormalCloseWithoutFixParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AiAbnormalReply;
+    success?: boolean;
+  }>(`/api/ai-coach/abnormal-replies/${id}/close-without-fix`, {
+    method: 'POST',
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 获取可引用意图配置 GET /api/ai-coach/available-intents */
 export async function availableAiCoachIntents(options?: { [key: string]: any }) {
   return request<{
