@@ -17,6 +17,22 @@ const requiredSentence = (id: string) => {
   return item;
 };
 
+const shanghaiDateOffset = (days: number) => {
+  const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
 const validPayload = (): API.DailySentenceSaveParams => ({
   contentDate: '2026-08-01',
   quote: 'Test the behavior, not the implementation.',
@@ -86,12 +102,18 @@ describe('daily sentence versions and events', () => {
 describe('daily sentence release plan', () => {
   it('blocks immediate publication of a future content date', () => {
     const item = requiredSentence('daily-sentence-20260713');
-    const task: API.ReviewTask = {
-      id: 'future-release-test', objectType: 'daily_sentence', objectTypeName: '每日一句', objectId: item.id,
-      objectName: '未来每日一句', moduleKey: 'content', moduleName: '内容运营', submitter: '内容运营', submittedAt: '2026-07-12 10:00:00',
-      version: item.version, priority: 'P1', status: 'approved', riskLevel: 'medium', updatedAt: '2026-07-12 10:00:00',
-      changeSummary: '测试', impactScope: '测试', releaseMode: 'immediate', timezone: 'Asia/Shanghai', versionRecords: [], operationRecords: [],
-    };
-    expect(validateDailySentenceReviewTransition(task, 'pending_publish').ok).toBe(false);
+    const originalContentDate = item.contentDate;
+    item.contentDate = shanghaiDateOffset(1);
+    try {
+      const task: API.ReviewTask = {
+        id: 'future-release-test', objectType: 'daily_sentence', objectTypeName: '每日一句', objectId: item.id,
+        objectName: '未来每日一句', moduleKey: 'content', moduleName: '内容运营', submitter: '内容运营', submittedAt: '2026-07-12 10:00:00',
+        version: item.version, priority: 'P1', status: 'approved', riskLevel: 'medium', updatedAt: '2026-07-12 10:00:00',
+        changeSummary: '测试', impactScope: '测试', releaseMode: 'immediate', timezone: 'Asia/Shanghai', versionRecords: [], operationRecords: [],
+      };
+      expect(validateDailySentenceReviewTransition(task, 'pending_publish').ok).toBe(false);
+    } finally {
+      item.contentDate = originalContentDate;
+    }
   });
 });
