@@ -211,8 +211,25 @@ export default [
       {
         path: '/content-operations/articles',
         name: 'articles',
+        component: './content-operations/articles',
+      },
+      {
+        path: '/content-operations/articles/new',
+        name: 'article-new',
         hideInMenu: true,
-        component: './prd-placeholder',
+        component: './content-operations/articles/edit/index',
+      },
+      {
+        path: '/content-operations/articles/:id/edit',
+        name: 'article-edit',
+        hideInMenu: true,
+        component: './content-operations/articles/edit/index',
+      },
+      {
+        path: '/content-operations/articles/:id',
+        name: 'article-detail',
+        hideInMenu: true,
+        component: './content-operations/articles/detail/index',
       },
     ],
   },

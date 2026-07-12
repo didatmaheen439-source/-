@@ -31,6 +31,33 @@
 - 若继续外刊模块，复用每日一句的来源、素材引用、审核发布、版本和效果回流边界。
 - 接真实后端时优先替换内存 Store、请求触发式调度和 Mock 用户事件，不改变页面状态语义。
 
+## 2026-07-12 External Article Operations MVP
+
+### Summary
+- 内容运营一级菜单已开放，`/content-operations/articles` 从占位页升级为外刊列表、独立编辑页和详情页。
+- 外刊复用统一审核发布状态机，内容运营负责创建、编辑和提交，教研负责审核、发布、下架和回滚；已发布内容通过复制生成新草稿，禁止覆盖线上版本。
+- 新增受管 Mock 素材、不可变提交快照、唯一线上版本指针、Mock 用户阅读/收藏/完成事件和幂等聚合。
+- 外刊效果回流到文章详情、运营数据和工作台风险；低完成率只生成提示，不自动下架。
+
+### Key Files
+- `admin-web/mock/articleStore.ts`
+- `admin-web/src/pages/content-operations/articles/`
+- `admin-web/mock/user.ts`
+- `docs/articles-operations-mvp.md`
+
+### Decisions
+- 本阶段不修改 Expo App，不接真实后端、对象存储或定时任务。
+- 素材只做文章内受管选择和引用校验，不建设独立素材管理页。
+- 事件按 `eventId` 幂等，效果按文章线上版本聚合；下架后拒绝新事件，回滚后只接受恢复版本。
+- 阅读 UV 少于 20 标记样本不足；样本达到 20 且完成率低于 35% 标记低完成率，处置仍由授权角色人工执行。
+
+### Verification
+- 详见 `logs/articles-operations-implementation-2026-07-12.md`。
+
+### Next Context
+- 真实后端接入时应保持文章快照、线上版本指针、事件幂等键和聚合口径，不把统计数字改为可直接写入字段。
+- 独立素材库、真实上传、自动发布和移动端事件接入均为后续范围。
+
 ## 2026-07-10 Navigation Reduction Stage 1
 
 ### Summary

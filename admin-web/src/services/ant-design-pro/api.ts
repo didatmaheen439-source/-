@@ -750,6 +750,56 @@ export async function contentQuestionGroupImpact(id: string) {
   );
 }
 
+/** 获取外刊列表 GET /api/content/articles */
+export async function contentArticles(params?: API.ArticleQueryParams) {
+  return request<API.ArticleList>('/api/content/articles', { method: 'GET', params });
+}
+
+/** 获取外刊详情 GET /api/content/articles/:id */
+export async function contentArticleDetail(id: string) {
+  return request<{ success: boolean; data: API.ArticleItem }>(`/api/content/articles/${id}`, { method: 'GET' });
+}
+
+/** 获取受管素材 GET /api/content/article-assets */
+export async function contentArticleAssets() {
+  return request<{ success: boolean; data: API.ArticleAsset[] }>('/api/content/article-assets', { method: 'GET' });
+}
+
+/** 新建外刊 POST /api/content/articles */
+export async function createContentArticle(body: API.ArticleSaveParams) {
+  return request<{ success: boolean; data: API.ArticleItem }>('/api/content/articles', { method: 'POST', data: body });
+}
+
+/** 更新外刊 PATCH /api/content/articles/:id */
+export async function updateContentArticle(id: string, body: API.ArticleSaveParams) {
+  return request<{ success: boolean; data: API.ArticleItem }>(`/api/content/articles/${id}`, { method: 'PATCH', data: body });
+}
+
+/** 复制外刊为新草稿 POST /api/content/articles/:id/copy */
+export async function copyContentArticle(id: string) {
+  return request<{ success: boolean; data: API.ArticleItem }>(`/api/content/articles/${id}/copy`, { method: 'POST' });
+}
+
+/** 外刊预校验 POST /api/content/articles/:id/precheck */
+export async function precheckContentArticle(id: string) {
+  return request<{ success: boolean; data: API.ArticlePrecheckResult }>(`/api/content/articles/${id}/precheck`, { method: 'POST' });
+}
+
+/** 提交外刊审核 POST /api/content/articles/:id/submit-review */
+export async function submitContentArticleReview(id: string, body: API.ArticleSubmitReviewParams) {
+  return request<{ success: boolean; data: API.ArticleItem; reviewTask: API.ReviewTask }>(`/api/content/articles/${id}/submit-review`, { method: 'POST', data: body });
+}
+
+/** 获取外刊效果 GET /api/content/articles/:id/effects */
+export async function contentArticleEffects(id: string) {
+  return request<{ success: boolean; data: API.ArticleEffectSummary }>(`/api/content/articles/${id}/effects`, { method: 'GET' });
+}
+
+/** 写入 Mock 用户事件 POST /api/mock-app/articles/:id/events */
+export async function createMockArticleEvent(id: string, body: API.ArticleUserEventParams) {
+  return request<{ success: boolean; data: API.ArticleUserEvent; duplicate: boolean; effects: API.ArticleEffectSummary }>(`/api/mock-app/articles/${id}/events`, { method: 'POST', data: body });
+}
+
 /** 获取错因标签列表 GET /api/content/wrong-reason-tags */
 export async function wrongReasonTags(
   params?: {

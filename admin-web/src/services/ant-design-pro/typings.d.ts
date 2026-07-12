@@ -104,6 +104,7 @@ declare namespace API {
   type ReviewObjectType =
     | 'question_bank'
     | 'question_group'
+    | 'external_article'
     | 'wrong_reason_tag'
     | 'daily_sentence'
     | 'learning_path_config'
@@ -830,6 +831,178 @@ declare namespace API {
   type QuestionSkill = 'vocabulary' | 'grammar' | 'reading' | 'listening';
 
   type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+  type ArticleDifficulty = QuestionDifficulty;
+
+  type ArticleAssetType = 'cover_image' | 'illustration' | 'audio' | 'reference';
+
+  type ArticleAsset = {
+    id: string;
+    name: string;
+    type: ArticleAssetType;
+    previewUrl: string;
+    sourceName: string;
+    sourceUrl?: string;
+    licenseNote: string;
+    status: 'enabled' | 'disabled';
+  };
+
+  type ArticleAssetRef = ArticleAsset & {
+    usage: 'cover' | 'body' | 'audio' | 'source';
+  };
+
+  type ArticlePrecheckIssue = {
+    id: string;
+    level: 'warning' | 'error';
+    field: string;
+    message: string;
+  };
+
+  type ArticlePrecheckResult = {
+    passed: boolean;
+    checkedAt: string;
+    summary: string;
+    issues: ArticlePrecheckIssue[];
+  };
+
+  type ArticleVersionSnapshot = {
+    id: string;
+    articleId: string;
+    version: string;
+    title: string;
+    category: string;
+    summary: string;
+    body: string;
+    difficulty: ArticleDifficulty;
+    examTypes: ExamType[];
+    sourceName: string;
+    sourceUrl: string;
+    assets: ArticleAssetRef[];
+    createdBy: string;
+    createdAt: string;
+  };
+
+  type ArticleEffectRiskCode = 'insufficient_sample' | 'low_completion' | 'completion_decline';
+
+  type ArticleEffectRisk = {
+    code: ArticleEffectRiskCode;
+    level: 'info' | 'warning' | 'high';
+    label: string;
+    description: string;
+  };
+
+  type ArticleEffectTrendPoint = {
+    date: string;
+    views: number;
+    readers: number;
+    completions: number;
+  };
+
+  type ArticleEffectSummary = {
+    articleId: string;
+    version: string;
+    views: number;
+    readers: number;
+    favorites: number;
+    completions: number;
+    completionRate: number;
+    risks: ArticleEffectRisk[];
+    trend: ArticleEffectTrendPoint[];
+  };
+
+  type ArticleUserEventType = 'view' | 'favorite_add' | 'favorite_remove' | 'complete';
+
+  type ArticleUserEvent = {
+    eventId: string;
+    userId: string;
+    articleId: string;
+    version: string;
+    type: ArticleUserEventType;
+    occurredAt: string;
+  };
+
+  type ArticleItem = {
+    id: string;
+    title: string;
+    category: string;
+    summary: string;
+    body: string;
+    difficulty: ArticleDifficulty;
+    examTypes: ExamType[];
+    sourceName: string;
+    sourceUrl: string;
+    assets: ArticleAssetRef[];
+    status: ReviewTaskStatus;
+    version: string;
+    dataVersion: number;
+    isOnline: boolean;
+    servingVersionId?: string;
+    creatorId: string;
+    creator: string;
+    createdAt: string;
+    updatedById: string;
+    updatedBy: string;
+    updatedAt: string;
+    changeSummary: string;
+    impactScope: string;
+    reviewTaskId?: string;
+    releaseVersionId?: string;
+    rollbackTargetVersion?: string;
+    lastPrecheck?: ArticlePrecheckResult;
+    snapshots: ArticleVersionSnapshot[];
+    versionRecords: ReviewVersionRecord[];
+    operationRecords: ReviewOperationRecord[];
+    effects: ArticleEffectSummary;
+  };
+
+  type ArticleSaveParams = {
+    title: string;
+    category: string;
+    summary: string;
+    body: string;
+    difficulty: ArticleDifficulty;
+    examTypes: ExamType[];
+    sourceName: string;
+    sourceUrl: string;
+    assetIds: string[];
+    changeSummary?: string;
+    impactScope?: string;
+    dataVersion?: number;
+    confirmWarnings?: boolean;
+  };
+
+  type ArticleSubmitReviewParams = {
+    changeSummary: string;
+    dataVersion: number;
+    confirmWarnings?: boolean;
+  };
+
+  type ArticleQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    category?: string;
+    difficulty?: ArticleDifficulty;
+    examType?: ExamType;
+    status?: ReviewTaskStatus;
+    risk?: ArticleEffectRiskCode;
+  };
+
+  type ArticleList = {
+    data?: ArticleItem[];
+    total?: number;
+    current?: number;
+    pageSize?: number;
+    success?: boolean;
+  };
+
+  type ArticleUserEventParams = {
+    eventId: string;
+    userId: string;
+    version: string;
+    type: ArticleUserEventType;
+    occurredAt?: string;
+  };
 
   type WrongReasonTagCategory =
     | 'comprehension_bias'
@@ -1848,6 +2021,7 @@ declare namespace API {
     | 'version_conflict'
     | 'precheck_blocked'
     | 'ai_reference_invalid'
+    | 'content_effect_risk'
     | 'placeholder';
 
   type DashboardRiskLevel = 'high' | 'medium' | 'low';
