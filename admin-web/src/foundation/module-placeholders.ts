@@ -65,15 +65,6 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
       tableTitle: '内容资产占位',
       columns: ['内容名称', '审核状态', '版本', '最近更新'],
     },
-    'content-question-groups': {
-      moduleKey: 'content',
-      title: '题组管理',
-      description:
-        '用于承接按考试、题型、难度和场景组合的题组。当前阶段暂未开放完整业务操作。',
-      primaryActions: readonlyActions,
-      tableTitle: '题组占位',
-      columns: ['题组名称', '审核状态', '负责人', '更新时间'],
-    },
     'content-wrong-reason-tags': {
       moduleKey: 'content',
       title: '错因标签',

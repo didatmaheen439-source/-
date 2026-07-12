@@ -34,7 +34,8 @@
 - 已按 PRD v1.3 P0 范围完成业务对象和语义路由建模；尚未达到可用标准的入口保留路由与产品定义，但不在生产侧边栏展示。
 - 已完成“已有聚合页拆实”补强：写作题目、翻译题目、今日任务模板、系统日志入口和运营数据分区均以独立业务语义 URL 进入，但底层继续复用现有聚合页、表单、详情、审计和权限能力。
 - 已完成 `/content/wrong-reason-tags` 错因标签字典 MVP：列表、详情、新建、编辑、提交审核、审核发布联动、引用次数、权限和审计闭环。
-- 已完成导航减法第一阶段并开放首个内容运营页面：生产侧边栏展示 11 个一级模块、17 个已实现二级入口；每日一句可用，外刊占位继续隐藏。
+- 已完成 `/content/question-groups` 题组管理 Mock MVP：已发布题目选择、顺序编排、适用人群、发布前校验、审核发布同步、学习路径引用、模考试卷快照展开和下架影响查询。
+- 已完成导航减法第一阶段并开放首个内容运营页面：生产侧边栏展示 11 个一级模块、18 个已实现二级入口；每日一句可用，外刊占位继续隐藏。
 - 已建立远程唯一主干与并行开发规范：`origin/main` 是唯一线上基线，功能分支通过 Pull Request 和 GitHub Actions `Verify` 校验后合并，详见 `docs/git-parallel-development-workflow.md`。
 - 本机项目根目录固定为 `main`，二级模块在 `-worktrees/<module>-<purpose>/` 独立开发；`scripts/git/` 提供主干状态检查与标准工作树创建命令。
 
@@ -84,3 +85,4 @@
 - 2026-07-11：建立 `origin/main` 唯一线上主干、功能分支命名和 Pull Request 合并规范；新增 GitHub Actions `Verify`，统一执行 TypeScript、71 项单测、lint 和生产构建。
 - 2026-07-11：`/learning-path/onboarding` 配置闭环完成，覆盖五字段维护、预校验、审核发布、Mock 用户、版本快照、诊断/任务命中和漏斗回看；`npm run tsc`、`npm run test`（14 文件、77 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，详见 `logs/onboarding-config-implementation-2026-07-11.md`。
 - 2026-07-12：完成本机工作树收口：项目根目录与 `origin/main` 同步，已合并历史工作树已清理，`question-groups` 未提交改动原地保留；恢复包与迁移记录见 `backups/git-worktree-baseline-20260712/`、`logs/git-mainline-migration-2026-07-12.md`。
+- 2026-07-12：`/content/question-groups` 题组管理 Mock MVP 完成，实施与验证记录见 `docs/question-groups-mvp.md` 和 `logs/question-groups-implementation-2026-07-11.md`。

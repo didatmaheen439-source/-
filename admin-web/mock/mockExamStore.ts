@@ -1,5 +1,6 @@
 import { nowText } from './auditStore';
 import { questionData } from './contentQuestionStore';
+import { precheckQuestionGroup, questionGroupData } from './questionGroupStore';
 import { writingTranslationTopicsData } from './writingTranslationStore';
 import type {
   MockExamPaper,
@@ -229,6 +230,38 @@ const snapshotFromSource = (
     referencePoints: clone(topic.referencePoints),
     referenceAnswer: topic.referenceTranslation,
   };
+};
+
+export const availableMockExamQuestionGroups = (examType?: API.ExamType) =>
+  questionGroupData
+    .filter((group) => group.status === 'published' && precheckQuestionGroup(group).passed)
+    .filter((group) => !examType || group.examType === examType)
+    .filter((group) => ['reading', 'listening'].includes(group.skill));
+
+export const expandQuestionGroupForMockExam = (
+  groupId: string,
+  sectionScore: number,
+  startOrder: number,
+) => {
+  const group = availableMockExamQuestionGroups().find((item) => item.id === groupId);
+  if (!group) return undefined;
+  const score = group.members.length ? Number((sectionScore / group.members.length).toFixed(3)) : 0;
+  return group.members.map((member, index) => {
+    const snapshot = snapshotFromSource(
+      'question_bank',
+      member.questionId,
+      index === group.members.length - 1
+        ? Number((sectionScore - score * Math.max(group.members.length - 1, 0)).toFixed(3))
+        : score,
+      startOrder + index,
+    );
+    return snapshot ? {
+      ...snapshot,
+      sourceGroupId: group.id,
+      sourceGroupName: group.name,
+      sourceGroupVersion: group.version,
+    } : undefined;
+  }).filter(Boolean) as MockExamPaperItemSnapshot[];
 };
 
 const normalizeSections = (
@@ -761,6 +794,13 @@ if (!globalMockExamStore.__GUOJI_ADMIN_MOCK_EXAM_PAPERS__) {
 
 export const mockExamPapersData =
   globalMockExamStore.__GUOJI_ADMIN_MOCK_EXAM_PAPERS__;
+
+export const mockExamPapersReferencingQuestionGroup = (groupId: string) =>
+  mockExamPapersData.filter((paper) =>
+    paper.sections.some((section) =>
+      section.items.some((item) => item.sourceGroupId === groupId),
+    ),
+  );
 
 export const getMockExamPaper = (id: string) =>
   mockExamPapersData.find((item) => item.id === id);

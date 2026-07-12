@@ -19,10 +19,12 @@ import { pushOperationAuditLog } from './auditStore';
 import {
   buildMockExamPrecheck,
   buildMockExamStatistics,
+  availableMockExamQuestionGroups,
   copyMockExamPaperDraft,
   createMockExamPaperRecord,
   filterMockExamPapers,
   filterMockExamReferences,
+  expandQuestionGroupForMockExam,
   getMockExamPaper,
   mockExamTemplate,
   mockExamTemplateTotals,
@@ -478,6 +480,28 @@ export default {
       availableOnly: queryValue(req.query.availableOnly) !== 'false',
     });
     res.send({ success: true, ...paginate(data, req) });
+  },
+  'GET /api/mock-exam/references/question-groups': (req: Request, res: Response) => {
+    if (!canAction('read')) return sendForbidden(res, 'read_question_groups');
+    const examType = (queryValue(req.query.examType) as API.ExamType) || undefined;
+    const keyword = queryValue(req.query.keyword).trim().toLowerCase();
+    const data = availableMockExamQuestionGroups(examType).filter((group) =>
+      !keyword || [group.id, group.name].join(' ').toLowerCase().includes(keyword),
+    );
+    res.send({ success: true, ...paginate(data, req) });
+  },
+  'POST /api/mock-exam/references/question-groups/:id/expand': (req: Request, res: Response) => {
+    if (!canAction('edit') && !canAction('create')) return sendForbidden(res, 'expand_question_group');
+    const data = expandQuestionGroupForMockExam(
+      pathValue(req.params.id),
+      Number(req.body?.sectionScore ?? 0),
+      Number(req.body?.startOrder ?? 1),
+    );
+    if (!data) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '题组不可用或校验未通过。' });
+      return;
+    }
+    res.send({ success: true, data });
   },
   'GET /api/mock-exam/papers/:id/statistics': (
     req: Request,

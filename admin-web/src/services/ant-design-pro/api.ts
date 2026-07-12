@@ -677,6 +677,79 @@ export async function submitContentQuestionReview(
   });
 }
 
+/** 获取题组列表 GET /api/content/question-groups */
+export async function contentQuestionGroups(
+  params?: API.PageParams & Record<string, unknown>,
+  options?: { [key: string]: any },
+) {
+  return request<API.QuestionGroupList>('/api/content/question-groups', {
+    method: 'GET',
+    params,
+    ...(options || {}),
+  });
+}
+
+/** 获取题组详情 GET /api/content/question-groups/:id */
+export async function contentQuestionGroupDetail(id: string) {
+  return request<{ success: boolean; data: API.QuestionGroupItem }>(
+    `/api/content/question-groups/${id}`,
+  );
+}
+
+/** 获取题组可选已发布题目 */
+export async function availableQuestionGroupQuestions(
+  params: API.PageParams & { examType?: API.ExamType; skill?: API.QuestionSkill; keyword?: string },
+) {
+  return request<API.QuestionList>('/api/content/question-groups/available-questions', {
+    method: 'GET',
+    params,
+  });
+}
+
+export async function createContentQuestionGroup(data: API.QuestionGroupSaveParams) {
+  return request<{ success: boolean; data: API.QuestionGroupItem; precheck: API.QuestionGroupPrecheckResult }>(
+    '/api/content/question-groups',
+    { method: 'POST', data },
+  );
+}
+
+export async function updateContentQuestionGroup(id: string, data: API.QuestionGroupSaveParams) {
+  return request<{ success: boolean; data: API.QuestionGroupItem }>(
+    `/api/content/question-groups/${id}`,
+    { method: 'PATCH', data },
+  );
+}
+
+export async function copyContentQuestionGroup(id: string) {
+  return request<{ success: boolean; data: API.QuestionGroupItem }>(
+    `/api/content/question-groups/${id}/copy`,
+    { method: 'POST' },
+  );
+}
+
+export async function precheckContentQuestionGroup(id: string) {
+  return request<{ success: boolean; data: API.QuestionGroupPrecheckResult }>(
+    `/api/content/question-groups/${id}/precheck`,
+    { method: 'POST' },
+  );
+}
+
+export async function submitContentQuestionGroupReview(
+  id: string,
+  data: API.QuestionGroupSubmitReviewParams,
+) {
+  return request<{ success: boolean; data: API.QuestionGroupItem; reviewTask: API.ReviewTask }>(
+    `/api/content/question-groups/${id}/submit-review`,
+    { method: 'POST', data },
+  );
+}
+
+export async function contentQuestionGroupImpact(id: string) {
+  return request<{ success: boolean; data: API.QuestionGroupImpact }>(
+    `/api/content/question-groups/${id}/impact`,
+  );
+}
+
 /** 获取错因标签列表 GET /api/content/wrong-reason-tags */
 export async function wrongReasonTags(
   params?: {

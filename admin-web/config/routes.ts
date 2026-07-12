@@ -114,8 +114,25 @@ export default [
       {
         path: '/content/question-groups',
         name: 'question-groups',
+        component: './content/question-groups',
+      },
+      {
+        path: '/content/question-groups/new',
+        name: 'question-group-new',
         hideInMenu: true,
-        component: './prd-placeholder',
+        component: './content/question-groups/edit/index',
+      },
+      {
+        path: '/content/question-groups/:id/edit',
+        name: 'question-group-edit',
+        hideInMenu: true,
+        component: './content/question-groups/edit/index',
+      },
+      {
+        path: '/content/question-groups/:id',
+        name: 'question-group-detail',
+        hideInMenu: true,
+        component: './content/question-groups/detail/index',
       },
       {
         path: '/content/wrong-reason-tags',
