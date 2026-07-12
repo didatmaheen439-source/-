@@ -103,6 +103,7 @@ declare namespace API {
 
   type ReviewObjectType =
     | 'question_bank'
+    | 'question_group'
     | 'wrong_reason_tag'
     | 'learning_path_config'
     | 'learning_rule'
@@ -782,6 +783,91 @@ declare namespace API {
     changeSummary: string;
   };
 
+  type QuestionGroupAudienceTag =
+    | 'foundation'
+    | 'skill_improvement'
+    | 'exam_sprint';
+
+  type QuestionGroupMember = {
+    questionId: string;
+    questionTitle: string;
+    questionVersion: string;
+    questionType: QuestionType;
+    difficulty: QuestionDifficulty;
+    order: number;
+  };
+
+  type QuestionGroupPrecheckIssue = {
+    id: string;
+    level: 'warning' | 'error';
+    field: string;
+    message: string;
+  };
+
+  type QuestionGroupPrecheckResult = {
+    passed: boolean;
+    checkedAt: string;
+    summary: string;
+    issues: QuestionGroupPrecheckIssue[];
+  };
+
+  type QuestionGroupItem = {
+    id: string;
+    name: string;
+    description: string;
+    examType: ExamType;
+    skill: QuestionSkill;
+    audienceTags: QuestionGroupAudienceTag[];
+    estimatedMinutes: number;
+    members: QuestionGroupMember[];
+    status: ReviewTaskStatus;
+    version: string;
+    dataVersion: number;
+    creatorId: string;
+    creator: string;
+    createdAt: string;
+    updatedById: string;
+    updatedBy: string;
+    updatedAt: string;
+    changeSummary: string;
+    impactScope: string;
+    reviewTaskId?: string;
+    lastPrecheck?: QuestionGroupPrecheckResult;
+    versionRecords: ReviewVersionRecord[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type QuestionGroupSaveParams = {
+    name: string;
+    description: string;
+    examType: ExamType;
+    skill: QuestionSkill;
+    audienceTags: QuestionGroupAudienceTag[];
+    estimatedMinutes: number;
+    questionIds: string[];
+    changeSummary?: string;
+    impactScope?: string;
+    dataVersion?: number;
+  };
+
+  type QuestionGroupSubmitReviewParams = {
+    changeSummary: string;
+    dataVersion: number;
+  };
+
+  type QuestionGroupImpactItem = {
+    source: 'learning_path' | 'mock_exam';
+    objectId: string;
+    objectName: string;
+    status: ReviewTaskStatus;
+  };
+
+  type QuestionGroupImpact = {
+    groupId: string;
+    total: number;
+    items: QuestionGroupImpactItem[];
+  };
+
   type PageParams = {
     current?: number;
     pageSize?: number;
@@ -841,6 +927,12 @@ declare namespace API {
 
   type QuestionList = {
     data?: QuestionItem[];
+    total?: number;
+    success?: boolean;
+  };
+
+  type QuestionGroupList = {
+    data?: QuestionGroupItem[];
     total?: number;
     success?: boolean;
   };

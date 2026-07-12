@@ -43,6 +43,9 @@ export type MockExamPaperItemSnapshot = {
   requirements?: string[];
   referencePoints?: string[];
   referenceAnswer?: string;
+  sourceGroupId?: string;
+  sourceGroupName?: string;
+  sourceGroupVersion?: string;
 };
 
 export type MockExamSection = {

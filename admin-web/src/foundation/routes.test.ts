@@ -53,6 +53,7 @@ const visibleSecondLevelPaths = [
   '/dashboard/workbench',
   '/users/list',
   '/content/questions',
+  '/content/question-groups',
   '/content/wrong-reason-tags',
   '/learning-path/diagnosis-rules',
   '/learning-path/task-templates',
@@ -77,7 +78,7 @@ describe('admin navigation structure', () => {
     ]);
   });
 
-  it('exposes only the fifteen implemented second-level entries', () => {
+  it('exposes only the sixteen implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];

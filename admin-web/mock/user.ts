@@ -28,9 +28,7 @@ import {
   filterQuestions,
   filterWrongReasonTags,
   questionData,
-  questionGroupReferences,
   questionTypeLabels,
-  referenceById,
   skillLabels,
   syncQuestionFromReviewTask,
   syncWrongReasonTagFromReviewTask,
@@ -40,10 +38,22 @@ import {
   validateWrongReasonTagPayload,
   wrongReasonTagData,
 } from './contentQuestionStore';
+import {
+  buildQuestionGroupReviewTask,
+  copyQuestionGroup,
+  createQuestionGroup,
+  filterQuestionGroups,
+  precheckQuestionGroup,
+  questionGroupData,
+  questionGroupReferences,
+  syncQuestionGroupFromReviewTask,
+  updateQuestionGroup,
+} from './questionGroupStore';
 import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
 import {
   mockExamDashboardStats,
+  mockExamPapersReferencingQuestionGroup,
   syncMockExamFromReviewTask,
   validateMockExamReviewTransition,
 } from './mockExamStore';
@@ -103,6 +113,7 @@ const accountLastLoginAtMap: Record<string, string> = {
 
 const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   question_bank: 'content',
+  question_group: 'content',
   wrong_reason_tag: 'content',
   learning_path_config: 'learningPath',
   learning_rule: 'learningPath',
@@ -110,6 +121,12 @@ const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   writing_translation: 'writingTranslation',
   mock_exam: 'mockExam',
 };
+
+const referenceById = (id?: string) =>
+  [
+    ...questionData.map(buildQuestionReference),
+    ...questionGroupReferences(),
+  ].find((item) => item.id === id);
 
 const reviewStatusActionMap: Record<API.ReviewTaskStatus, string> = {
   draft: '保存草稿',
@@ -1524,6 +1541,7 @@ const roleCanOperateReviewTask = (
   if (roleId === 'teaching_reviewer') {
     return [
       'question_bank',
+      'question_group',
       'wrong_reason_tag',
       'learning_rule',
       'learning_path_config',
@@ -1633,6 +1651,44 @@ const roleCanSubmitQuestion = (roleId: AdminRoleId | '', question: API.QuestionI
       roleCanPerformAction(roleId, 'content', 'submit') &&
       ['draft', 'rejected'].includes(question.status),
   );
+
+const roleCanWriteQuestionGroup = (roleId?: AdminRoleId | '') =>
+  Boolean(
+    roleId &&
+      ['super_admin', 'teaching_reviewer'].includes(roleId) &&
+      roleCanPerformAction(roleId, 'content', 'edit'),
+  );
+
+const roleCanEditQuestionGroup = (
+  roleId: AdminRoleId | '',
+  group: API.QuestionGroupItem,
+) =>
+  roleCanWriteQuestionGroup(roleId) &&
+  ['draft', 'rejected'].includes(group.status);
+
+const questionGroupImpact = (group: API.QuestionGroupItem): API.QuestionGroupImpact => {
+  const items: API.QuestionGroupImpactItem[] = learningPathConfigsData
+    .filter((config) =>
+      config.kind === 'diagnosis_rule'
+        ? config.references.some((item) => item.id === group.id)
+        : config.taskItems.some((item) => item.contentId === group.id),
+    )
+    .map((config) => ({
+      source: 'learning_path' as const,
+      objectId: config.id,
+      objectName: config.name,
+      status: config.status,
+    }));
+  items.push(
+    ...mockExamPapersReferencingQuestionGroup(group.id).map((paper) => ({
+      source: 'mock_exam' as const,
+      objectId: paper.id,
+      objectName: paper.name,
+      status: paper.status,
+    })),
+  );
+  return { groupId: group.id, total: items.length, items };
+};
 
 const roleCanCreateWrongReasonTag = (roleId?: AdminRoleId | '') =>
   Boolean(roleId && roleCanPerformAction(roleId, 'content', 'create'));
@@ -2513,6 +2569,8 @@ const countBy = <T,>(items: T[], getKey: (item: T) => string) =>
 const taskExamType = (task: API.ReviewTask): API.ExamType | undefined => {
   const question = questionData.find((item) => item.id === task.objectId);
   if (question) return question.examType;
+  const questionGroup = questionGroupData.find((item) => item.id === task.objectId);
+  if (questionGroup) return questionGroup.examType;
   const wrongReasonTag = wrongReasonTagData.find((item) => item.id === task.objectId);
   if (wrongReasonTag) return wrongReasonTag.examTypes[0];
   const config = learningPathConfigsData.find((item) => item.id === task.objectId);
@@ -2632,13 +2690,13 @@ const buildAnalyticsOverview = (
   const questions = simulateEmpty ? [] : questionData.filter((item) => sameExam(filters.examType, item.examType));
   const contentObjects = [
     ...questions.map((item) => ({ status: item.status, examType: item.examType, type: '题目' })),
-    ...questionGroupReferences.filter((item) => sameExam(filters.examType, item.examType)).map((item) => ({ status: item.status, examType: item.examType, type: '题组' })),
+    ...questionGroupReferences().filter((item) => sameExam(filters.examType, item.examType)).map((item) => ({ status: item.status, examType: item.examType, type: '题组' })),
     ...wrongReasonTagData
       .filter((item) => filters.examType === 'all' || item.examTypes.includes(filters.examType))
       .map((item) => ({ status: item.status, examType: item.examTypes[0], type: '错因标签' })),
   ];
   const contentStatusDistribution = countBy(contentObjects, (item) => reviewStatusActionMap[item.status as API.ReviewTaskStatus] ?? String(item.status));
-  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'wrong_reason_tag'].includes(task.objectType) && sameExam(filters.examType, taskExamType(task)));
+  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'question_group', 'wrong_reason_tag'].includes(task.objectType) && sameExam(filters.examType, taskExamType(task)));
   const approvedContentReviews = contentReviewTasks.filter((task) => task.status === 'approved' && inRange(task.updatedAt, filters)).length;
   const rejectedContentReviews = contentReviewTasks.filter((task) => task.status === 'rejected' && inRange(task.updatedAt, filters)).length;
   const contentApprovalRate = percentValue(approvedContentReviews, approvedContentReviews + rejectedContentReviews);
@@ -4220,6 +4278,151 @@ export default {
       total: filtered.length,
     });
   },
+  'GET /api/content/question-groups': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看题组。' });
+      return;
+    }
+    const filtered = filterQuestionGroups(req.query);
+    res.send({ success: true, data: paginate(filtered, req.query), total: filtered.length });
+  },
+  'GET /api/content/question-groups/available-questions': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看可选题目。' });
+      return;
+    }
+    const examType = getQueryValue(req.query.examType);
+    const skill = getQueryValue(req.query.skill);
+    const keyword = getQueryValue(req.query.keyword).trim().toLowerCase();
+    const filtered = questionData
+      .filter((item) => item.status === 'published')
+      .filter((item) => !examType || item.examType === examType)
+      .filter((item) => !skill || item.skill === skill)
+      .filter((item) => !keyword || [item.id, item.title, item.stem].join(' ').toLowerCase().includes(keyword));
+    res.send({ success: true, data: paginate(filtered, req.query), total: filtered.length });
+  },
+  'POST /api/content/question-groups': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanWriteQuestionGroup(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权新建题组。' });
+      return;
+    }
+    const params = req.body as API.QuestionGroupSaveParams;
+    const precheck = precheckQuestionGroup(params);
+    if (!params.name?.trim() || !params.description?.trim()) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '题组名称和说明不能为空。' });
+      return;
+    }
+    const operator = getOperator();
+    const group = createQuestionGroup(params, operator);
+    pushContentAuditLog(currentRoleId, 'create', 'success', group.id, group.changeSummary, `创建题组 ${group.name}。`, '/content/question-groups');
+    res.send({ success: true, data: group, precheck });
+  },
+  'GET /api/content/question-groups/:id/impact': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看题组影响范围。' });
+      return;
+    }
+    const group = questionGroupData.find((item) => item.id === req.params.id);
+    if (!group) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '题组不存在。' });
+      return;
+    }
+    res.send({ success: true, data: questionGroupImpact(group) });
+  },
+  'POST /api/content/question-groups/:id/precheck': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权校验题组。' });
+      return;
+    }
+    const group = questionGroupData.find((item) => item.id === req.params.id);
+    if (!group) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '题组不存在。' });
+      return;
+    }
+    group.lastPrecheck = precheckQuestionGroup(group);
+    res.send({ success: true, data: group.lastPrecheck });
+  },
+  'POST /api/content/question-groups/:id/copy': (req: Request, res: Response) => {
+    if (!roleCanWriteQuestionGroup(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权复制题组。' });
+      return;
+    }
+    const source = questionGroupData.find((item) => item.id === req.params.id);
+    if (!source) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '题组不存在。' });
+      return;
+    }
+    const group = copyQuestionGroup(source, getOperator());
+    res.send({ success: true, data: group });
+  },
+  'POST /api/content/question-groups/:id/submit-review': (req: Request, res: Response) => {
+    const group = questionGroupData.find((item) => item.id === req.params.id);
+    if (!group) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '题组不存在。' });
+      return;
+    }
+    if (!roleCanEditQuestionGroup(currentRoleId, group)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权提交当前状态的题组。' });
+      return;
+    }
+    const body = req.body as API.QuestionGroupSubmitReviewParams;
+    if (body.dataVersion !== group.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '题组已被更新，请刷新后重试。' });
+      return;
+    }
+    const changeSummary = String(body.changeSummary ?? '').trim();
+    if (!changeSummary) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '提交审核必须填写变更说明。' });
+      return;
+    }
+    const precheck = precheckQuestionGroup(group);
+    group.lastPrecheck = precheck;
+    if (!precheck.passed) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '题组校验未通过。', data: precheck });
+      return;
+    }
+    const previousStatus = group.status;
+    const operator = getOperator();
+    group.changeSummary = changeSummary;
+    const task = buildQuestionGroupReviewTask(group, operator, reviewTasksData);
+    group.status = 'pending_review';
+    group.updatedById = operator.id;
+    group.updatedBy = operator.name;
+    group.updatedAt = task.updatedAt;
+    group.dataVersion += 1;
+    group.operationRecords.unshift({ id: `group-op-submit-${Date.now()}`, operator: operator.name, roleName: operator.roleName, action: '提交审核', fromStatus: previousStatus, toStatus: 'pending_review', reason: changeSummary, time: task.updatedAt });
+    res.send({ success: true, data: group, reviewTask: task });
+  },
+  'PATCH /api/content/question-groups/:id': (req: Request, res: Response) => {
+    const group = questionGroupData.find((item) => item.id === req.params.id);
+    if (!group) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '题组不存在。' });
+      return;
+    }
+    if (!roleCanEditQuestionGroup(currentRoleId, group)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权编辑当前状态的题组。' });
+      return;
+    }
+    const params = req.body as API.QuestionGroupSaveParams;
+    if (params.dataVersion !== group.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '题组已被更新，请刷新后重试。' });
+      return;
+    }
+    const updated = updateQuestionGroup(group, params, getOperator());
+    res.send({ success: true, data: updated });
+  },
+  'GET /api/content/question-groups/:id': (req: Request, res: Response) => {
+    if (!roleCanReadContent(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '无权查看题组。' });
+      return;
+    }
+    const group = questionGroupData.find((item) => item.id === req.params.id);
+    if (!group) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '题组不存在。' });
+      return;
+    }
+    res.send({ success: true, data: group });
+  },
   'GET /api/content/questions/:id': (req: Request, res: Response) => {
     if (!roleCanReadContent(currentRoleId)) {
       res.status(403).send({
@@ -4863,7 +5066,7 @@ export default {
       res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无引用题组访问权限。' });
       return;
     }
-    res.send({ success: true, ...paginateArray(filterLearningPathReferences(questionGroupReferences, req.query), req.query) });
+    res.send({ success: true, ...paginateArray(filterLearningPathReferences(questionGroupReferences(), req.query), req.query) });
   },
   'GET /api/review-release/tasks': (req: Request, res: Response) => {
     const data = filterReviewTasks(req.query);
@@ -5002,6 +5205,20 @@ export default {
       return;
     }
 
+    if (task.objectType === 'question_group' && nextStatus === 'published') {
+      const group = questionGroupData.find((item) => item.id === task.objectId);
+      const groupPrecheck = group ? precheckQuestionGroup(group) : undefined;
+      if (!groupPrecheck?.passed) {
+        res.status(422).send({
+          success: false,
+          errorCode: '422',
+          errorMessage: '题组发布前复验未通过。',
+          data: groupPrecheck,
+        });
+        return;
+      }
+    }
+
     const previousStatus = task.status;
     const operator = getOperator();
     const action = reviewStatusActionMap[nextStatus];
@@ -5037,6 +5254,13 @@ export default {
       operationReason,
     );
     syncWrongReasonTagFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      operator.name,
+      operationReason,
+    );
+    syncQuestionGroupFromReviewTask(
       task,
       previousStatus,
       nextStatus,

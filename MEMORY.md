@@ -112,3 +112,19 @@
 - 如果需要构建，先停止正在运行的 `npm run start`，避免 Utoo build 和 dev server 争用 `.turbopack/lock`。
 - 下一阶段建议进入真实后端接口设计、数据库表设计和前后端联调准备，不要继续铺第十二个页面。
 - 后端接入时以 `docs/api-contract.md`、`docs/backend-data-models.md`、`docs/backend-state-permission-baseline.md` 为基线，当前路由命名保持不变。
+
+## 2026-07-11 题组管理 Mock MVP
+
+### Summary
+- `/content/question-groups` 已从隐藏占位入口升级为可用二级模块，包含列表、新建/编辑、详情、复制、预校验和提交审核。
+- 题组固定为单一考试类型、单一学习模块和多个固定适用人群标签，只允许选择已发布且考试类型、学习模块一致的题目。
+- 题组审核复用统一审核发布中心，`question_group` 状态会回写题组；发布前再次校验题目状态和一致性。
+- 学习路径只展示已发布且校验通过的题组；模考试卷可按题组顺序展开为题目快照，并保留题组 ID、名称和版本来源。
+- 题组详情的引用影响同时聚合学习路径配置和带题组来源的模考试卷，为下架判断提供依据。
+
+### Key Files
+- `admin-web/mock/questionGroupStore.ts`
+- `admin-web/src/pages/content/question-groups/`
+- `admin-web/mock/mockExamStore.ts`
+- `admin-web/src/pages/mock-exam/papers/edit/index.tsx`
+- `docs/question-groups-mvp.md`
