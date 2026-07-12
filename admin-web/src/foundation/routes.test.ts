@@ -55,6 +55,7 @@ const visibleSecondLevelPaths = [
   '/content/questions',
   '/content/question-groups',
   '/content/wrong-reason-tags',
+  '/learning-path/onboarding',
   '/learning-path/diagnosis-rules',
   '/learning-path/task-templates',
   '/ai-coach/prompts',
@@ -120,6 +121,11 @@ describe('admin navigation structure', () => {
         (route) => route.path === '/analytics',
       )?.redirect,
     ).toBe('/analytics/overview');
+    expect(
+      findRoute('/learning-path')?.routes?.find(
+        (route) => route.path === '/learning-path',
+      )?.redirect,
+    ).toBe('/learning-path/onboarding');
   });
 
   it('maps hidden semantic views back to their consolidated menu entry', () => {

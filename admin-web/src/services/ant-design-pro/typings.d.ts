@@ -138,6 +138,7 @@ declare namespace API {
     objectType: ReviewObjectType;
     objectSubtype?:
       | LearningPathConfigKind
+      | 'onboarding_config'
       | AiCoachConfigType
       | WritingTranslationTopicType
       | WrongReasonTagCategory;
@@ -1066,6 +1067,7 @@ declare namespace API {
     examProfile: UserExamProfile;
     learningStatus: UserLearningStatus;
     currentStudyStatus: string;
+    isMockUser?: boolean;
     unhandledFeedbackCount: number;
     latestFeedbackStatus?: UserFeedbackStatus;
     latestHandler?: string;
@@ -1107,6 +1109,124 @@ declare namespace API {
   };
 
   type LearningPathConfigKind = 'diagnosis_rule' | 'today_task_template';
+
+  type OnboardingFieldKey =
+    | 'examType'
+    | 'targetScore'
+    | 'examDate'
+    | 'dailyMinutes'
+    | 'moodStatus';
+
+  type OnboardingFieldType = 'single_select' | 'exam_date';
+
+  type OnboardingMoodStatus = 'steady' | 'tired' | 'anxious';
+
+  type OnboardingOption = {
+    id: string;
+    label: string;
+    value: string | number;
+    enabled: boolean;
+    sortOrder: number;
+    referencedCount: number;
+  };
+
+  type OnboardingField = {
+    key: OnboardingFieldKey;
+    label: string;
+    type: OnboardingFieldType;
+    description: string;
+    required: true;
+    enabled: boolean;
+    sortOrder: number;
+    options: OnboardingOption[];
+  };
+
+  type OnboardingConfigVersion = {
+    id: string;
+    configId: string;
+    version: string;
+    status: LearningPathConfigStatus;
+    createdBy: string;
+    createdAt: string;
+    changeSummary: string;
+    publishedAt?: string;
+    publishedBy?: string;
+    currentOnline: boolean;
+  };
+
+  type OnboardingConfig = {
+    id: string;
+    kind: 'onboarding_config';
+    name: string;
+    description: string;
+    status: LearningPathConfigStatus;
+    version: string;
+    dataVersion: number;
+    currentOnline: boolean;
+    createdBy: string;
+    createdById?: string;
+    createdAt: string;
+    updatedBy: string;
+    updatedById?: string;
+    updatedAt: string;
+    reviewTaskId?: string;
+    releaseVersionId?: string;
+    changeSummary: string;
+    internalRemark?: string;
+    fields: OnboardingField[];
+    lastPrecheck?: OnboardingPrecheckResult;
+    versionRecords: OnboardingConfigVersion[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type OnboardingPrecheckResult = {
+    id: string;
+    configId?: string;
+    level: LearningPathPrecheckLevel;
+    checkedAt: string;
+    issues: LearningPathPrecheckIssue[];
+    summary: string;
+  };
+
+  type OnboardingSaveParams = {
+    name: string;
+    description?: string;
+    changeSummary: string;
+    internalRemark?: string;
+    dataVersion: number;
+    fields: OnboardingField[];
+  };
+
+  type OnboardingSubmission = {
+    examType: ExamType;
+    targetScore: 425 | 500 | 600;
+    examDate: string;
+    dailyMinutes: 5 | 15 | 30;
+    moodStatus: OnboardingMoodStatus;
+  };
+
+  type OnboardingAnswerSnapshot = {
+    fieldKey: OnboardingFieldKey;
+    fieldLabel: string;
+    optionLabel: string;
+    value: string | number;
+  };
+
+  type OnboardingMatchSnapshot = {
+    configId: string;
+    configName: string;
+    version: string;
+    completedAt: string;
+    answers: OnboardingAnswerSnapshot[];
+  };
+
+  type OnboardingOverview = {
+    config?: OnboardingConfig;
+    onlineConfig?: OnboardingConfig;
+    mockUser: AdminUser;
+    match: UserLearningPathMatchSummary;
+    nextExamDates: string[];
+  };
 
   type LearningPathConfigStatus = ReviewTaskStatus;
 
@@ -1310,6 +1430,7 @@ declare namespace API {
 
   type UserLearningPathMatchSummary = {
     userId: string;
+    onboardingConfig?: OnboardingMatchSnapshot;
     diagnosisRule?: {
       ruleId: string;
       ruleName: string;

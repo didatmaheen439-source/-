@@ -556,7 +556,10 @@ const UserDetailPage: React.FC = () => {
                   {detail.id}
                 </Descriptions.Item>
                 <Descriptions.Item label="昵称">
-                  {detail.nickname}
+                  <Space>
+                    {detail.nickname}
+                    {detail.isMockUser ? <Tag>Mock</Tag> : null}
+                  </Space>
                 </Descriptions.Item>
                 <Descriptions.Item label="手机号">
                   {detail.phoneMasked}
@@ -642,9 +645,42 @@ const UserDetailPage: React.FC = () => {
               </Descriptions>
             </Card>
             <Card title="学习路径匹配摘要">
-              {learningPathMatch?.diagnosisRule ||
+              {learningPathMatch?.onboardingConfig ||
+              learningPathMatch?.diagnosisRule ||
               learningPathMatch?.todayTaskTemplate ? (
                 <Descriptions column={2}>
+                  <Descriptions.Item label="Onboarding 配置" span={2}>
+                    {learningPathMatch.onboardingConfig ? (
+                      <Space orientation="vertical" size={6}>
+                        <Space wrap>
+                          {canOpenLearningPathConfig ? (
+                            <Button
+                              type="link"
+                              size="small"
+                              onClick={() => history.push('/learning-path/onboarding')}
+                            >
+                              {learningPathMatch.onboardingConfig.configName}
+                            </Button>
+                          ) : (
+                            <Typography.Text>
+                              {learningPathMatch.onboardingConfig.configName}
+                            </Typography.Text>
+                          )}
+                          <Tag>{learningPathMatch.onboardingConfig.version}</Tag>
+                          <Typography.Text type="secondary">
+                            完成时间：{learningPathMatch.onboardingConfig.completedAt}
+                          </Typography.Text>
+                        </Space>
+                        <Space wrap>
+                          {learningPathMatch.onboardingConfig.answers.map((answer) => (
+                            <Tag key={answer.fieldKey}>
+                              {answer.fieldLabel}：{answer.optionLabel}
+                            </Tag>
+                          ))}
+                        </Space>
+                      </Space>
+                    ) : '-'}
+                  </Descriptions.Item>
                   <Descriptions.Item label="命中诊断规则">
                     {learningPathMatch.diagnosisRule ? (
                       <Space orientation="vertical" size={2}>
@@ -955,7 +991,15 @@ const UserDetailPage: React.FC = () => {
         ) : null,
       },
     ],
-    [detail, id, remarkDraft, remarkSubmitting, canHandleFeedback],
+    [
+      detail,
+      id,
+      remarkDraft,
+      remarkSubmitting,
+      canHandleFeedback,
+      canOpenLearningPathConfig,
+      learningPathMatch,
+    ],
   );
 
   if (loading) {

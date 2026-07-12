@@ -27,6 +27,8 @@ export default {
   'menu.content-operations.daily-sentences': 'Daily Sentences',
   'menu.content-operations.articles': 'Articles',
   'menu.learning-path': 'Learning Path',
+  'menu.learning-path.onboarding': 'Onboarding Config',
+  'menu.learning-path.onboarding-edit': 'Edit Onboarding Config',
   'menu.learning-path.diagnosis-rules': 'Diagnosis Rules',
   'menu.learning-path.task-templates': 'Today Task Templates',
   'menu.learning-path.diagnosis-rule-new': 'Create Diagnosis Rule',
