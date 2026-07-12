@@ -200,6 +200,66 @@ export const resolutionTypeLabels: Record<API.AiAbnormalResolutionType, string> 
 export const getAiAbnormalReply = (id: string) =>
   aiAbnormalRepliesData.find((item) => item.id === id);
 
+const reviewTypeToAbnormalReplyType: Record<API.AiSessionAbnormalType, API.AiAbnormalReplyType> = {
+  answer_dependency: 'dependency_boundary_violation',
+  boundary_violation: 'dependency_boundary_violation',
+  incorrect_guidance: 'answer_deviation',
+  sensitive_content: 'answer_deviation',
+  other: 'answer_deviation',
+};
+
+const reviewSeverityToRiskLevel: Record<API.AiSessionAbnormalSeverity, API.AiCoachRiskLevel> = {
+  P0: 'high',
+  P1: 'medium',
+  P2: 'low',
+};
+
+export const createAiAbnormalReplyFromSessionReview = (params: {
+  id: string;
+  session: API.AiSessionReview;
+  abnormalType: API.AiSessionAbnormalType;
+  severity: API.AiSessionAbnormalSeverity;
+  evidenceSummary: string;
+  reviewNote: string;
+  operator: AiCoachOperator;
+}) => {
+  const existing = getAiAbnormalReply(params.id);
+  if (existing) return existing;
+  const now = nowText();
+  const abnormal: API.AiAbnormalReply = {
+    id: params.id,
+    title: `${params.session.intentName} 会话抽检异常`,
+    abnormalType: reviewTypeToAbnormalReplyType[params.abnormalType],
+    severity: reviewSeverityToRiskLevel[params.severity],
+    status: 'pending',
+    businessScene: params.session.businessScene,
+    examType: params.session.examType,
+    userId: params.session.userLabel,
+    userNickname: params.session.userLabel,
+    sessionId: params.session.sessionId,
+    sessionStartedAt: params.session.sessionTime,
+    source: 'mock_session_review',
+    linkedStrategyId: params.session.strategySnapshot.strategyId,
+    linkedStrategyTitle: params.session.strategySnapshot.strategyTitle,
+    linkedStrategyVersion: params.session.strategySnapshot.strategyVersion,
+    linkedStrategyStatus: params.session.strategySnapshot.statusAtTime,
+    createdAt: now,
+    updatedAt: now,
+    dataVersion: 1,
+    evidenceAccessed: false,
+    operationRecords: [
+      operation({
+        operator: params.operator,
+        action: '标记异常',
+        toStatus: 'pending',
+        reason: `${params.evidenceSummary} ${params.reviewNote}`.trim(),
+      }),
+    ],
+  };
+  aiAbnormalRepliesData.unshift(abnormal);
+  return abnormal;
+};
+
 export const filterAiAbnormalReplies = (
   query: API.AiAbnormalReplyQueryParams = {},
 ) => {

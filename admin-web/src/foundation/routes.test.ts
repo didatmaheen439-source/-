@@ -61,6 +61,7 @@ const visibleSecondLevelPaths = [
   '/learning-path/diagnosis-rules',
   '/learning-path/task-templates',
   '/ai-coach/prompts',
+  '/ai-coach/session-review',
   '/ai-coach/abnormal-replies',
   '/writing-translation/writing-topics',
   '/writing-translation/translation-topics',
@@ -80,7 +81,7 @@ describe('admin navigation structure', () => {
     expect(businessRoutes.filter((route) => route?.hideInMenu)).toEqual([]);
   });
 
-  it('exposes only the twenty implemented second-level entries', () => {
+  it('exposes only the twenty-one implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];
@@ -147,6 +148,7 @@ describe('admin navigation structure', () => {
     expect(zhCNMenu['menu.content.questions']).toBe('题目管理');
     expect(zhCNMenu['menu.content-operations']).toBe('内容运营');
     expect(zhCNMenu['menu.ai-coach']).toBe('AI 陪练');
+    expect(zhCNMenu['menu.ai-coach.session-review']).toBe('会话抽检');
     expect(zhCNMenu['menu.writing-translation']).toBe('写译批改');
     expect(zhCNMenu['menu.system']).toBe('系统与审计');
     expect(zhCNMenu['menu.system.operation-logs']).toBe('审计日志');

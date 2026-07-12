@@ -2,6 +2,18 @@ import type { Request, Response } from 'express';
 import { roleCanPerformAction } from '../src/foundation/permissions';
 import type { AdminRoleId } from '../src/foundation/permissions';
 import {
+  aiSessionReviewOperatorFromRole,
+  canOperateAiSessionReview,
+  claimAiSessionReview,
+  concludeAiSessionReview,
+  filterAiSessionReviews,
+  getAiSessionReview,
+  getSafeAiSessionReview,
+  paginateAiSessionReviews,
+  readAiSessionSensitiveContext,
+  releaseAiSessionReview,
+} from './aiCoachSessionReviewStore';
+import {
   aiCoachStrategiesData,
   buildAiCoachPrecheck,
   buildAiCoachStaticValidation,
@@ -15,7 +27,7 @@ import {
   submitAiCoachStrategyReview,
   updateAiCoachStrategyRecord,
 } from './aiCoachStore';
-import { pushOperationAuditLog } from './auditStore';
+import { nowText, pushOperationAuditLog } from './auditStore';
 import { mockSession } from './session';
 import { reviewTasksData } from './user';
 
@@ -42,6 +54,13 @@ const canEditAiCoach = () =>
 const canSubmitAiCoach = () =>
   Boolean(currentRoleId() && roleCanPerformAction(currentRoleId() as AdminRoleId, 'aiCoach', 'submit'));
 
+const canReviewAiSession = () =>
+  Boolean(
+    currentRoleId() &&
+      canOperateAiSessionReview(currentRoleId()) &&
+      roleCanPerformAction(currentRoleId() as AdminRoleId, 'aiCoach', 'read'),
+  );
+
 const sendForbidden = (res: Response, action: string, objectId = 'ai-coach') => {
   const roleId = currentRoleId();
   if (roleId) {
@@ -64,6 +83,28 @@ const sendForbidden = (res: Response, action: string, objectId = 'ai-coach') => 
   });
 };
 
+const sendSessionReviewForbidden = (res: Response, action: string, objectId = 'ai-session-review') => {
+  const roleId = currentRoleId();
+  if (roleId) {
+    pushOperationAuditLog({
+      roleId,
+      logType: 'permission_denied',
+      action,
+      objectType: 'ai_session_review',
+      objectId,
+      sourcePage: '/ai-coach/session-review',
+      reason: '角色无权访问 AI 会话抽检。',
+      result: 'denied',
+      changeSummary: `尝试执行 ${action} 被拒绝。`,
+    });
+  }
+  res.status(403).send({
+    success: false,
+    errorCode: '403',
+    errorMessage: '无权访问 AI 会话抽检。',
+  });
+};
+
 const bodyMaySimulate500 = (body: API.AiCoachStrategySaveParams) =>
   [body.title, body.description, JSON.stringify(body.body ?? {})].some((item) =>
     String(item ?? '').includes('SIMULATE_AI_PRECHECK_500'),
@@ -82,7 +123,321 @@ const readQuery = (query: Request['query']): API.AiCoachStrategyQueryParams => (
   riskLevel: typeof query.riskLevel === 'string' ? (query.riskLevel as API.AiCoachRiskLevel) : undefined,
 });
 
+const readSessionReviewQuery = (query: Request['query']): API.AiSessionReviewQueryParams => ({
+  current: Number(query.current || 1),
+  pageSize: Number(query.pageSize || 20),
+  keyword: typeof query.keyword === 'string' ? query.keyword : undefined,
+  intentKey: typeof query.intentKey === 'string' ? query.intentKey : undefined,
+  strategyVersion: typeof query.strategyVersion === 'string' ? query.strategyVersion : undefined,
+  riskLevel: typeof query.riskLevel === 'string' ? (query.riskLevel as API.AiCoachRiskLevel) : undefined,
+  reviewStatus:
+    typeof query.reviewStatus === 'string'
+      ? (query.reviewStatus as API.AiSessionReviewStatus)
+      : undefined,
+  conclusion:
+    typeof query.conclusion === 'string'
+      ? (query.conclusion as API.AiSessionReviewConclusion)
+      : undefined,
+  sessionTimeRange: Array.isArray(query.sessionTimeRange)
+    ? (query.sessionTimeRange as string[])
+    : typeof query.sessionTimeRange === 'string'
+      ? [query.sessionTimeRange]
+      : undefined,
+});
+
 export default {
+  'GET /api/ai-coach/session-reviews': (req: Request, res: Response) => {
+    if (!canReviewAiSession()) {
+      sendSessionReviewForbidden(res, 'read');
+      return;
+    }
+    const query = readSessionReviewQuery(req.query);
+    const filtered = filterAiSessionReviews(query);
+    const result = paginateAiSessionReviews(filtered, query);
+    res.send({ success: true, data: result.data, total: result.total });
+  },
+
+  'GET /api/ai-coach/session-reviews/:id': (req: Request, res: Response) => {
+    if (!canReviewAiSession()) {
+      sendSessionReviewForbidden(res, 'read', String(req.params.id));
+      return;
+    }
+    const session = getSafeAiSessionReview(String(req.params.id));
+    if (!session) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: 'AI 会话抽检不存在。',
+      });
+      return;
+    }
+    res.send({ success: true, data: session });
+  },
+
+  'POST /api/ai-coach/session-reviews/:id/claim': (req: Request, res: Response) => {
+    if (!canReviewAiSession()) {
+      sendSessionReviewForbidden(res, 'claim', String(req.params.id));
+      return;
+    }
+    const session = getAiSessionReview(String(req.params.id));
+    if (!session) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: 'AI 会话抽检不存在。',
+      });
+      return;
+    }
+    const roleId = currentRoleId() as AdminRoleId;
+    const operator = aiSessionReviewOperatorFromRole(
+      roleId,
+      mockSession.currentAccountId,
+      mockSession.currentAccountName,
+    );
+    const result = claimAiSessionReview(session, operator);
+    if ('conflict' in result) {
+      res.status(409).send({
+        success: false,
+        errorCode: '409',
+        errorMessage: '该会话已被其他运营认领。',
+      });
+      return;
+    }
+    if ('locked' in result) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '已完成的会话抽检不能重新认领。',
+      });
+      return;
+    }
+    pushOperationAuditLog({
+      roleId,
+      action: 'claim',
+      objectType: 'ai_session_review',
+      objectId: session.id,
+      sourcePage: `/ai-coach/session-review/${session.id}`,
+      reason: '认领会话抽检任务。',
+      result: 'success',
+      changeSummary: `认领 AI 会话抽检：${session.sessionId}。`,
+      newStatus: result.session.reviewStatus,
+      version: result.session.strategySnapshot.strategyVersion,
+    });
+    res.send({ success: true, data: result.session });
+  },
+
+  'POST /api/ai-coach/session-reviews/:id/release': (req: Request, res: Response) => {
+    if (!canReviewAiSession()) {
+      sendSessionReviewForbidden(res, 'release', String(req.params.id));
+      return;
+    }
+    const session = getAiSessionReview(String(req.params.id));
+    if (!session) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: 'AI 会话抽检不存在。',
+      });
+      return;
+    }
+    const roleId = currentRoleId() as AdminRoleId;
+    const operator = aiSessionReviewOperatorFromRole(
+      roleId,
+      mockSession.currentAccountId,
+      mockSession.currentAccountName,
+    );
+    const result = releaseAiSessionReview(session, operator);
+    if ('locked' in result) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '只能释放本人正在抽检的会话。',
+      });
+      return;
+    }
+    pushOperationAuditLog({
+      roleId,
+      action: 'release',
+      objectType: 'ai_session_review',
+      objectId: session.id,
+      sourcePage: `/ai-coach/session-review/${session.id}`,
+      reason: '释放会话抽检任务。',
+      result: 'success',
+      changeSummary: `释放 AI 会话抽检：${session.sessionId}。`,
+      newStatus: result.session.reviewStatus,
+      version: result.session.strategySnapshot.strategyVersion,
+    });
+    res.send({ success: true, data: result.session });
+  },
+
+  'POST /api/ai-coach/session-reviews/:id/sensitive-access': (req: Request, res: Response) => {
+    if (!canReviewAiSession()) {
+      sendSessionReviewForbidden(res, 'sensitive_access', String(req.params.id));
+      return;
+    }
+    const session = getAiSessionReview(String(req.params.id));
+    if (!session) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: 'AI 会话抽检不存在。',
+      });
+      return;
+    }
+    const roleId = currentRoleId() as AdminRoleId;
+    const operator = aiSessionReviewOperatorFromRole(
+      roleId,
+      mockSession.currentAccountId,
+      mockSession.currentAccountName,
+    );
+    const body = req.body as API.AiSessionSensitiveAccessParams;
+    const accessLog: API.UserSensitiveAccessLog = {
+      id: `access-ai-session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      userId: session.userLabel,
+      objectType: 'ai_session_review_context',
+      objectId: session.id,
+      operator: operator.name,
+      roleName: operator.roleName,
+      sourcePage: `/ai-coach/session-review/${session.id}`,
+      requestedFields: body.requestedFields ?? [],
+      accessReason: body.accessReason,
+      result: body.simulateFailure ? 'failed' : 'success',
+      time: nowText(),
+    };
+    if (body.simulateFailure || session.id === 'simulate-log-failure') {
+      pushOperationAuditLog({
+        roleId,
+        logType: 'sensitive_access',
+        action: 'read',
+        objectType: 'ai_session_review',
+        objectId: session.id,
+        sourcePage: `/ai-coach/session-review/${session.id}`,
+        reason: body.accessReason || '申请查看必要信息。',
+        result: 'failed',
+        changeSummary: '敏感访问日志写入失败，已拒绝展示内容。',
+      });
+      res.status(500).send({
+        success: false,
+        errorCode: '500',
+        errorMessage: '敏感访问日志写入失败，已拒绝展示内容。',
+      });
+      return;
+    }
+    const result = readAiSessionSensitiveContext(session, body, operator);
+    if ('conflict' in result) {
+      res.status(409).send({
+        success: false,
+        errorCode: '409',
+        errorMessage: '会话抽检版本已变化，请刷新后再申请查看。',
+      });
+      return;
+    }
+    if ('locked' in result) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '需先认领该会话抽检，且只能由当前认领人查看必要信息。',
+      });
+      return;
+    }
+    if ('invalid' in result) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '请填写访问原因并选择必要字段。',
+      });
+      return;
+    }
+    pushOperationAuditLog({
+      roleId,
+      logType: 'sensitive_access',
+      action: 'read',
+      objectType: 'ai_session_review',
+      objectId: session.id,
+      sourcePage: `/ai-coach/session-review/${session.id}`,
+      reason: body.accessReason,
+      result: 'success',
+      changeSummary: `查看 AI 会话抽检必要信息：${body.requestedFields.join('、')}。`,
+      version: session.strategySnapshot.strategyVersion,
+    });
+    res.send({
+      success: true,
+      data: {
+        accessLog,
+        fields: result.fields,
+      },
+    });
+  },
+
+  'POST /api/ai-coach/session-reviews/:id/conclusion': (req: Request, res: Response) => {
+    if (!canReviewAiSession()) {
+      sendSessionReviewForbidden(res, 'conclusion', String(req.params.id));
+      return;
+    }
+    const session = getAiSessionReview(String(req.params.id));
+    if (!session) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: 'AI 会话抽检不存在。',
+      });
+      return;
+    }
+    const roleId = currentRoleId() as AdminRoleId;
+    const operator = aiSessionReviewOperatorFromRole(
+      roleId,
+      mockSession.currentAccountId,
+      mockSession.currentAccountName,
+    );
+    const body = req.body as API.AiSessionReviewConclusionParams;
+    const result = concludeAiSessionReview(session, body, operator);
+    if ('conflict' in result) {
+      res.status(409).send({
+        success: false,
+        errorCode: '409',
+        errorMessage: '会话抽检版本已变化，请刷新后再提交结论。',
+      });
+      return;
+    }
+    if ('locked' in result) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '只能由当前认领人提交进行中的会话抽检结论。',
+      });
+      return;
+    }
+    if ('invalid' in result) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '结论参数不完整。',
+      });
+      return;
+    }
+    pushOperationAuditLog({
+      roleId,
+      action: body.conclusion === 'abnormal' ? 'mark_abnormal' : 'mark_normal',
+      objectType: 'ai_session_review',
+      objectId: session.id,
+      objectSubtype: body.abnormalType,
+      sourcePage: `/ai-coach/session-review/${session.id}`,
+      reason: body.reviewNote,
+      result: 'success',
+      changeSummary:
+        body.conclusion === 'abnormal'
+          ? `标记 AI 会话抽检异常并生成处理项：${result.abnormalItem?.id ?? ''}。`
+          : `标记 AI 会话抽检正常：${session.sessionId}。`,
+      newStatus: result.session.reviewStatus,
+      version: session.strategySnapshot.strategyVersion,
+    });
+    res.send({
+      success: true,
+      data: result.session,
+      abnormalItem: result.abnormalItem,
+    });
+  },
+
   'GET /api/ai-coach/strategies': (req: Request, res: Response) => {
     if (!canReadAiCoach()) {
       sendForbidden(res, 'read');

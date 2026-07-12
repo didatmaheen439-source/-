@@ -356,8 +356,13 @@ export default [
       {
         path: '/ai-coach/session-review',
         name: 'session-review',
+        component: './ai-coach/session-review',
+      },
+      {
+        path: '/ai-coach/session-review/:id',
+        name: 'session-review-detail',
         hideInMenu: true,
-        component: './prd-placeholder',
+        component: './ai-coach/session-review/detail/index',
       },
       {
         path: '/ai-coach/abnormal-replies',
