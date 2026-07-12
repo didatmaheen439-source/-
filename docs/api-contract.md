@@ -106,6 +106,16 @@
 
 后端必须持久化字段：用户目标、学习记录、反馈记录、客服备注、敏感访问日志、反馈状态版本号。联系方式、设备、反馈原文、AI 摘要为敏感字段。
 
+### 反馈工作队列 `/users/feedback`
+
+| 接口 | 请求参数 | 返回要点 | 权限要求 | 审计要求 |
+| --- | --- | --- | --- | --- |
+| `GET /api/operation/feedback-queue` | 分页、视图、关键词、类型、优先级、模块、状态、负责人、超时、提交时间 | 反馈队列摘要、脱敏用户、当前分派、版本号 | 客服/超管全量；内容/教研/AI 仅自己名下 | 不返回反馈原文和完整用户资料 |
+| `GET /api/operation/feedback-queue/:feedbackId` | 反馈 ID | 详情、脱敏用户上下文、分派历史、处理结果、时间线、权限裁剪 | 同上 | 敏感原文仍需单独授权 |
+| `POST /api/operation/feedback-queue/:feedbackId/assign` | 目标角色、负责人账号、原因、`version` | 更新后详情 | 客服/超管 | 分派或转派写操作审计；版本冲突返回 `409` |
+| `POST /api/operation/feedback-queue/:feedbackId/resolution` | 结果摘要、处理说明、关联对象、`version` | 更新后详情 | 当前负责人 | 结果提交写操作审计；非法状态或结果缺失返回 `422` |
+| `PATCH /api/operation/feedback-queue/:feedbackId/status` | 动作、原因、`version` | 更新后详情 | 客服/超管 | 退回、无需处理、关闭写操作审计 |
+
 ## 题库与内容管理 `/content/questions`
 
 | 接口 | 请求参数 | 返回要点 | 权限要求 | 审计要求 |

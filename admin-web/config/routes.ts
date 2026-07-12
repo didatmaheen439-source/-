@@ -80,18 +80,27 @@ export default [
       {
         path: '/users/list',
         name: 'list',
+        access: 'canAccessUserList',
         component: './users/list',
       },
       {
         path: '/users/feedback',
         name: 'feedback',
+        access: 'canAccessFeedbackQueue',
+        component: './users/feedback',
+      },
+      {
+        path: '/users/feedback/:feedbackId',
+        name: 'feedback-detail',
         hideInMenu: true,
-        component: './prd-placeholder',
+        access: 'canAccessFeedbackQueue',
+        component: './users/feedback/detail',
       },
       {
         path: '/users/:id',
         name: 'detail',
         hideInMenu: true,
+        access: 'canAccessUserDetail',
         component: './users/detail/index',
       },
     ],

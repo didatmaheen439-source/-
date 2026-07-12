@@ -21,6 +21,7 @@
 - 已完成 `/review-release/pending` 审核发布中心 MVP：审核任务列表、详情抽屉、状态流转、审计日志和角色权限验证。
 - 已完成 `/content/questions` 题库内容 MVP：题目列表、详情抽屉、独立新增/编辑页、提交审核、审核发布状态同步和审计日志。
 - 已完成 `/users/list` 用户管理 MVP：用户列表、独立详情页、学习记录、反馈处理、AI 摘要、敏感访问审计和角色权限验证。
+- 已完成 `/users/feedback` 反馈工作队列 Mock MVP：客服分诊、敏感访问、分派/转派、业务负责人回填、客服验收关闭、时间线、审计和工作台联动。
 - 已完成 `/analytics/overview` 运营数据总览 MVP：用户增长、学习路径漏斗、题库内容、审核发布、客服反馈、占位指标、数据质量提示和 mock 导出预览。
 - 已完成 `/dashboard/overview` 运营工作台 MVP：欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP：四类策略配置、五类业务场景、独立新建/详情/编辑页、预校验、静态样例校验、版本差异、审核发布同步和权限验证。
@@ -63,6 +64,7 @@
 ## 最近验证
 
 - 2026-07-12：`/content-operations/daily-sentences` 每日一句运营闭环完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；浏览器验证记录见 `logs/daily-sentences-implementation-2026-07-12.md`。
+- 2026-07-12：`/users/feedback` 反馈工作队列 Mock MVP 完成，`npm run test`、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 与浏览器验证记录见 `logs/feedback-work-queue-implementation-2026-07-12.md`。
 - 2026-07-06：读取全局工作台、新项目 SOP、过级搭子上下文和后台 PRD。
 - 2026-07-06：通过 GitHub API 和仓库公开文件初筛候选项目。
 - 2026-07-06：Chrome 插件未能连接当前可控 profile，已在 `logs/selection-verification-2026-07-06.md` 记录限制。

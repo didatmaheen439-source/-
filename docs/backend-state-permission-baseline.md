@@ -44,6 +44,28 @@ published/offline/rolled_back -> draft (copy only)
 | 回滚 | `published`、`offline` | `rolled_back` 或历史版本生效 | 发布权限、目标版本可用、原因必填 |
 | 复制新草稿 | `published`、`offline`、`rolled_back`、`approved`、`pending_publish` | `draft` | 编辑权限、记录来源版本 |
 
+## 反馈工作队列状态机
+
+```text
+pending -> processing -> resolved -> closed
+pending -> no_action -> closed
+processing -> no_action -> closed
+resolved -> processing (return)
+processing -> processing (transfer)
+```
+
+| 操作 | 前置状态 | 后置状态 | 后端强校验 |
+| --- | --- | --- | --- |
+| 分派 | `pending` | `processing` | 客服/超管、目标负责人启用、原因必填、版本一致 |
+| 转派 | `processing` | `processing` | 客服/超管、记录转派历史、旧负责人失去写权限 |
+| 提交结果 | `processing` | `resolved` | 当前负责人、结果摘要和处理说明必填、版本一致 |
+| 退回补充 | `resolved` | `processing` | 客服/超管、退回原因必填、版本一致 |
+| 确认关闭 | `resolved` | `closed` | 客服/超管、版本一致 |
+| 无需处理 | `pending`、`processing` | `no_action` | 客服/超管、原因必填、版本一致 |
+| 关闭无需处理 | `no_action` | `closed` | 客服/超管、版本一致 |
+
+`closed` 为终态，本期不支持重新打开。反馈队列和用户详情反馈记录必须共用同一状态、版本和审计来源。
+
 ## 必须写审计日志的操作
 
 - 登录成功、登录失败、账号停用后登录拒绝。
@@ -52,6 +74,7 @@ published/offline/rolled_back -> draft (copy only)
 - 安排发布、发布、发布失败、下架、下架失败、回滚、回滚失败。
 - 权限变更、账号启用、账号停用、唯一超管保护失败。
 - 敏感数据访问成功和失败。
+- 反馈分派、转派、处理结果提交、退回、无需处理和关闭。
 - 导出申请、导出失败和导出字段范围。
 
 ## 角色权限矩阵
@@ -70,6 +93,7 @@ published/offline/rolled_back -> draft (copy only)
 
 说明：
 
+- 反馈工作队列是 `用户与反馈` 下的独立访问能力：客服/超管可看全量并分派验收；内容运营、教研审核、AI 策略运营只能查看和处理分派给自己的反馈，不因此获得 `/users/list` 或 `/users/:id` 权限。
 - 当前 `customer_support` 在权限矩阵中具备 `users.disable`，但页面实际主要用于反馈处理和用户排查；真实后端需确认是否保留停用动作。
 - 当前 `ai_operator` 在审核发布模块具备发布动作，用于 AI 范围任务；后端需按 `objectType=ai_coach_strategy` 限制范围。
 - 当前 `teaching_reviewer` 的写译页面为只读，写译审核发布动作通过审核发布中心执行。

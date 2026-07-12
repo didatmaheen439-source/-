@@ -66,7 +66,27 @@ describe('access', () => {
 
     expect(result.canAdmin).toBe(false);
     expect(result.canAccessUsers).toBe(true);
+    expect(result.canAccessUserList).toBe(true);
+    expect(result.canAccessFeedbackQueue).toBe(true);
     expect(result.canAccessContent).toBe(false);
+  });
+
+  it('allows business owners to access feedback queue without user list', () => {
+    const initialState = {
+      currentUser: {
+        userid: '5',
+        name: 'AI Operator',
+        avatar: 'https://example.com/avatar.png',
+        roleId: 'ai_operator',
+      },
+    };
+
+    const result = access(initialState);
+
+    expect(result.canAccessUsers).toBe(true);
+    expect(result.canAccessFeedbackQueue).toBe(true);
+    expect(result.canAccessUserList).toBe(false);
+    expect(result.canAccessUserDetail).toBe(false);
   });
 
   it('should return canAdmin false when currentUser is undefined', () => {
