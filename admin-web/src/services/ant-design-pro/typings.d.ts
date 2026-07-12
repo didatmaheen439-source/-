@@ -106,6 +106,7 @@ declare namespace API {
     | 'question_group'
     | 'external_article'
     | 'wrong_reason_tag'
+    | 'daily_sentence'
     | 'learning_path_config'
     | 'learning_rule'
     | 'ai_coach_strategy'
@@ -162,6 +163,10 @@ declare namespace API {
     reviewerId?: string;
     reviewer?: string;
     releasePlan?: string;
+    releaseMode?: 'immediate' | 'scheduled';
+    scheduledAt?: string;
+    timezone?: 'Asia/Shanghai';
+    objectDetailPath?: string;
     rollbackTargetVersion?: string;
     versionRecords: ReviewVersionRecord[];
     operationRecords: ReviewOperationRecord[];
@@ -170,6 +175,143 @@ declare namespace API {
   type ReviewTaskStatusUpdateParams = {
     status: ReviewTaskStatus;
     reason?: string;
+    releaseMode?: 'immediate' | 'scheduled';
+    scheduledAt?: string;
+    timezone?: 'Asia/Shanghai';
+  };
+
+  type DailySentenceImageAssetStatus = 'active' | 'disabled';
+
+  type DailySentenceImageAsset = {
+    id: string;
+    name: string;
+    url: string;
+    thumbnailUrl: string;
+    width: number;
+    height: number;
+    source: string;
+    copyrightNote: string;
+    status: DailySentenceImageAssetStatus;
+  };
+
+  type DailySentencePrecheckLevel = 'passed' | 'warning' | 'error';
+
+  type DailySentencePrecheckIssue = {
+    id: string;
+    level: Exclude<DailySentencePrecheckLevel, 'passed'>;
+    field: string;
+    code: string;
+    message: string;
+  };
+
+  type DailySentencePrecheckResult = {
+    level: DailySentencePrecheckLevel;
+    summary: string;
+    issues: DailySentencePrecheckIssue[];
+    checkedAt: string;
+  };
+
+  type DailySentenceEffectSummary = {
+    readPv: number;
+    readUv: number;
+    checkinUv: number;
+    checkinRate?: number;
+  };
+
+  type DailySentenceEffectTrend = {
+    date: string;
+    readPv: number;
+    readUv: number;
+    checkinUv: number;
+    checkinRate?: number;
+  };
+
+  type DailySentenceOperationRecord = ReviewOperationRecord;
+
+  type DailySentenceVersionRecord = ReviewVersionRecord & {
+    snapshot: {
+      contentDate: string;
+      quote: string;
+      translation: string;
+      displaySource: string;
+      sourceReference: string;
+      imageAssetId: string;
+    };
+  };
+
+  type DailySentenceItem = {
+    id: string;
+    lineageId: string;
+    sourceId?: string;
+    contentDate: string;
+    quote: string;
+    translation: string;
+    displaySource: string;
+    sourceReference: string;
+    imageAssetId: string;
+    imageAsset: DailySentenceImageAsset;
+    status: ReviewTaskStatus;
+    version: string;
+    dataVersion: number;
+    creatorId: string;
+    creator: string;
+    updatedBy: string;
+    createdAt: string;
+    updatedAt: string;
+    changeSummary: string;
+    impactScope: string;
+    reviewTaskId?: string;
+    releaseMode?: 'immediate' | 'scheduled';
+    scheduledAt?: string;
+    publishedAt?: string;
+    publishedVersion?: string;
+    lastPrecheck?: DailySentencePrecheckResult;
+    effects: DailySentenceEffectSummary;
+    versionRecords: DailySentenceVersionRecord[];
+    operationRecords: DailySentenceOperationRecord[];
+  };
+
+  type DailySentenceSaveParams = {
+    contentDate: string;
+    quote: string;
+    translation: string;
+    displaySource: string;
+    sourceReference: string;
+    imageAssetId: string;
+    changeSummary: string;
+    impactScope: string;
+    dataVersion?: number;
+  };
+
+  type DailySentenceQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    startDate?: string;
+    endDate?: string;
+    status?: ReviewTaskStatus;
+    assetStatus?: DailySentenceImageAssetStatus;
+    creator?: string;
+  };
+
+  type DailySentenceSubmitParams = {
+    changeSummary: string;
+    dataVersion: number;
+    confirmWarnings?: boolean;
+  };
+
+  type DailySentenceMockEventParams = {
+    eventId: string;
+    userId: string;
+    eventType: 'read' | 'check_in';
+    occurredAt?: string;
+  };
+
+  type DailySentenceEvent = DailySentenceMockEventParams & {
+    id: string;
+    sentenceId: string;
+    version: string;
+    occurredAt: string;
   };
 
   type AiCoachConfigType =

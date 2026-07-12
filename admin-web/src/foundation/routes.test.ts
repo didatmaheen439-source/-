@@ -55,6 +55,7 @@ const visibleSecondLevelPaths = [
   '/content/questions',
   '/content/question-groups',
   '/content/wrong-reason-tags',
+  '/content-operations/daily-sentences',
   '/content-operations/articles',
   '/learning-path/onboarding',
   '/learning-path/diagnosis-rules',
@@ -71,14 +72,14 @@ const visibleSecondLevelPaths = [
 ];
 
 describe('admin navigation structure', () => {
-  it('defines eleven visible business modules after external articles are implemented', () => {
+  it('defines eleven visible business modules', () => {
     const businessRoutes = businessPaths.map((path) => findRoute(path));
 
     expect(businessRoutes.every(Boolean)).toBe(true);
     expect(businessRoutes.filter((route) => route?.hideInMenu)).toEqual([]);
   });
 
-  it('exposes only the implemented second-level entries', () => {
+  it('exposes only the nineteen implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];

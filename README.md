@@ -27,14 +27,15 @@
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
+- 已完成 `/content-operations/daily-sentences` 每日一句运营闭环 MVP：列表/日历、新建编辑、来源与配图校验、用户侧预览、审核排期、立即/定时发布、Mock 阅读打卡、效果回流、下架和版本复制。
 - 已完成第十一阶段全链路验收与后端接入准备：新增接口契约、核心数据模型、状态机/权限基线和全链路验收记录，不新增业务页面、不接真实后端。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
 - 已新增项目记忆 `MEMORY.md`，并在 `项目备份/` 保存 2026-07-09 最新备份。
 - 已按 PRD v1.3 P0 范围完成业务对象和语义路由建模；尚未达到可用标准的入口保留路由与产品定义，但不在生产侧边栏展示。
 - 已完成“已有聚合页拆实”补强：写作题目、翻译题目、今日任务模板、系统日志入口和运营数据分区均以独立业务语义 URL 进入，但底层继续复用现有聚合页、表单、详情、审计和权限能力。
 - 已完成 `/content/wrong-reason-tags` 错因标签字典 MVP：列表、详情、新建、编辑、提交审核、审核发布联动、引用次数、权限和审计闭环。
-- 已完成导航减法第一阶段并开放内容运营：代码中建立 11 个一级业务模块，当前生产侧边栏展示 11 个一级模块、18 个已实现二级入口；每日一句等未完成页面继续隐藏。
 - 已完成 `/content/question-groups` 题组管理 Mock MVP：已发布题目选择、顺序编排、适用人群、发布前校验、审核发布同步、学习路径引用、模考试卷快照展开和下架影响查询。
+- 已完成导航减法第一阶段并开放内容运营：生产侧边栏展示 11 个一级模块、19 个已实现二级入口，包含每日一句和外刊内容。
 - 已完成 `/content-operations/articles` 外刊内容运营 Mock MVP：文章与受管素材编辑、预校验、版本快照、审核发布、Mock 用户阅读/收藏/完成事件、效果回流、风险提示、下架和回滚。
 - 已建立远程唯一主干与并行开发规范：`origin/main` 是唯一线上基线，功能分支通过 Pull Request 和 GitHub Actions `Verify` 校验后合并，详见 `docs/git-parallel-development-workflow.md`。
 - 本机项目根目录固定为 `main`，二级模块在 `-worktrees/<module>-<purpose>/` 独立开发；`scripts/git/` 提供主干状态检查与标准工作树创建命令。
@@ -61,6 +62,7 @@
 
 ## 最近验证
 
+- 2026-07-12：`/content-operations/daily-sentences` 每日一句运营闭环完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；浏览器验证记录见 `logs/daily-sentences-implementation-2026-07-12.md`。
 - 2026-07-06：读取全局工作台、新项目 SOP、过级搭子上下文和后台 PRD。
 - 2026-07-06：通过 GitHub API 和仓库公开文件初筛候选项目。
 - 2026-07-06：Chrome 插件未能连接当前可控 profile，已在 `logs/selection-verification-2026-07-06.md` 记录限制。

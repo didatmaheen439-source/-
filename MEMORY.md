@@ -1,5 +1,36 @@
 # 过级搭子后台管理系统项目记忆
 
+## 2026-07-12 Daily Sentence Operations MVP
+
+### Summary
+- 完成 `/content-operations/daily-sentences` 每日一句运营闭环，开放“内容运营”一级菜单和“每日一句”二级入口，外刊继续隐藏。
+- 支持列表/日历、新建编辑、来源凭证、Mock 配图引用、用户侧预览、预校验、审核发布、立即/定时发布、Mock 用户阅读/打卡、效果回流、下架和复制新版本。
+- 每日一句加入统一 `daily_sentence` 审核对象、内容指标和操作审计；内容运营不能审核发布，教研审核和超级管理员按既有职责处理。
+
+### Key Files
+- `admin-web/mock/dailySentenceStore.ts`
+- `admin-web/mock/dailySentence.ts`
+- `admin-web/src/pages/content-operations/daily-sentences/`
+- `admin-web/src/pages/review-release/pending/index.tsx`
+
+### Decisions
+- 本阶段只改后台 Mock，不修改 Expo App，不建设独立素材管理模块。
+- Mock 素材选择器只允许引用有效素材，来源凭证和配图状态在提交与发布前复验。
+- 定时发布使用 `Asia/Shanghai`，由每日一句、审核或运营数据请求触发 Mock 调度；真实后端需替换为持久化任务队列。
+- 用户行为 MVP 只记录阅读和打卡；事件按 `eventId` 幂等，打卡按用户和内容版本去重。
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test`：通过，15 个测试文件、84 条测试。
+- `npm run lint`：通过，Biome 扫描 332 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 297 个文件无问题。
+- `npm run build`：通过，生成 `dist/`，共 60 个资源文件。
+- in-app browser：超级管理员可见内容运营和每日一句；列表、日历、详情预览、审核发布任务与 Mock 阅读回流均通过，阅读 PV 从 2 增至 3。
+
+### Next Context
+- 若继续外刊模块，复用每日一句的来源、素材引用、审核发布、版本和效果回流边界。
+- 接真实后端时优先替换内存 Store、请求触发式调度和 Mock 用户事件，不改变页面状态语义。
+
 ## 2026-07-12 External Article Operations MVP
 
 ### Summary

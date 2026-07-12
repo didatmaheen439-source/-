@@ -113,6 +113,84 @@ export async function updateReviewTaskStatus(
   });
 }
 
+/** 获取每日一句列表 GET /api/content-operations/daily-sentences */
+export async function dailySentences(params?: API.DailySentenceQueryParams) {
+  return request<{ data?: API.DailySentenceItem[]; total?: number; success?: boolean }>(
+    '/api/content-operations/daily-sentences',
+    { method: 'GET', params },
+  );
+}
+
+export async function dailySentenceDetail(id: string) {
+  return request<{ data?: API.DailySentenceItem; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}`,
+    { method: 'GET' },
+  );
+}
+
+export async function dailySentenceImageAssets() {
+  return request<{ data?: API.DailySentenceImageAsset[]; success?: boolean }>(
+    '/api/content-operations/daily-sentence-image-assets',
+    { method: 'GET' },
+  );
+}
+
+export async function createDailySentence(body: API.DailySentenceSaveParams) {
+  return request<{ data?: API.DailySentenceItem; success?: boolean }>(
+    '/api/content-operations/daily-sentences',
+    { method: 'POST', data: body },
+  );
+}
+
+export async function updateDailySentence(id: string, body: API.DailySentenceSaveParams) {
+  return request<{ data?: API.DailySentenceItem; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}`,
+    { method: 'PATCH', data: body },
+  );
+}
+
+export async function precheckDailySentence(body: API.DailySentenceSaveParams & { id?: string }) {
+  return request<{ data?: API.DailySentencePrecheckResult; success?: boolean }>(
+    '/api/content-operations/daily-sentences/precheck',
+    { method: 'POST', data: body },
+  );
+}
+
+export async function precheckExistingDailySentence(id: string) {
+  return request<{ data?: API.DailySentencePrecheckResult; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}/precheck`,
+    { method: 'POST' },
+  );
+}
+
+export async function submitDailySentenceReview(id: string, body: API.DailySentenceSubmitParams) {
+  return request<{ data?: API.DailySentenceItem; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}/submit-review`,
+    { method: 'POST', data: body },
+  );
+}
+
+export async function copyDailySentence(id: string) {
+  return request<{ data?: API.DailySentenceItem; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}/copy`,
+    { method: 'POST' },
+  );
+}
+
+export async function dailySentenceEffects(id: string) {
+  return request<{ data?: { summary: API.DailySentenceEffectSummary; trend: API.DailySentenceEffectTrend[] }; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}/effects`,
+    { method: 'GET' },
+  );
+}
+
+export async function createDailySentenceMockEvent(id: string, body: API.DailySentenceMockEventParams) {
+  return request<{ data?: { event: API.DailySentenceEvent; duplicate: boolean; effects: { summary: API.DailySentenceEffectSummary; trend: API.DailySentenceEffectTrend[] } }; success?: boolean }>(
+    `/api/content-operations/daily-sentences/${id}/mock-events`,
+    { method: 'POST', data: body },
+  );
+}
+
 /** 获取 AI 陪练策略列表 GET /api/ai-coach/strategies */
 export async function aiCoachStrategies(
   params?: API.AiCoachStrategyQueryParams,

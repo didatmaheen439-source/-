@@ -74,15 +74,6 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
       tableTitle: '错因标签占位',
       columns: ['标签名称', '启用状态', '负责人', '更新时间'],
     },
-    'content-operations-daily-sentences': {
-      moduleKey: 'content',
-      title: '每日一句',
-      description:
-        '用于承接每日一句内容、日期排期、讲解和发布状态。当前阶段暂未开放完整业务操作。',
-      primaryActions: readonlyActions,
-      tableTitle: '每日一句占位',
-      columns: ['内容标题', '发布状态', '负责人', '更新时间'],
-    },
     'content-operations-articles': {
       moduleKey: 'content',
       title: '外刊内容',
