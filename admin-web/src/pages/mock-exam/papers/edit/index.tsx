@@ -57,8 +57,10 @@ import type {
 } from '../data';
 import {
   createMockExamPaper,
+  expandMockExamQuestionGroup,
   mockExamPaperDetail,
   mockExamReferences,
+  mockExamQuestionGroups,
   mockExamTemplate,
   precheckMockExamPaper,
   submitMockExamPaperReview,
@@ -147,6 +149,8 @@ const MockExamPaperEditPage: React.FC = () => {
   const [selectedReferences, setSelectedReferences] = useState<
     MockExamReference[]
   >([]);
+  const [referenceTab, setReferenceTab] = useState('questions');
+  const [selectedGroup, setSelectedGroup] = useState<API.QuestionGroupItem>();
   const examType = Form.useWatch('examType', form) ?? paper?.examType ?? 'CET6';
 
   const noPagePermission = isCreate ? !canCreate : !canEdit;
@@ -327,6 +331,8 @@ const MockExamPaperEditPage: React.FC = () => {
   const openReferenceDrawer = (sectionIndex: number) => {
     setDrawerSectionIndex(sectionIndex);
     setSelectedReferences([]);
+    setSelectedGroup(undefined);
+    setReferenceTab('questions');
   };
 
   const addSelectedReferences = () => {
@@ -362,6 +368,30 @@ const MockExamPaperEditPage: React.FC = () => {
     });
     setDrawerSectionIndex(undefined);
     setSelectedReferences([]);
+  };
+
+  const addSelectedGroup = async () => {
+    if (drawerSectionIndex === undefined || !selectedGroup) return;
+    const section = sections[drawerSectionIndex];
+    const existingIds = new Set(section.items.map((item) => item.sourceId));
+    const duplicateCount = selectedGroup.members.filter((member) => existingIds.has(member.questionId)).length;
+    if (duplicateCount) {
+      message.error(`题组中有 ${duplicateCount} 道题已在当前分区，请先移除重复题目`);
+      return;
+    }
+    try {
+      const usedScore = section.items.reduce((sum, item) => sum + item.score, 0);
+      const response = await expandMockExamQuestionGroup(selectedGroup.id, {
+        sectionScore: Math.max(section.score - usedScore, 0),
+        startOrder: section.items.length + 1,
+      });
+      updateSection(drawerSectionIndex, { items: [...section.items, ...response.data] });
+      setDrawerSectionIndex(undefined);
+      setSelectedGroup(undefined);
+      message.success(`已按题组顺序添加 ${response.data.length} 道题`);
+    } catch (error: any) {
+      message.error(error?.data?.errorMessage || error?.message || '题组添加失败');
+    }
   };
 
   const payload = async (): Promise<MockExamPaperSaveParams> => {
@@ -954,42 +984,39 @@ const MockExamPaperEditPage: React.FC = () => {
             </Button>
             <Button
               type="primary"
-              disabled={!selectedReferences.length}
-              onClick={addSelectedReferences}
+              disabled={referenceTab === 'questions' ? !selectedReferences.length : !selectedGroup}
+              onClick={referenceTab === 'questions' ? addSelectedReferences : addSelectedGroup}
             >
-              添加所选题目
+              {referenceTab === 'questions' ? '添加所选题目' : '按顺序添加题组'}
             </Button>
           </Flex>
         }
       >
         {drawerSectionIndex !== undefined ? (
-          <ProTable<MockExamReference>
-            rowKey={(record) => `${record.sourceType}:${record.sourceId}`}
-            columns={referenceColumns}
-            search={{ labelWidth: 80, defaultCollapsed: false }}
-            options={false}
-            pagination={{ defaultPageSize: 10 }}
-            request={async (params) => {
-              const section = sections[drawerSectionIndex];
-              const response = await mockExamReferences({
-                ...params,
-                examType,
-                sectionType: section.sectionType,
-                sourceType: sourceTypeForSection(section.sectionType),
-                availableOnly: true,
-              });
-              return {
-                data: response.data ?? [],
-                total: response.total ?? 0,
-                success: response.success,
-              };
-            }}
-            rowSelection={{
-              preserveSelectedRowKeys: true,
-              onChange: (_, rows) => setSelectedReferences(rows),
-            }}
-            scroll={{ x: 760 }}
-          />
+          <Tabs activeKey={referenceTab} onChange={setReferenceTab} items={[
+            {
+              key: 'questions', label: '单题选择', children: <ProTable<MockExamReference>
+                rowKey={(record) => `${record.sourceType}:${record.sourceId}`}
+                columns={referenceColumns}
+                search={{ labelWidth: 80, defaultCollapsed: false }} options={false}
+                pagination={{ defaultPageSize: 10 }}
+                request={async (params) => {
+                  const section = sections[drawerSectionIndex];
+                  const response = await mockExamReferences({ ...params, examType, sectionType: section.sectionType, sourceType: sourceTypeForSection(section.sectionType), availableOnly: true });
+                  return { data: response.data ?? [], total: response.total ?? 0, success: response.success };
+                }}
+                rowSelection={{ preserveSelectedRowKeys: true, onChange: (_, rows) => setSelectedReferences(rows) }} scroll={{ x: 760 }}
+              />,
+            },
+            {
+              key: 'groups', label: '题组批量添加', disabled: !['reading', 'listening'].includes(sections[drawerSectionIndex].sectionType), children: <ProTable<API.QuestionGroupItem>
+                rowKey="id" options={false} search={{ labelWidth: 80 }} pagination={{ defaultPageSize: 10 }}
+                columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true }, { title: '题组名称', dataIndex: 'name' }, { title: '题目数', dataIndex: 'members', search: false, width: 90, renderText: (_, record) => record.members.length }, { title: '版本', dataIndex: 'version', search: false, width: 90 }]}
+                request={async (params) => { const response = await mockExamQuestionGroups({ ...params, examType }); return { data: response.data ?? [], total: response.total ?? 0, success: response.success }; }}
+                rowSelection={{ type: 'radio', selectedRowKeys: selectedGroup ? [selectedGroup.id] : [], onChange: (_, rows) => setSelectedGroup(rows[0]) }}
+              />,
+            },
+          ]} />
         ) : null}
       </Drawer>
     </PageContainer>

@@ -53,6 +53,7 @@ const visibleSecondLevelPaths = [
   '/dashboard/workbench',
   '/users/list',
   '/content/questions',
+  '/content/question-groups',
   '/content/wrong-reason-tags',
   '/learning-path/onboarding',
   '/learning-path/diagnosis-rules',

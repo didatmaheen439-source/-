@@ -1,6 +1,7 @@
 import { request } from '@umijs/max';
 import type {
   MockExamPaper,
+  MockExamPaperItemSnapshot,
   MockExamPaperListResponse,
   MockExamPaperQueryParams,
   MockExamPaperSaveParams,
@@ -113,6 +114,26 @@ export const mockExamReferences = (params: {
     current: number;
     pageSize: number;
   }>('/api/mock-exam/references', { method: 'GET', params });
+
+export const mockExamQuestionGroups = (params: {
+  current?: number;
+  pageSize?: number;
+  keyword?: string;
+  examType?: API.ExamType;
+}) =>
+  request<{ success: boolean; data: API.QuestionGroupItem[]; total: number }>(
+    '/api/mock-exam/references/question-groups',
+    { method: 'GET', params },
+  );
+
+export const expandMockExamQuestionGroup = (
+  id: string,
+  data: { sectionScore: number; startOrder: number },
+) =>
+  request<{ success: boolean; data: MockExamPaperItemSnapshot[] }>(
+    `/api/mock-exam/references/question-groups/${id}/expand`,
+    { method: 'POST', data },
+  );
 
 export const mockExamPaperStatistics = (
   id: string,

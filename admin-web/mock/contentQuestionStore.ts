@@ -466,63 +466,6 @@ export const moduleByQuestionSkill: Record<
   listening: 'listening',
 };
 
-export const questionGroupReferences: API.LearningPathReference[] = [
-  {
-    id: 'group-cet4-reading-core',
-    type: 'question_group',
-    name: '四级阅读核心题组',
-    examType: 'CET4',
-    module: 'reading',
-    status: 'published',
-    available: true,
-  },
-  {
-    id: 'group-cet6-listening-core',
-    type: 'question_group',
-    name: '六级听力核心题组',
-    examType: 'CET6',
-    module: 'listening',
-    status: 'published',
-    available: true,
-  },
-  {
-    id: 'group-cet4-vocab-draft',
-    type: 'question_group',
-    name: '四级词汇草稿题组',
-    examType: 'CET4',
-    module: 'vocabulary',
-    status: 'draft',
-    available: false,
-  },
-  {
-    id: 'group-cet6-writing-offline',
-    type: 'question_group',
-    name: '六级写作下架题组',
-    examType: 'CET6',
-    module: 'writing',
-    status: 'offline',
-    available: false,
-  },
-  {
-    id: 'group-cet4-translation-core',
-    type: 'question_group',
-    name: '四级翻译基础题组',
-    examType: 'CET4',
-    module: 'translation',
-    status: 'published',
-    available: true,
-  },
-  {
-    id: 'group-cet6-reading-core',
-    type: 'question_group',
-    name: '六级阅读提升题组',
-    examType: 'CET6',
-    module: 'reading',
-    status: 'published',
-    available: true,
-  },
-];
-
 export const buildQuestionReference = (
   question: API.QuestionItem,
 ): API.LearningPathReference => ({
@@ -535,10 +478,8 @@ export const buildQuestionReference = (
   available: question.status === 'published',
 });
 
-export const allLearningPathReferences = () => [
-  ...questionData.map(buildQuestionReference),
-  ...questionGroupReferences,
-];
+export const allLearningPathReferences = () =>
+  questionData.map(buildQuestionReference);
 
 export const referenceById = (id?: string) =>
   allLearningPathReferences().find((item) => item.id === id);
