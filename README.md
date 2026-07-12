@@ -25,6 +25,7 @@
 - 已完成 `/analytics/overview` 运营数据总览 MVP：用户增长、学习路径漏斗、题库内容、审核发布、客服反馈、占位指标、数据质量提示和 mock 导出预览。
 - 已完成 `/dashboard/overview` 运营工作台 MVP：欢迎区、今日待办、风险提醒、关键指标、快捷入口、模块摘要、最近处理记录和角色化权限过滤。
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP：四类策略配置、五类业务场景、独立新建/详情/编辑页、预校验、静态样例校验、版本差异、审核发布同步和权限验证。
+- 已完成 `/ai-coach/abnormal-replies` AI 异常回复处置 Mock MVP：异常队列、归因、受控证据、修复草稿、审核发布联动、Mock 复检、关闭和权限审计。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
@@ -65,6 +66,7 @@
 
 - 2026-07-12：`/content-operations/daily-sentences` 每日一句运营闭环完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；浏览器验证记录见 `logs/daily-sentences-implementation-2026-07-12.md`。
 - 2026-07-12：`/users/feedback` 反馈工作队列 Mock MVP 完成，`npm run test`、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 与浏览器验证记录见 `logs/feedback-work-queue-implementation-2026-07-12.md`。
+- 2026-07-12：`/ai-coach/abnormal-replies` AI 异常回复处置 Mock MVP 完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 和浏览器验证记录见 `logs/ai-abnormal-replies-implementation-2026-07-12/summary.md`。
 - 2026-07-06：读取全局工作台、新项目 SOP、过级搭子上下文和后台 PRD。
 - 2026-07-06：通过 GitHub API 和仓库公开文件初筛候选项目。
 - 2026-07-06：Chrome 插件未能连接当前可控 profile，已在 `logs/selection-verification-2026-07-06.md` 记录限制。

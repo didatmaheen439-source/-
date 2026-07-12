@@ -30,6 +30,8 @@ export default function access(
     canAccessContent: roleCanAccessModule(roleId, 'content'),
     canAccessLearningPath: roleCanAccessModule(roleId, 'learningPath'),
     canAccessAiCoach: roleCanAccessModule(roleId, 'aiCoach'),
+    canAccessAiAbnormalReplies:
+      roleId === 'super_admin' || roleId === 'ai_operator',
     canAccessWritingTranslation: roleCanAccessModule(
       roleId,
       'writingTranslation',

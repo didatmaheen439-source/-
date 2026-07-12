@@ -34,8 +34,21 @@ describe('access', () => {
     expect(result.canAdmin).toBe(false);
     expect(result.canAccessContent).toBe(true);
     expect(result.canAccessSystem).toBe(false);
+    expect(result.canAccessAiAbnormalReplies).toBe(false);
     expect(result.canAction('content', 'submit')).toBe(true);
     expect(result.canAction('reviewRelease', 'approve')).toBe(false);
+  });
+
+  it('should restrict abnormal reply handling to ai operators and super admins', () => {
+    expect(
+      access({ currentUser: { roleId: 'ai_operator' } }).canAccessAiAbnormalReplies,
+    ).toBe(true);
+    expect(
+      access({ currentUser: { roleId: 'super_admin' } }).canAccessAiAbnormalReplies,
+    ).toBe(true);
+    expect(
+      access({ currentUser: { roleId: 'read_only_auditor' } }).canAccessAiAbnormalReplies,
+    ).toBe(false);
   });
 
   it('should return canAdmin false when user access is undefined', () => {

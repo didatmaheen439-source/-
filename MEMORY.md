@@ -1,5 +1,38 @@
 # 过级搭子后台管理系统项目记忆
 
+## 2026-07-12 AI Abnormal Reply Operations MVP
+
+### Summary
+- 完成 `/ai-coach/abnormal-replies` AI 陪练异常回复处置闭环，开放 AI 陪练下的“异常回复”二级入口。
+- 支持异常队列、接手处理、受控证据访问、问题归因、修复策略草稿、审核发布联动、Mock 复检、正常关闭和误报/无需策略变更关闭。
+- 证据访问必须填写原因并写入敏感访问审计；页面和 Mock API 均限制为 `ai_operator` 与 `super_admin`。
+- 本阶段仍为 Mock，不接真实 AI、不接真实后端、不展示完整用户会话，不建设会话抽检页或手动创建异常入口。
+
+### Key Files
+- `admin-web/mock/aiAbnormalReplyStore.ts`
+- `admin-web/mock/aiAbnormalReply.ts`
+- `admin-web/src/pages/ai-coach/abnormal-replies/`
+- `admin-web/src/foundation/aiAbnormalReplyStore.test.ts`
+- `docs/ai-abnormal-replies-mvp.md`
+
+### Decisions
+- 异常回复处置只覆盖异常队列，不扩展会话抽检和手动标记异常。
+- 正常关闭必须依赖发布后的修复策略和通过的 Mock 复检。
+- 误报或无需策略变更允许严格关闭，但必须记录关闭类型和充分说明。
+- 修复草稿复用已有 `ai_coach_strategy` 审核发布对象，不新增独立审核系统。
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test`：通过，18 个测试文件、98 条测试。
+- `npm run lint`：通过，Biome 扫描 346 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 311 个文件无问题。
+- `npm run build`：通过，生成 `dist/`，68 个资源文件。
+- in-app browser：AI 策略运营可见异常回复菜单，列表和详情页可渲染，console 无 error/warn。
+
+### Next Context
+- 后续若继续 AI 会话抽检，应先建设会话样本来源和手动标记异常入口，再复用异常回复 Store 的状态机。
+- 真实后端接入需优先实现异常表、证据表、复检记录、操作审计和 `dataVersion` 乐观锁。
+
 ## 2026-07-12 Daily Sentence Operations MVP
 
 ### Summary

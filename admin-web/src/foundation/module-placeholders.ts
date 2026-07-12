@@ -170,15 +170,6 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
       tableTitle: '会话抽检占位',
       columns: ['会话样本', '质检状态', '抽检人', '更新时间'],
     },
-    'ai-coach-abnormal-replies': {
-      moduleKey: 'aiCoach',
-      title: '异常回复',
-      description:
-        '用于承接异常回复识别、处置记录和策略回溯。当前阶段暂未开放完整业务操作。',
-      primaryActions: readonlyActions,
-      tableTitle: '异常回复占位',
-      columns: ['异常对象', '风险等级', '处理人', '更新时间'],
-    },
     'ai-coach-strategy-versions': {
       moduleKey: 'aiCoach',
       title: '策略版本',
