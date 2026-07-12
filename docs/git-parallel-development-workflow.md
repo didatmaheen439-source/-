@@ -6,6 +6,13 @@
 - 本地目录、文件修改时间和任意功能分支都不能替代 `origin/main` 成为事实来源。
 - `main` 只接收已经完成验证的集成结果，不直接承载未完成开发。
 
+## 固定本机目录
+
+- 本机唯一主干目录：`/Users/inn/Desktop/workspace/projects/project-004-过级搭子后台管理系统`，始终检出并同步 `main`。
+- 功能工作树目录：`/Users/inn/Desktop/workspace/projects/project-004-过级搭子后台管理系统-worktrees/<module>-<purpose>`。
+- 项目根目录只用于同步 `main`、创建工作树和合并后的回归；所有功能、Bug、页面排版和数据可视化改动都在独立工作树完成。
+- 当前工作树是否干净、是否落后主干，使用 `./scripts/git/check-mainline.sh --refresh` 检查。该命令不会修改业务文件。
+
 ## 分支结构
 
 - `main`：受保护的线上主干，必须始终可安装、可测试、可构建。
@@ -16,8 +23,14 @@
 ## 开始开发
 
 ```bash
-git fetch origin --prune
-git worktree add <worktree-path> -b codex/<module>-<purpose> origin/main
+./scripts/git/check-mainline.sh --refresh
+./scripts/git/new-module-worktree.sh <module> <purpose>
+```
+
+例如修复用户详情布局：
+
+```bash
+./scripts/git/new-module-worktree.sh users detail-layout-fix
 ```
 
 开始修改前必须确认：
@@ -44,12 +57,19 @@ git ls-files --others --exclude-standard
 ## 合并主干
 
 1. 从远程更新最新基线：`git fetch origin --prune`。
-2. 将功能分支同步到最新 `origin/main`，解决冲突后重新验证。
+2. 将最新 `origin/main` 合并到功能分支，解决冲突后重新验证；不在功能分支上强推改写历史。
 3. 推送功能分支并创建 Pull Request，不直接推送 `main`。
 4. GitHub Actions 的 `Verify` 必须通过。
 5. 检查 Pull Request 文件清单，确认没有夹带其他模块。
 6. 使用 squash merge，使主干上的一个模块对应一个清晰提交。
 7. 合并后删除远程功能分支，并让其他开发分支重新同步 `origin/main`。
+
+## 合并后收尾
+
+1. 在项目根目录执行 `git pull --ff-only`，确认本机 `main` 与 `origin/main` 指向同一提交。
+2. 在最新 `main` 上运行完整回归；涉及页面、图表或核心流程时，再做对应浏览器验收。
+3. 仅当 PR 已合并、工作树干净且合并结果已在 `main` 核验后，执行 `git worktree remove <path>` 和 `git branch -d <branch>`。
+4. squash 合并的本地分支不是 `main` 的 Git 祖先时，先比较完整文件树并确认存在项目内 Git bundle 备份，才允许受控删除该历史分支。
 
 ## 必须通过的验证
 
