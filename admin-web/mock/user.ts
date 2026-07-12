@@ -71,6 +71,14 @@ import {
   validateWritingTranslationReviewTransition,
   writingTranslationDashboardStats,
 } from './writingTranslationStore';
+import {
+  dailySentenceAnalytics,
+  dailySentencesData,
+  isDailySentenceReviewTask,
+  reconcileDueDailySentenceSchedules,
+  syncDailySentenceFromReviewTask,
+  validateDailySentenceReviewTransition,
+} from './dailySentenceStore';
 
 let currentRoleId: AdminRoleId | '' = mockSession.currentRoleId;
 let currentAccountId = mockSession.currentAccountId;
@@ -120,6 +128,7 @@ const accountLastLoginAtMap: Record<string, string> = {
 const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   question_bank: 'content',
   wrong_reason_tag: 'content',
+  daily_sentence: 'content',
   learning_path_config: 'learningPath',
   learning_rule: 'learningPath',
   ai_coach_strategy: 'aiCoach',
@@ -697,6 +706,34 @@ const initialReviewTasksData: API.ReviewTask[] = [
         reason: '新策略已替换。',
         time: '2026-07-06 18:00:00',
       },
+    ],
+  },
+  {
+    id: 'review-daily-sentence-20260713',
+    objectType: 'daily_sentence',
+    objectTypeName: '每日一句',
+    objectId: 'daily-sentence-20260713',
+    objectName: '每日一句 2026-07-13',
+    moduleKey: 'content',
+    moduleName: '内容运营',
+    submitterId: 'content_operator',
+    submitter: '内容运营',
+    submittedAt: '2026-07-12 10:00:00',
+    version: 'V1.0',
+    priority: 'P1',
+    status: 'pending_review',
+    riskLevel: 'medium',
+    updatedAt: '2026-07-12 10:00:00',
+    changeSummary: '新增 2026-07-13 每日一句。',
+    impactScope: '影响 2026-07-13 每日一句展示。',
+    releasePlan: '审核通过后选择立即发布或定时发布。',
+    timezone: 'Asia/Shanghai',
+    objectDetailPath: '/content-operations/daily-sentences/daily-sentence-20260713',
+    versionRecords: [
+      { id: 'version-daily-20260713-v10', version: 'V1.0', status: 'pending_review', summary: '新增每日一句。', createdBy: '内容运营', createdAt: '2026-07-12 10:00:00' },
+    ],
+    operationRecords: [
+      { id: 'op-daily-20260713-submit', operator: '内容运营', roleName: '内容运营', action: '提交审核', fromStatus: 'draft', toStatus: 'pending_review', reason: '新增每日一句。', time: '2026-07-12 10:00:00' },
     ],
   },
   {
@@ -1547,6 +1584,7 @@ const roleCanOperateReviewTask = (
     return [
       'question_bank',
       'wrong_reason_tag',
+      'daily_sentence',
       'learning_rule',
       'learning_path_config',
       'writing_translation',
@@ -2754,9 +2792,12 @@ const buildAnalyticsOverview = (
     ...wrongReasonTagData
       .filter((item) => filters.examType === 'all' || item.examTypes.includes(filters.examType))
       .map((item) => ({ status: item.status, examType: item.examTypes[0], type: '错因标签' })),
+    ...(filters.examType === 'all'
+      ? dailySentencesData.map((item) => ({ status: item.status, examType: undefined, type: '每日一句' }))
+      : []),
   ];
   const contentStatusDistribution = countBy(contentObjects, (item) => reviewStatusActionMap[item.status as API.ReviewTaskStatus] ?? String(item.status));
-  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'wrong_reason_tag'].includes(task.objectType) && sameExam(filters.examType, taskExamType(task)));
+  const contentReviewTasks = reviewTasksData.filter((task) => ['question_bank', 'wrong_reason_tag', 'daily_sentence'].includes(task.objectType) && (task.objectType === 'daily_sentence' ? filters.examType === 'all' : sameExam(filters.examType, taskExamType(task))));
   const approvedContentReviews = contentReviewTasks.filter((task) => task.status === 'approved' && inRange(task.updatedAt, filters)).length;
   const rejectedContentReviews = contentReviewTasks.filter((task) => task.status === 'rejected' && inRange(task.updatedAt, filters)).length;
   const contentApprovalRate = percentValue(approvedContentReviews, approvedContentReviews + rejectedContentReviews);
@@ -2851,6 +2892,7 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'published_task_templates', title: '已发布任务模板', value: publishedTemplates, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的今日任务模板数。', updatedAt, jumpTo: '/learning-path/task-templates' }),
   ];
 
+  const dailyStats = dailySentenceAnalytics(filters.startDate, filters.endDate);
   const contentMetrics = [
     metricCard({ id: 'question_total', title: '题目总数', value: questions.length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '当前题库题目总数，来自题库共享 Mock 数据。', updatedAt, jumpTo: '/content/questions' }),
     metricCard({ id: 'published_questions', title: '已发布题目', value: questions.filter((item) => item.status === 'published').length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '当前状态为已发布的题目数。', updatedAt, jumpTo: '/content/questions?status=published' }),
@@ -2858,6 +2900,8 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'rejected_questions', title: '已驳回题目', value: questions.filter((item) => item.status === 'rejected').length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'content', tooltip: '当前状态为已驳回的题目数。', updatedAt }),
     metricCard({ id: 'recent_new_questions', title: '最近新增题目', value: questions.filter((item) => inRange(item.createdAt, filters)).length, unit: '题', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '筛选时间范围内 createdAt 落入范围的题目数。', updatedAt }),
     metricCard({ id: 'content_review_approval_rate', title: '内容审核通过率', value: contentApprovalRate, unit: '%', type: 'rate', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '审核通过数量 /（审核通过数量 + 审核驳回数量）。', updatedAt }),
+    metricCard({ id: 'daily_sentence_read_uv', title: '每日一句阅读 UV', value: dailyStats.readUv, unit: '人', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '筛选周期内阅读每日一句的去重 Mock 用户数。', updatedAt, jumpTo: '/content-operations/daily-sentences' }),
+    metricCard({ id: 'daily_sentence_checkin_rate', title: '每日一句打卡率', value: dailyStats.checkinRate, unit: '%', type: 'rate', timeSemantic: 'interval', direction: 'positive', section: 'content', tooltip: '筛选周期内打卡用户数 / 阅读用户数。', updatedAt, jumpTo: '/content-operations/daily-sentences' }),
   ];
 
   const summaryCards = [
@@ -2875,7 +2919,7 @@ const buildAnalyticsOverview = (
   const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
     { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
     { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
-    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组和错因标签共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content/questions' },
+    { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组、错因标签和每日一句共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/content-operations/daily-sentences' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/list?feedbackStatus=pending' },
     { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/papers' },
@@ -2948,7 +2992,7 @@ const buildAnalyticsOverview = (
     dataSources: ([
       { section: 'users', source: 'operationUsersData、learningRecords', formal: true },
       { section: 'learningPath', source: 'learningPathConfigsData、userLearningPathMatches、learningRecords', formal: true },
-      { section: 'content', source: 'questionData、questionGroupReferences、reviewTasksData', formal: true },
+      { section: 'content', source: 'questionData、questionGroupReferences、dailySentencesData、dailySentenceEvents、reviewTasksData', formal: true },
       { section: 'reviewRelease', source: 'reviewTasksData、auditLogs', formal: true },
       { section: 'feedback', source: 'operationUsersData.feedbacks', formal: true },
       { section: 'aiCoach', source: '固定 Mock 占位指标', formal: false },
@@ -5261,6 +5305,7 @@ export default {
     res.send({ success: true, ...paginateArray(filterLearningPathReferences(questionGroupReferences, req.query), req.query) });
   },
   'GET /api/review-release/tasks': (req: Request, res: Response) => {
+    reconcileDueDailySentenceSchedules(reviewTasksData);
     const data = filterReviewTasks(req.query);
     res.send({
       success: true,
@@ -5269,6 +5314,7 @@ export default {
     });
   },
   'GET /api/review-release/tasks/:id': (req: Request, res: Response) => {
+    reconcileDueDailySentenceSchedules(reviewTasksData);
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const task = reviewTasksData.find((item) => item.id === id);
 
@@ -5349,6 +5395,44 @@ export default {
         success: false,
         errorCode: '403',
         errorMessage: '无权执行该操作。',
+      });
+      return;
+    }
+
+    const previousDailyReleasePlan = task.objectType === 'daily_sentence'
+      ? {
+          releaseMode: task.releaseMode,
+          scheduledAt: task.scheduledAt,
+          timezone: task.timezone,
+          releasePlan: task.releasePlan,
+        }
+      : undefined;
+
+    if (task.objectType === 'daily_sentence' && nextStatus === 'pending_publish') {
+      task.releaseMode = req.body?.releaseMode === 'scheduled' ? 'scheduled' : 'immediate';
+      task.scheduledAt = req.body?.scheduledAt ? String(req.body.scheduledAt) : undefined;
+      task.timezone = 'Asia/Shanghai';
+      task.releasePlan = task.releaseMode === 'scheduled' && task.scheduledAt
+        ? `定时发布：${task.scheduledAt}（Asia/Shanghai）`
+        : '立即发布。';
+    }
+
+    const dailySentenceTransitionCheck = validateDailySentenceReviewTransition(task, nextStatus);
+    if (!dailySentenceTransitionCheck.ok) {
+      if (previousDailyReleasePlan) Object.assign(task, previousDailyReleasePlan);
+      pushReviewAuditLog(
+        currentRoleId,
+        task,
+        reviewStatusActionMap[nextStatus],
+        'failed',
+        dailySentenceTransitionCheck.errorMessage,
+        `每日一句发布前复验失败：${dailySentenceTransitionCheck.errorMessage}`,
+      );
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: dailySentenceTransitionCheck.errorMessage,
+        data: dailySentenceTransitionCheck.precheck,
       });
       return;
     }
@@ -5486,6 +5570,13 @@ export default {
         name: operator.name,
         roleName: operator.roleName,
       },
+      operationReason,
+    );
+    syncDailySentenceFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      { id: operator.id, name: operator.name, roleName: operator.roleName },
       operationReason,
     );
 

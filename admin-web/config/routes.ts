@@ -1,7 +1,7 @@
 /**
  * 过级搭子运营管理后台路由。
  * 官方示例页保留在隐藏的 /examples 下，业务路由按 PRD 对应的十一个一级模块组织。
- * 尚无可用页面的内容运营模块保留结构但不在生产菜单展示。
+ * 内容运营已开放每日一句；尚未完成的外刊页面继续隐藏。
  */
 export default [
   {
@@ -167,13 +167,29 @@ export default [
     name: 'content-operations',
     icon: 'read',
     access: 'canAccessContent',
-    hideInMenu: true,
     routes: [
       {
         path: '/content-operations/daily-sentences',
         name: 'daily-sentences',
+        component: './content-operations/daily-sentences',
+      },
+      {
+        path: '/content-operations/daily-sentences/new',
+        name: 'daily-sentence-new',
         hideInMenu: true,
-        component: './prd-placeholder',
+        component: './content-operations/daily-sentences/edit',
+      },
+      {
+        path: '/content-operations/daily-sentences/:id/edit',
+        name: 'daily-sentence-edit',
+        hideInMenu: true,
+        component: './content-operations/daily-sentences/edit',
+      },
+      {
+        path: '/content-operations/daily-sentences/:id',
+        name: 'daily-sentence-detail',
+        hideInMenu: true,
+        component: './content-operations/daily-sentences/detail',
       },
       {
         path: '/content-operations/articles',

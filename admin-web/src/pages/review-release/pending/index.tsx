@@ -1,16 +1,18 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useAccess, useModel } from '@umijs/max';
+import { history, useAccess, useModel } from '@umijs/max';
 import {
   App,
   Button,
   Descriptions,
+  DatePicker,
   Divider,
   Drawer,
   Form,
   Input,
   Modal,
   Popconfirm,
+  Segmented,
   Space,
   Tabs,
   Tag,
@@ -43,6 +45,7 @@ type ReviewAction = {
 const objectTypeOptions = [
   { label: '题库内容', value: 'question_bank' },
   { label: '错因标签', value: 'wrong_reason_tag' },
+  { label: '每日一句', value: 'daily_sentence' },
   { label: '学习路径配置', value: 'learning_path_config' },
   { label: '学习路径规则', value: 'learning_rule' },
   { label: 'AI 陪练策略', value: 'ai_coach_strategy' },
@@ -170,6 +173,7 @@ const roleCanOperateTask = (
     return [
       'question_bank',
       'wrong_reason_tag',
+      'daily_sentence',
       'learning_rule',
       'learning_path_config',
       'writing_translation',
@@ -188,6 +192,10 @@ const roleCanOperateTask = (
 const ReviewReleasePage: React.FC = () => {
   const { message } = App.useApp();
   const [form] = Form.useForm<{ reason: string }>();
+  const [releaseForm] = Form.useForm<{
+    releaseMode: 'immediate' | 'scheduled';
+    scheduledAt?: { format: (pattern: string) => string };
+  }>();
   const actionRef = useRef<ActionType | undefined>(undefined);
   const { initialState } = useModel('@@initialState');
   const access = useAccess() as {
@@ -203,6 +211,7 @@ const ReviewReleasePage: React.FC = () => {
   const [reasonAction, setReasonAction] = useState<ReviewAction>();
   const [reasonTask, setReasonTask] = useState<API.ReviewTask>();
   const [submitting, setSubmitting] = useState(false);
+  const [releaseTask, setReleaseTask] = useState<API.ReviewTask>();
 
   const reloadTask = async (taskId: string) => {
     const detail = await reviewTaskDetail(taskId);
@@ -252,6 +261,38 @@ const ReviewReleasePage: React.FC = () => {
     setReasonTask(undefined);
   };
 
+  const confirmReleasePlan = async () => {
+    const values = await releaseForm.validateFields();
+    if (!releaseTask) return;
+    setSubmitting(true);
+    try {
+      await updateReviewTaskStatus(releaseTask.id, {
+        status: 'pending_publish',
+        reason: values.releaseMode === 'scheduled' ? '已安排定时发布。' : '已安排立即发布。',
+        releaseMode: values.releaseMode,
+        scheduledAt:
+          values.releaseMode === 'scheduled'
+            ? values.scheduledAt?.format('YYYY-MM-DD HH:mm:ss')
+            : undefined,
+        timezone: 'Asia/Shanghai',
+      });
+      if (values.releaseMode === 'immediate') {
+        await updateReviewTaskStatus(releaseTask.id, {
+          status: 'published',
+          reason: '立即发布。',
+        });
+      }
+      message.success(values.releaseMode === 'scheduled' ? '已安排定时发布' : '已立即发布');
+      setReleaseTask(undefined);
+      actionRef.current?.reload();
+      await reloadTask(releaseTask.id);
+    } catch (error: any) {
+      message.error(error?.data?.errorMessage || error?.message || '发布计划设置失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const renderTaskActions = (task: API.ReviewTask) => {
     const actions = (reviewActionsByStatus[task.status] ?? []).filter(
       (action) => roleCanOperateTask(roleId, accountId, task, action, access.canAction),
@@ -264,6 +305,21 @@ const ReviewReleasePage: React.FC = () => {
     return (
       <Space size={8}>
         {actions.map((action) => {
+          if (action.key === 'schedule' && task.objectType === 'daily_sentence') {
+            return (
+              <Button
+                key={action.key}
+                size="small"
+                type="link"
+                onClick={() => {
+                  releaseForm.setFieldsValue({ releaseMode: 'scheduled' });
+                  setReleaseTask(task);
+                }}
+              >
+                {action.label}
+              </Button>
+            );
+          }
           if (action.reasonRequired) {
             return (
               <Button
@@ -511,7 +567,16 @@ const ReviewReleasePage: React.FC = () => {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={selectedTask?.objectName ?? '审核详情'}
-        extra={selectedTask ? renderTaskActions(selectedTask) : null}
+        extra={selectedTask ? (
+          <Space>
+            {selectedTask.objectDetailPath ? (
+              <Button onClick={() => history.push(selectedTask.objectDetailPath as string)}>
+                查看业务对象
+              </Button>
+            ) : null}
+            {renderTaskActions(selectedTask)}
+          </Space>
+        ) : null}
       >
         {selectedTask && (
           <Space orientation="vertical" size={16} style={{ width: '100%' }}>
@@ -649,6 +714,46 @@ const ReviewReleasePage: React.FC = () => {
               showCount
             />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="设置发布计划"
+        open={Boolean(releaseTask)}
+        confirmLoading={submitting}
+        okText="确认发布计划"
+        cancelText="取消"
+        onCancel={() => setReleaseTask(undefined)}
+        onOk={confirmReleasePlan}
+      >
+        <Form
+          form={releaseForm}
+          layout="vertical"
+          initialValues={{ releaseMode: 'scheduled' }}
+        >
+          <Form.Item name="releaseMode" label="发布方式" rules={[{ required: true }]}>
+            <Segmented
+              block
+              options={[
+                { label: '定时发布', value: 'scheduled' },
+                { label: '立即发布', value: 'immediate' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.releaseMode !== current.releaseMode}>
+            {({ getFieldValue }) => getFieldValue('releaseMode') === 'scheduled' ? (
+              <Form.Item
+                name="scheduledAt"
+                label="发布时间（Asia/Shanghai）"
+                rules={[{ required: true, message: '请选择发布时间' }]}
+              >
+                <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" />
+              </Form.Item>
+            ) : null}
+          </Form.Item>
+          <Typography.Text type="secondary">
+            定时发布时间必须与每日一句内容日期一致，发布时会再次校验配图、日期冲突和版本。
+          </Typography.Text>
         </Form>
       </Modal>
     </PageContainer>
