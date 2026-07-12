@@ -355,6 +355,29 @@ export const roleCanAccessModule = (
   return Boolean(role?.modules.includes(moduleKey));
 };
 
+export const roleCanAccessFeedbackQueue = (roleId: string | undefined) =>
+  Boolean(
+    roleId &&
+      [
+        'super_admin',
+        'customer_support',
+        'content_operator',
+        'teaching_reviewer',
+        'ai_operator',
+      ].includes(roleId),
+  );
+
+export const roleCanAccessUserList = (roleId: string | undefined) =>
+  Boolean(
+    roleId && ['super_admin', 'customer_support', 'data_analyst'].includes(roleId),
+  );
+
+export const roleCanAccessUserDetail = (roleId: string | undefined) =>
+  Boolean(roleId && ['super_admin', 'customer_support'].includes(roleId));
+
+export const roleCanAccessUserArea = (roleId: string | undefined) =>
+  roleCanAccessUserList(roleId) || roleCanAccessFeedbackQueue(roleId);
+
 export const roleCanAccessRoute = (
   roleId: string | undefined,
   pathname: string,

@@ -15,6 +15,28 @@ import {
   validateArticleReviewTransition,
 } from './articleStore';
 import {
+  canSubmitFeedbackResolution,
+  feedbackOwnerRoleLabels,
+  feedbackOwnerRoles,
+  feedbackPriorityRank,
+  feedbackStatusFromAction,
+  feedbackWaitInfo,
+  isFeedbackOwnerRole,
+  roleCanAccessFeedbackQueue,
+  roleCanUseSupportFeedbackActions,
+  roleCanViewFeedbackQueueItem,
+  validateFeedbackStatusAction,
+} from '../src/foundation/feedbackQueue';
+import type {
+  FeedbackAssignment,
+  FeedbackOwnerRole,
+  FeedbackQueueDetail,
+  FeedbackQueueItem,
+  FeedbackQueueQueryParams,
+  FeedbackResolution,
+  FeedbackTimelineEvent,
+} from '../src/foundation/feedbackQueue';
+import {
   getRolePermissionsPayload,
   roleCanPerformAction,
   roleConfigs,
@@ -263,6 +285,8 @@ const mockUserPrivateData: Record<
 
 const feedbackOriginalContentMap: Record<string, string> = {};
 const aiSummaryContentMap: Record<string, string> = {};
+const feedbackAssignmentsMap: Record<string, FeedbackAssignment[]> = {};
+const feedbackResolutionsMap: Record<string, FeedbackResolution[]> = {};
 
 const learningModules = ['词汇', '听力', '阅读', '写作', '翻译', '模考'];
 const taskTypes = ['专项练习', '今日任务', '错题复练', '模考分区'];
@@ -1524,6 +1548,275 @@ const getFeedbackById = (user: API.AdminUser, feedbackId: string) =>
 
 const getAiSummaryById = (user: API.AdminUser, summaryId: string) =>
   user.aiSummaries?.find((summary) => summary.id === summaryId);
+
+const ownerRoleByModule = (moduleName: string): FeedbackOwnerRole => {
+  if (moduleName.includes('AI')) return 'ai_operator';
+  if (moduleName.includes('题库') || moduleName.includes('内容')) return 'content_operator';
+  return 'teaching_reviewer';
+};
+
+const currentAssignment = (feedbackId: string) =>
+  feedbackAssignmentsMap[feedbackId]?.[0];
+
+const ensureFeedbackQueueMeta = (
+  user: API.AdminUser,
+  feedback: API.UserFeedbackItem,
+) => {
+  if (!feedbackAssignmentsMap[feedback.id]) {
+    feedbackAssignmentsMap[feedback.id] = [];
+  }
+  if (!feedbackResolutionsMap[feedback.id]) {
+    feedbackResolutionsMap[feedback.id] = [];
+  }
+
+  if (
+    feedback.status !== 'pending' &&
+    feedback.status !== 'no_action' &&
+    !currentAssignment(feedback.id)
+  ) {
+    const targetRole = ownerRoleByModule(feedback.relatedModule);
+    const assigneeName = feedbackOwnerRoleLabels[targetRole];
+    feedbackAssignmentsMap[feedback.id].unshift({
+      id: `${feedback.id}-assignment-initial`,
+      feedbackId: feedback.id,
+      targetRole,
+      targetRoleName: feedbackOwnerRoleLabels[targetRole],
+      assigneeAccountId: targetRole,
+      assigneeName,
+      assignedByAccountId: 'customer_support',
+      assignedByName: '客服',
+      reason: '模拟历史分派。',
+      assignedAt: feedback.updatedAt,
+    });
+    feedback.handler = assigneeName;
+    user.latestHandler = feedback.handler;
+  }
+
+  if (
+    ['resolved', 'closed'].includes(feedback.status) &&
+    feedbackResolutionsMap[feedback.id].length === 0
+  ) {
+    const assignment = currentAssignment(feedback.id);
+    feedbackResolutionsMap[feedback.id].unshift({
+      id: `${feedback.id}-resolution-initial`,
+      feedbackId: feedback.id,
+      resultSummary: '已完成模拟处理。',
+      processNote: feedback.remark || '负责人已回填处理说明。',
+      submittedByAccountId: assignment?.assigneeAccountId ?? 'ai_operator',
+      submittedByName: assignment?.assigneeName ?? 'AI 策略运营',
+      submittedAt: feedback.updatedAt,
+    });
+  }
+};
+
+const feedbackScopeContext = (user: API.AdminUser) => {
+  const latestLearning = user.learningRecords?.[0];
+  const latestAiSummary = user.aiSummaries?.[0];
+  return {
+    nickname: user.nickname,
+    examTarget: `${user.examProfile.examType} / 目标 ${user.examProfile.targetScore} / ${user.examProfile.examDate}`,
+    learningStatus: user.currentStudyStatus,
+    weakModules: user.learningStatus.weakModules,
+    recentLearningSummary: latestLearning
+      ? `${latestLearning.module} · ${latestLearning.taskType} · ${taskStatusLabels[latestLearning.status]}`
+      : '暂无近期学习记录。',
+    aiSummaryPreview: latestAiSummary?.summaryPreview ?? '暂无必要 AI 摘要。',
+  };
+};
+
+const buildFeedbackQueueItem = (
+  user: API.AdminUser,
+  feedback: API.UserFeedbackItem,
+): FeedbackQueueItem => {
+  ensureFeedbackQueueMeta(user, feedback);
+  const wait = feedbackWaitInfo(
+    feedback.status,
+    feedback.submittedAt,
+    feedback.updatedAt,
+  );
+  return {
+    id: feedback.id,
+    feedbackId: feedback.id,
+    userId: user.id,
+    userNickname: user.nickname,
+    userMaskedContact: `${user.phoneMasked} / ${user.emailMasked}`,
+    type: feedback.type,
+    summary: feedback.summary,
+    priority: feedback.priority,
+    status: feedback.status,
+    relatedModule: feedback.relatedModule,
+    submittedAt: feedback.submittedAt,
+    updatedAt: feedback.updatedAt,
+    version: feedback.version,
+    waitHours: wait.waitHours,
+    waitText: wait.waitText,
+    overdue: wait.overdue,
+    currentAssignment: currentAssignment(feedback.id),
+  };
+};
+
+const buildFeedbackTimeline = (
+  user: API.AdminUser,
+  feedback: API.UserFeedbackItem,
+): FeedbackTimelineEvent[] => {
+  const statusEvents: FeedbackTimelineEvent[] = feedback.statusHistory.map((item) => ({
+    id: item.id,
+    type: item.toStatus === 'closed' ? 'close' : item.toStatus === 'processing' && item.fromStatus === 'resolved' ? 'return' : 'status',
+    title: `状态变更为${feedbackStatusLabels[item.toStatus]}`,
+    description: item.reason || item.remark || '反馈状态更新。',
+    operator: item.operator,
+    time: item.time,
+  }));
+  const assignmentEvents: FeedbackTimelineEvent[] = (feedbackAssignmentsMap[feedback.id] ?? []).map((item) => ({
+    id: item.id,
+    type: item.transferFromAccountId ? 'transfer' : 'assignment',
+    title: item.transferFromAccountId ? '转派负责人' : '分派负责人',
+    description: `${item.assignedByName} 将反馈交给 ${item.assigneeName}：${item.reason}`,
+    operator: item.assignedByName,
+    time: item.assignedAt,
+  }));
+  const resolutionEvents: FeedbackTimelineEvent[] = (feedbackResolutionsMap[feedback.id] ?? []).map((item) => ({
+    id: item.id,
+    type: 'resolution',
+    title: '提交处理结果',
+    description: `${item.resultSummary}。${item.processNote}`,
+    operator: item.submittedByName,
+    time: item.submittedAt,
+  }));
+  const sensitiveEvents: FeedbackTimelineEvent[] = (user.accessLogs ?? [])
+    .filter((item) => item.objectType === 'feedback_original_content' && item.objectId === feedback.id)
+    .map((item) => ({
+      id: item.id,
+      type: 'sensitive_access',
+      title: '敏感访问',
+      description: `${item.accessReason}，结果：${item.result}`,
+      operator: item.operator,
+      time: item.time,
+    }));
+  return [...statusEvents, ...assignmentEvents, ...resolutionEvents, ...sensitiveEvents].sort(
+    (a, b) => (new Date(b.time).getTime() || 0) - (new Date(a.time).getTime() || 0),
+  );
+};
+
+const buildFeedbackQueueDetail = (
+  user: API.AdminUser,
+  feedback: API.UserFeedbackItem,
+  roleId?: AdminRoleId | '',
+  accountId?: string,
+): FeedbackQueueDetail => {
+  const item = buildFeedbackQueueItem(user, feedback);
+  const support = roleCanUseSupportFeedbackActions(roleId);
+  const assignedToMe = roleCanViewFeedbackQueueItem(
+    roleId,
+    accountId,
+    item.currentAssignment,
+  );
+  return {
+    ...item,
+    remark: feedback.remark,
+    originalContentAvailable: feedback.originalContentAvailable,
+    scopedUserContext: feedbackScopeContext(user),
+    assignments: feedbackAssignmentsMap[feedback.id] ?? [],
+    resolutions: feedbackResolutionsMap[feedback.id] ?? [],
+    timeline: buildFeedbackTimeline(user, feedback),
+    permissions: {
+      canSensitiveAccess: support,
+      canAssign: support && feedback.status !== 'closed',
+      canSubmitResolution:
+        canSubmitFeedbackResolution(roleId, accountId, item.currentAssignment) &&
+        feedback.status === 'processing',
+      canReturn: support && feedback.status === 'resolved',
+      canClose: support && ['resolved', 'no_action'].includes(feedback.status),
+      canMarkNoAction:
+        support && ['pending', 'processing'].includes(feedback.status),
+    },
+  };
+};
+
+const syncUserFeedbackSummary = (user: API.AdminUser) => {
+  user.latestFeedbackStatus = user.feedbacks?.[0]?.status;
+  user.latestHandler = user.feedbacks?.[0]?.handler;
+  user.unhandledFeedbackCount = (user.feedbacks ?? []).filter((item) =>
+    ['pending', 'processing'].includes(item.status),
+  ).length;
+};
+
+const findFeedbackQueueRecord = (feedbackId: string) => {
+  for (const user of operationUsersData) {
+    const feedback = getFeedbackById(user, feedbackId);
+    if (feedback) return { user, feedback };
+  }
+  return undefined;
+};
+
+const allFeedbackQueueItems = () =>
+  operationUsersData.flatMap((user) =>
+    (user.feedbacks ?? []).map((feedback) => buildFeedbackQueueItem(user, feedback)),
+  );
+
+const filterFeedbackQueue = (
+  query: Request['query'],
+  roleId: AdminRoleId,
+  accountId: string,
+) => {
+  const params = query as FeedbackQueueQueryParams;
+  const keyword = getQueryValue(params.keyword).trim().toLowerCase();
+  const view = getQueryValue(params.view);
+  const submittedAtRange = parseRange(params.submittedAtRange);
+
+  return allFeedbackQueueItems()
+    .filter((item) => roleCanViewFeedbackQueueItem(roleId, accountId, item.currentAssignment) || roleCanUseSupportFeedbackActions(roleId))
+    .filter((item) => {
+      if (view === 'triage' && item.status !== 'pending') return false;
+      if (view === 'mine' && item.currentAssignment?.assigneeAccountId !== accountId) return false;
+      if (view === 'processing' && item.status !== 'processing') return false;
+      if (view === 'resolved' && item.status !== 'resolved') return false;
+      if (view === 'closed' && !['closed', 'no_action'].includes(item.status)) return false;
+      if (keyword) {
+        const haystack = [
+          item.feedbackId,
+          item.summary,
+          item.userId,
+          item.userNickname,
+          item.relatedModule,
+          item.currentAssignment?.assigneeName,
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(keyword)) return false;
+      }
+      if (params.type && item.type !== params.type) return false;
+      if (params.priority && item.priority !== params.priority) return false;
+      if (params.relatedModule && item.relatedModule !== params.relatedModule) return false;
+      if (params.status && item.status !== params.status) return false;
+      if (params.ownerAccountId) {
+        const owner = item.currentAssignment;
+        if (
+          owner?.assigneeAccountId !== params.ownerAccountId &&
+          owner?.targetRole !== params.ownerAccountId
+        ) {
+          return false;
+        }
+      }
+      if (params.overdue === 'yes' && !item.overdue) return false;
+      if (params.overdue === 'no' && item.overdue) return false;
+      if (submittedAtRange.length === 2) {
+        const time = new Date(item.submittedAt).getTime();
+        const start = new Date(submittedAtRange[0]).getTime();
+        const end = new Date(submittedAtRange[1]).getTime();
+        if (Number.isFinite(start) && time < start) return false;
+        if (Number.isFinite(end) && time > end) return false;
+      }
+      return true;
+    })
+    .sort((first, second) => {
+      const priorityDiff = feedbackPriorityRank[first.priority] - feedbackPriorityRank[second.priority];
+      if (priorityDiff) return priorityDiff;
+      const waitDiff = second.waitHours - first.waitHours;
+      if (waitDiff) return waitDiff;
+      return second.updatedAt.localeCompare(first.updatedAt);
+    });
+};
 
 const recordSensitiveAccess = (
   user: API.AdminUser,
@@ -3007,7 +3300,7 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'onboarding_rate', title: 'Onboarding 完成率', value: onboardingRate, unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'users', tooltip: '完成 Onboarding 的有效用户数 / 有效注册用户数。', updatedAt }),
     metricCard({ id: 'today_task_completion_rate', title: '今日任务完成率', value: taskCompletionRate, comparisonValue: percentValue(previousCompletedTaskUsers, Math.max(previousActiveUserIds.size, 1)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'users', tooltip: '完成今日任务用户数 / 已开始今日任务用户数。', updatedAt }),
     metricCard({ id: 'pending_review_tasks', title: '当前待审核任务', value: reviewStats.pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'reviewRelease', tooltip: '当前审核任务状态为待审核的任务数。', updatedAt, jumpTo: '/review-release/pending?status=pending_review' }),
-    metricCard({ id: 'pending_feedback', title: '当前待处理反馈', value: feedbackStats.pending, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'feedback', tooltip: '当前状态为待处理的反馈数。', updatedAt, jumpTo: '/users/list?feedbackStatus=pending' }),
+    metricCard({ id: 'pending_feedback', title: '当前待处理反馈', value: feedbackStats.pending, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'feedback', tooltip: '当前状态为待处理的反馈数。', updatedAt, jumpTo: '/users/feedback?view=triage' }),
     metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目、题组、错因标签、每日一句和外刊中当前状态为已发布的对象数。', updatedAt, jumpTo: '/analytics/content' }),
     metricCard({ id: 'review_rollback_count', title: '区间回滚数', value: reviewStats.rolledBack, unit: '次', type: 'count', timeSemantic: 'interval', direction: 'risk', section: 'reviewRelease', tooltip: '筛选时间范围内审核任务状态变为已回滚的数量。', updatedAt }),
   ].filter((card) => visibleSections.includes(card.section));
@@ -3018,7 +3311,7 @@ const buildAnalyticsOverview = (
     { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
     { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组、错因标签、每日一句和外刊共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/analytics/content' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
-    { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/list?feedbackStatus=pending' },
+    { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/feedback?view=triage' },
     { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/papers' },
     ...analyticsPlaceholderSnapshots.map((item) => ({ ...item, visible: visibleSections.includes(item.id) })),
   ];
@@ -3113,12 +3406,19 @@ const dashboardSectionLabels: Record<API.DashboardVisibleSection, string> = {
   aiPlaceholder: 'AI 占位摘要',
 };
 
-const dashboardTodoTypeLabels: Record<API.DashboardTodoType, string> = {
+type DashboardTodoTypeInternal =
+  | API.DashboardTodoType
+  | 'assigned_feedback'
+  | 'awaiting_feedback';
+
+const dashboardTodoTypeLabels: Record<DashboardTodoTypeInternal, string> = {
   pending_review: '待审核',
   pending_publish: '待发布',
   rejected_content: '驳回待修改',
   pending_feedback: '待处理反馈',
   stale_feedback: '反馈超时',
+  assigned_feedback: '分派给我',
+  awaiting_feedback: '待客服确认',
   learning_path_precheck_error: '预校验阻断',
   learning_path_rejected: '学习路径驳回',
   ai_strategy_pending_review: 'AI 策略待审核',
@@ -3152,12 +3452,14 @@ const dashboardRiskLevelRank: Record<API.DashboardRiskLevel, number> = {
   low: 2,
 };
 
-const dashboardOverdueThresholdHours: Record<API.DashboardTodoType, number> = {
+const dashboardOverdueThresholdHours: Record<DashboardTodoTypeInternal, number> = {
   pending_review: 24,
   pending_publish: 24,
   rejected_content: 48,
   pending_feedback: 24,
   stale_feedback: 48,
+  assigned_feedback: 48,
+  awaiting_feedback: 24,
   learning_path_precheck_error: 24,
   learning_path_rejected: 48,
   ai_strategy_pending_review: 24,
@@ -3188,12 +3490,12 @@ const dashboardRoleSections: Record<AdminRoleId, API.DashboardVisibleSection[]> 
   read_only_auditor: ['welcome', 'todos', 'risks', 'metrics', 'quickActions', 'moduleSnapshots', 'recentActivities'],
 };
 
-const dashboardRoleTodoTypes: Record<AdminRoleId, API.DashboardTodoType[]> = {
-  super_admin: ['pending_review', 'pending_publish', 'rejected_content', 'pending_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'writing_translation_precheck_error', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed', 'permission_denied'],
-  content_operator: ['pending_review', 'pending_publish', 'rejected_content', 'writing_translation_precheck_error', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed'],
-  teaching_reviewer: ['pending_review', 'pending_publish', 'rejected_content', 'learning_path_precheck_error', 'learning_path_rejected', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'publish_failed', 'rollback_failed'],
-  ai_operator: ['ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed'],
-  customer_support: ['pending_feedback', 'stale_feedback', 'permission_denied'],
+const dashboardRoleTodoTypes: Record<AdminRoleId, DashboardTodoTypeInternal[]> = {
+  super_admin: ['pending_review', 'pending_publish', 'rejected_content', 'pending_feedback', 'stale_feedback', 'awaiting_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'writing_translation_precheck_error', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed', 'permission_denied'],
+  content_operator: ['pending_review', 'pending_publish', 'rejected_content', 'assigned_feedback', 'stale_feedback', 'writing_translation_precheck_error', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed'],
+  teaching_reviewer: ['pending_review', 'pending_publish', 'rejected_content', 'assigned_feedback', 'stale_feedback', 'learning_path_precheck_error', 'learning_path_rejected', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'publish_failed', 'rollback_failed'],
+  ai_operator: ['assigned_feedback', 'stale_feedback', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_rejected', 'ai_strategy_precheck_error', 'ai_strategy_high_risk_publish', 'ai_strategy_release_failed', 'ai_strategy_rollback_failed', 'writing_translation_ai_reference_invalid', 'publish_failed', 'rollback_failed'],
+  customer_support: ['pending_feedback', 'stale_feedback', 'awaiting_feedback', 'permission_denied'],
   data_analyst: [],
   read_only_auditor: ['permission_denied', 'publish_failed', 'rollback_failed', 'ai_strategy_pending_review', 'ai_strategy_pending_publish', 'ai_strategy_high_risk_publish', 'writing_translation_pending_review', 'writing_translation_pending_publish', 'writing_translation_ai_reference_invalid'],
 };
@@ -3240,6 +3542,7 @@ const routeModule = (route: string) =>
   dashboardRouteModuleMap.find((item) => route.startsWith(item.prefix))?.module;
 
 const canReadRoute = (roleId: AdminRoleId, route: string) => {
+  if (route.startsWith('/users/feedback')) return roleCanAccessFeedbackQueue(roleId);
   const module = routeModule(route);
   return Boolean(module && roleCanPerformAction(roleId, module, 'read'));
 };
@@ -3316,7 +3619,7 @@ const dashboardLearningPathRoute = (config: API.LearningPathConfigItem) => ({
 
 const dashboardTodoCanHandle = (
   roleId: AdminRoleId,
-  todoType: API.DashboardTodoType,
+  todoType: DashboardTodoTypeInternal,
   sourceModule: AdminModuleKey,
   task?: API.ReviewTask,
 ) => {
@@ -3336,7 +3639,9 @@ const dashboardTodoCanHandle = (
       ? roleCanPerformAction(roleId, 'learningPath', 'submit')
       : roleCanPerformAction(roleId, 'content', 'submit');
   }
-  if (todoType === 'pending_feedback' || todoType === 'stale_feedback') return roleCanHandleFeedback(roleId);
+  if (['pending_feedback', 'stale_feedback', 'assigned_feedback', 'awaiting_feedback'].includes(todoType)) {
+    return roleCanAccessFeedbackQueue(roleId);
+  }
   if (todoType === 'learning_path_precheck_error' || todoType === 'learning_path_rejected') {
     return roleCanPerformAction(roleId, 'learningPath', 'edit');
   }
@@ -3346,7 +3651,7 @@ const dashboardTodoCanHandle = (
 };
 
 const createDashboardTodo = (params: {
-  type: API.DashboardTodoType;
+  type: DashboardTodoTypeInternal;
   title: string;
   objectType: string;
   objectId: string;
@@ -3369,7 +3674,7 @@ const createDashboardTodo = (params: {
   const canHandle = dashboardTodoCanHandle(params.roleId, params.type, params.sourceModule, params.task);
   return {
     id: `todo-${params.type}-${params.objectId}`,
-    type: params.type,
+    type: params.type as API.DashboardTodoType,
     typeName: dashboardTodoTypeLabels[params.type],
     title: params.title,
     objectType: params.objectType,
@@ -3573,7 +3878,11 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
 
   operationUsersData.forEach((user) => {
     (user.feedbacks ?? []).forEach((feedback) => {
-      if (feedback.status === 'pending') {
+      const item = buildFeedbackQueueItem(user, feedback);
+      const assignment = item.currentAssignment;
+      const assignedToCurrent =
+        assignment?.assigneeAccountId === (currentAccountId || roleId);
+      if (feedback.status === 'pending' && roleCanUseSupportFeedbackActions(roleId)) {
         todos.push(createDashboardTodo({
           type: 'pending_feedback',
           title: `${user.nickname}：${feedback.summary}`,
@@ -3585,14 +3894,57 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
           createdAt: feedback.submittedAt,
           owner: feedback.handler ?? '未分配',
           sourceModule: 'users',
-          targetRoute: '/users/list',
-          targetQuery: { keyword: user.id, feedbackStatus: 'pending' },
+          targetRoute: `/users/feedback/${feedback.id}`,
           description: `${feedback.type}，${feedback.relatedModule}。`,
           roleId,
           riskLevel: feedback.priority === 'P0' ? 'high' : feedback.priority === 'P1' ? 'medium' : 'low',
         }));
       }
-      if (feedback.status === 'processing' && dashboardHoursSince(feedback.updatedAt) >= dashboardOverdueThresholdHours.stale_feedback) {
+      if (feedback.status === 'resolved' && roleCanUseSupportFeedbackActions(roleId)) {
+        todos.push(createDashboardTodo({
+          type: 'awaiting_feedback',
+          title: `${user.nickname}：${feedback.summary}`,
+          objectType: '用户反馈',
+          objectId: feedback.id,
+          priority: feedback.priority,
+          status: feedback.status,
+          statusLabel: feedbackStatusLabels[feedback.status],
+          createdAt: feedback.updatedAt,
+          owner: feedback.handler ?? assignment?.assigneeName ?? '负责人',
+          sourceModule: 'users',
+          targetRoute: `/users/feedback/${feedback.id}`,
+          description: '负责人已回填处理结果，等待客服验收。',
+          roleId,
+          riskLevel: feedback.priority === 'P0' ? 'high' : 'medium',
+        }));
+      }
+      if (
+        feedback.status === 'processing' &&
+        assignedToCurrent &&
+        isFeedbackOwnerRole(roleId)
+      ) {
+        todos.push(createDashboardTodo({
+          type: 'assigned_feedback',
+          title: `${user.nickname}：${feedback.summary}`,
+          objectType: '用户反馈',
+          objectId: feedback.id,
+          priority: feedback.priority,
+          status: feedback.status,
+          statusLabel: feedbackStatusLabels[feedback.status],
+          createdAt: feedback.updatedAt,
+          owner: assignment?.assigneeName ?? feedback.handler ?? '负责人',
+          sourceModule: 'users',
+          targetRoute: `/users/feedback/${feedback.id}`,
+          description: `${feedback.type}，${feedback.relatedModule}。`,
+          roleId,
+          riskLevel: feedback.priority === 'P0' ? 'high' : feedback.priority === 'P1' ? 'medium' : 'low',
+        }));
+      }
+      if (
+        feedback.status === 'processing' &&
+        dashboardHoursSince(feedback.updatedAt) >= dashboardOverdueThresholdHours.stale_feedback &&
+        (roleCanUseSupportFeedbackActions(roleId) || assignedToCurrent)
+      ) {
         todos.push(createDashboardTodo({
           type: 'stale_feedback',
           title: `${user.nickname}：${feedback.summary}`,
@@ -3602,10 +3954,9 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
           status: feedback.status,
           statusLabel: feedbackStatusLabels[feedback.status],
           createdAt: feedback.updatedAt,
-          owner: feedback.handler ?? '客服',
+          owner: assignment?.assigneeName ?? feedback.handler ?? '负责人',
           sourceModule: 'users',
-          targetRoute: '/users/list',
-          targetQuery: { keyword: user.id, feedbackStatus: 'processing' },
+          targetRoute: `/users/feedback/${feedback.id}`,
           description: '处理中反馈长时间未更新。',
           roleId,
           riskLevel: feedback.priority === 'P0' ? 'high' : 'medium',
@@ -3833,7 +4184,7 @@ const buildDashboardMetrics = (roleId: AdminRoleId, risks: API.DashboardRiskItem
     dashboardMetric({ id: 'today_task_completion_rate', title: '今日任务完成率', value: percentValue(todayCompletedTaskUsers, todayStartedTaskUsers), unit: '%', type: 'rate', timeSemantic: 'today', direction: 'positive', tooltip: '今日完成任务用户数 / 今日开始任务用户数，分母为 0 时显示 --。', targetRoute: '/analytics/learning-funnel' }),
     dashboardMetric({ id: 'pending_review', title: '当前待审核', value: pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_review 的审核任务数。', targetRoute: '/review-release/pending?status=pending_review' }),
     dashboardMetric({ id: 'pending_publish', title: '当前待发布', value: pendingRelease, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending_publish 的审核任务数。', targetRoute: '/review-release/pending?status=pending_publish' }),
-    dashboardMetric({ id: 'pending_feedback', title: '当前待处理反馈', value: pendingFeedback, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending 的用户反馈数。', targetRoute: '/users/list?feedbackStatus=pending' }),
+    dashboardMetric({ id: 'pending_feedback', title: '当前待处理反馈', value: pendingFeedback, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前状态为 pending 的用户反馈数。', targetRoute: '/users/feedback?view=triage' }),
     dashboardMetric({ id: 'high_risk', title: '当前高风险事项', value: highRisk, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', tooltip: '当前 P0/P1 或高风险未关闭事项数。', targetRoute: '/system/operation-logs' }),
   ];
   const roleMetricIds: Record<AdminRoleId, string[]> = {
@@ -6371,6 +6722,402 @@ export default {
     res.send({
       success: true,
       ...page,
+    });
+  },
+  'GET /api/operation/feedback-queue': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanAccessFeedbackQueue(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无反馈队列访问权限。',
+      });
+      return;
+    }
+
+    const page = paginateArray(
+      filterFeedbackQueue(req.query, currentRoleId, currentAccountId || currentRoleId),
+      req.query,
+    );
+    res.send({
+      success: true,
+      ...page,
+    });
+  },
+  'GET /api/operation/feedback-queue/:feedbackId': (req: Request, res: Response) => {
+    const feedbackId = Array.isArray(req.params.feedbackId)
+      ? req.params.feedbackId[0]
+      : req.params.feedbackId;
+
+    if (!currentRoleId || !roleCanAccessFeedbackQueue(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无反馈队列访问权限。',
+      });
+      return;
+    }
+
+    const record = findFeedbackQueueRecord(feedbackId);
+    if (!record) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '反馈不存在。',
+      });
+      return;
+    }
+
+    const detail = buildFeedbackQueueDetail(
+      record.user,
+      record.feedback,
+      currentRoleId,
+      currentAccountId || currentRoleId,
+    );
+    if (
+      !roleCanViewFeedbackQueueItem(
+        currentRoleId,
+        currentAccountId || currentRoleId,
+        detail.currentAssignment,
+      )
+    ) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号只能查看分派给自己的反馈。',
+      });
+      return;
+    }
+
+    res.send({ success: true, data: detail });
+  },
+  'POST /api/operation/feedback-queue/:feedbackId/assign': (req: Request, res: Response) => {
+    const feedbackId = Array.isArray(req.params.feedbackId)
+      ? req.params.feedbackId[0]
+      : req.params.feedbackId;
+    const record = findFeedbackQueueRecord(feedbackId);
+
+    if (!currentRoleId || !roleCanUseSupportFeedbackActions(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无反馈分派权限。',
+      });
+      return;
+    }
+
+    if (!record) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '反馈不存在。',
+      });
+      return;
+    }
+
+    const targetRole = req.body?.targetRole as FeedbackOwnerRole;
+    const assigneeAccountId = String(req.body?.assigneeAccountId ?? '').trim();
+    const reason = String(req.body?.reason ?? '').trim();
+    const version = Number(req.body?.version);
+
+    if (version !== record.feedback.version) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        action: 'assign',
+        objectType: 'feedback_queue',
+        objectId: record.feedback.id,
+        sourcePage: '/users/feedback',
+        reason: '反馈分派版本冲突。',
+        result: 'failed',
+        changeSummary: '反馈分派被拒绝，数据已被其他操作更新。',
+        originalStatus: record.feedback.status,
+        newStatus: record.feedback.status,
+      });
+      res.status(409).send({
+        success: false,
+        errorCode: '409',
+        errorMessage: '数据已更新，请刷新后重试。',
+      });
+      return;
+    }
+
+    if (!feedbackOwnerRoles.includes(targetRole) || !assigneeAccountId || !reason) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '目标角色、负责人账号和分派原因必填。',
+      });
+      return;
+    }
+
+    const assignee = buildAdminAccounts().find((account) => account.id === assigneeAccountId);
+    if (!assignee || assignee.roleId !== targetRole || assignee.status !== 'enabled') {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '负责人账号无效或已停用。',
+      });
+      return;
+    }
+
+    if (!['pending', 'processing'].includes(record.feedback.status)) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '只有待分诊或处理中的反馈可以分派。',
+      });
+      return;
+    }
+
+    const previousStatus = record.feedback.status;
+    const previousAssignment = currentAssignment(record.feedback.id);
+    const assignedAt = nowText();
+    feedbackAssignmentsMap[record.feedback.id].unshift({
+      id: `${record.feedback.id}-assignment-${Date.now()}`,
+      feedbackId: record.feedback.id,
+      targetRole,
+      targetRoleName: feedbackOwnerRoleLabels[targetRole],
+      assigneeAccountId: assignee.id,
+      assigneeName: assignee.displayName,
+      assignedByAccountId: currentAccountId || currentRoleId,
+      assignedByName: currentAccountName || roleConfigs[currentRoleId].name,
+      reason,
+      assignedAt,
+      transferFromAccountId: previousAssignment?.assigneeAccountId,
+      transferFromName: previousAssignment?.assigneeName,
+    });
+    record.feedback.status = 'processing';
+    record.feedback.handler = assignee.displayName;
+    record.feedback.updatedAt = assignedAt;
+    record.feedback.version += 1;
+    if (previousStatus !== 'processing') {
+      record.feedback.statusHistory.unshift({
+        id: `${record.feedback.id}-history-${Date.now()}`,
+        operator: currentAccountName || roleConfigs[currentRoleId].name,
+        fromStatus: previousStatus,
+        toStatus: 'processing',
+        reason,
+        version: record.feedback.version,
+        time: assignedAt,
+        result: 'success',
+      });
+    }
+    syncUserFeedbackSummary(record.user);
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: previousAssignment ? 'transfer' : 'assign',
+      objectType: 'feedback_queue',
+      objectId: record.feedback.id,
+      sourcePage: '/users/feedback',
+      reason,
+      result: 'success',
+      changeSummary: previousAssignment
+        ? `反馈已由 ${previousAssignment.assigneeName} 转派给 ${assignee.displayName}。`
+        : `反馈已分派给 ${assignee.displayName}。`,
+      originalStatus: previousStatus,
+      newStatus: record.feedback.status,
+      version: String(record.feedback.version),
+    });
+
+    res.send({
+      success: true,
+      data: buildFeedbackQueueDetail(record.user, record.feedback, currentRoleId, currentAccountId || currentRoleId),
+    });
+  },
+  'POST /api/operation/feedback-queue/:feedbackId/resolution': (req: Request, res: Response) => {
+    const feedbackId = Array.isArray(req.params.feedbackId)
+      ? req.params.feedbackId[0]
+      : req.params.feedbackId;
+    const record = findFeedbackQueueRecord(feedbackId);
+
+    if (!currentRoleId || !roleCanAccessFeedbackQueue(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无反馈队列处理权限。',
+      });
+      return;
+    }
+
+    if (!record) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '反馈不存在。',
+      });
+      return;
+    }
+
+    const assignment = currentAssignment(record.feedback.id);
+    if (!canSubmitFeedbackResolution(currentRoleId, currentAccountId || currentRoleId, assignment)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号只能处理分派给自己的反馈。',
+      });
+      return;
+    }
+
+    const resultSummary = String(req.body?.resultSummary ?? '').trim();
+    const processNote = String(req.body?.processNote ?? '').trim();
+    const relatedObject = String(req.body?.relatedObject ?? '').trim();
+    const version = Number(req.body?.version);
+
+    if (version !== record.feedback.version) {
+      res.status(409).send({
+        success: false,
+        errorCode: '409',
+        errorMessage: '数据已更新，请刷新后重试。',
+      });
+      return;
+    }
+
+    if (record.feedback.status !== 'processing' || !resultSummary || !processNote) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '只有处理中的反馈可以提交结果，且结果摘要和处理说明必填。',
+      });
+      return;
+    }
+
+    const submittedAt = nowText();
+    feedbackResolutionsMap[record.feedback.id].unshift({
+      id: `${record.feedback.id}-resolution-${Date.now()}`,
+      feedbackId: record.feedback.id,
+      resultSummary,
+      processNote,
+      relatedObject: relatedObject || undefined,
+      submittedByAccountId: currentAccountId || currentRoleId,
+      submittedByName: currentAccountName || roleConfigs[currentRoleId].name,
+      submittedAt,
+    });
+    record.feedback.status = 'resolved';
+    record.feedback.remark = processNote;
+    record.feedback.updatedAt = submittedAt;
+    record.feedback.version += 1;
+    record.feedback.statusHistory.unshift({
+      id: `${record.feedback.id}-history-${Date.now()}`,
+      operator: currentAccountName || roleConfigs[currentRoleId].name,
+      fromStatus: 'processing',
+      toStatus: 'resolved',
+      reason: resultSummary,
+      remark: processNote,
+      version: record.feedback.version,
+      time: submittedAt,
+      result: 'success',
+    });
+    syncUserFeedbackSummary(record.user);
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'resolve',
+      objectType: 'feedback_queue',
+      objectId: record.feedback.id,
+      sourcePage: '/users/feedback',
+      reason: resultSummary,
+      result: 'success',
+      changeSummary: '负责人已提交反馈处理结果，等待客服验收。',
+      originalStatus: 'processing',
+      newStatus: 'resolved',
+      version: String(record.feedback.version),
+    });
+
+    res.send({
+      success: true,
+      data: buildFeedbackQueueDetail(record.user, record.feedback, currentRoleId, currentAccountId || currentRoleId),
+    });
+  },
+  'PATCH /api/operation/feedback-queue/:feedbackId/status': (req: Request, res: Response) => {
+    const feedbackId = Array.isArray(req.params.feedbackId)
+      ? req.params.feedbackId[0]
+      : req.params.feedbackId;
+    const record = findFeedbackQueueRecord(feedbackId);
+
+    if (!currentRoleId || !roleCanUseSupportFeedbackActions(currentRoleId)) {
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无反馈验收或关闭权限。',
+      });
+      return;
+    }
+
+    if (!record) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '反馈不存在。',
+      });
+      return;
+    }
+
+    const action = req.body?.action;
+    const reason = String(req.body?.reason ?? '').trim();
+    const version = Number(req.body?.version);
+
+    if (version !== record.feedback.version) {
+      res.status(409).send({
+        success: false,
+        errorCode: '409',
+        errorMessage: '数据已更新，请刷新后重试。',
+      });
+      return;
+    }
+
+    const validation = validateFeedbackStatusAction({
+      currentStatus: record.feedback.status,
+      action,
+      reason,
+    });
+    if (!validation.valid || !validation.nextStatus) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: validation.message,
+      });
+      return;
+    }
+
+    const previousStatus = record.feedback.status;
+    const nextStatus = feedbackStatusFromAction(previousStatus, action);
+    const updatedAt = nowText();
+    record.feedback.status = nextStatus ?? previousStatus;
+    record.feedback.updatedAt = updatedAt;
+    record.feedback.version += 1;
+    record.feedback.handler = currentAccountName || roleConfigs[currentRoleId].name;
+    record.feedback.remark = reason || record.feedback.remark;
+    record.feedback.statusHistory.unshift({
+      id: `${record.feedback.id}-history-${Date.now()}`,
+      operator: currentAccountName || roleConfigs[currentRoleId].name,
+      fromStatus: previousStatus,
+      toStatus: record.feedback.status,
+      reason: reason || '客服验收关闭。',
+      version: record.feedback.version,
+      time: updatedAt,
+      result: 'success',
+    });
+    syncUserFeedbackSummary(record.user);
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action:
+        action === 'return_to_processing'
+          ? 'return'
+          : action === 'mark_no_action'
+            ? 'no_action'
+            : 'close',
+      objectType: 'feedback_queue',
+      objectId: record.feedback.id,
+      sourcePage: '/users/feedback',
+      reason: reason || '客服验收关闭。',
+      result: 'success',
+      changeSummary: `反馈状态由${feedbackStatusLabels[previousStatus]}变更为${feedbackStatusLabels[record.feedback.status]}。`,
+      originalStatus: previousStatus,
+      newStatus: record.feedback.status,
+      version: String(record.feedback.version),
+    });
+
+    res.send({
+      success: true,
+      data: buildFeedbackQueueDetail(record.user, record.feedback, currentRoleId, currentAccountId || currentRoleId),
     });
   },
   'PATCH /api/operation/users/:id/feedback/:feedbackId/status': (req: Request, res: Response) => {

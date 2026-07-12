@@ -124,6 +124,34 @@
 - 真实后端接入时应保持文章快照、线上版本指针、事件幂等键和聚合口径，不把统计数字改为可直接写入字段。
 - 独立素材库、真实上传、自动发布和移动端事件接入均为后续范围。
 
+## 2026-07-12 Feedback Work Queue MVP
+
+### Summary
+- `/users/feedback` 从隐藏占位升级为反馈工作队列二级模块，并新增 `/users/feedback/:feedbackId` 详情页。
+- 队列覆盖客服待分诊、敏感原文授权、分派/转派唯一负责人、业务负责人回填、客服退回或关闭、无需处理和完整时间线。
+- 反馈队列与用户详情共用 `operationUsersData.feedbacks` 状态和版本，不维护重复反馈状态。
+- 工作台同步客服待分诊、超时处理中、待验收反馈，以及内容/教研/AI 负责人“分派给我”的反馈任务。
+
+### Key Files
+- `admin-web/mock/user.ts`
+- `admin-web/src/foundation/feedbackQueue.ts`
+- `admin-web/src/pages/users/feedback/`
+- `docs/feedback-work-queue-mvp.md`
+
+### Decisions
+- 本期继续使用 Mock，不接真实后端、消息系统、自动派单或外部工单。
+- 敏感访问沿用既有原因即时授权机制，`sourcePage` 记录为 `/users/feedback`。
+- 业务负责人只获得反馈队列对象级权限，不获得 `/users/list` 或 `/users/:id` 权限。
+- `closed` 为终态，本期不支持重新打开。
+
+### Verification
+- `npm run test`：通过，18 files / 97 tests。
+- `npm run tsc`：通过。
+- `npm run lint`：通过，Biome 检查 347 files，无问题。
+- `npx antd lint ./src`：通过，扫描 312 files，无问题。
+- `npm run build`：通过，输出 `dist/`，68 files。
+- API smoke 和浏览器断点验收详见 `logs/feedback-work-queue-implementation-2026-07-12.md`。
+
 ## 2026-07-10 Navigation Reduction Stage 1
 
 ### Summary

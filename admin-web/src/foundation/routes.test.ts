@@ -52,6 +52,7 @@ const businessPaths = [
 const visibleSecondLevelPaths = [
   '/dashboard/workbench',
   '/users/list',
+  '/users/feedback',
   '/content/questions',
   '/content/question-groups',
   '/content/wrong-reason-tags',
@@ -144,6 +145,7 @@ describe('admin navigation structure', () => {
 
   it('provides labels for the new and renamed navigation entries', () => {
     expect(zhCNMenu['menu.users']).toBe('用户与反馈');
+    expect(zhCNMenu['menu.users.feedback']).toBe('反馈工作队列');
     expect(zhCNMenu['menu.content']).toBe('题库管理');
     expect(zhCNMenu['menu.content.questions']).toBe('题目管理');
     expect(zhCNMenu['menu.content-operations']).toBe('内容运营');

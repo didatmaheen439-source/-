@@ -66,6 +66,8 @@ const todoTypeOptions: { label: string; value: API.DashboardTodoType | 'all' }[]
   { label: '驳回待修改', value: 'rejected_content' },
   { label: '待处理反馈', value: 'pending_feedback' },
   { label: '反馈超时', value: 'stale_feedback' },
+  { label: '分派给我', value: 'assigned_feedback' as API.DashboardTodoType },
+  { label: '待客服确认', value: 'awaiting_feedback' as API.DashboardTodoType },
   { label: '预校验阻断', value: 'learning_path_precheck_error' },
   { label: '学习路径驳回', value: 'learning_path_rejected' },
   { label: '发布失败', value: 'publish_failed' },

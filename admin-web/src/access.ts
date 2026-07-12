@@ -3,7 +3,11 @@ import type {
   PermissionAction,
 } from '@/foundation/permissions';
 import {
+  roleCanAccessFeedbackQueue,
   roleCanAccessModule,
+  roleCanAccessUserArea,
+  roleCanAccessUserDetail,
+  roleCanAccessUserList,
   roleCanPerformAction,
 } from '@/foundation/permissions';
 
@@ -19,7 +23,10 @@ export default function access(
   return {
     canAdmin: roleId === 'super_admin',
     canAccessDashboard: roleCanAccessModule(roleId, 'dashboard'),
-    canAccessUsers: roleCanAccessModule(roleId, 'users'),
+    canAccessUsers: roleCanAccessUserArea(roleId),
+    canAccessUserList: roleCanAccessUserList(roleId),
+    canAccessUserDetail: roleCanAccessUserDetail(roleId),
+    canAccessFeedbackQueue: roleCanAccessFeedbackQueue(roleId),
     canAccessContent: roleCanAccessModule(roleId, 'content'),
     canAccessLearningPath: roleCanAccessModule(roleId, 'learningPath'),
     canAccessAiCoach: roleCanAccessModule(roleId, 'aiCoach'),
