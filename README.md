@@ -26,13 +26,14 @@
 - 已完成 `/ai-coach/prompts` AI 陪练策略治理 MVP：四类策略配置、五类业务场景、独立新建/详情/编辑页、预校验、静态样例校验、版本差异、审核发布同步和权限验证。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
+- 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
 - 已完成第十一阶段全链路验收与后端接入准备：新增接口契约、核心数据模型、状态机/权限基线和全链路验收记录，不新增业务页面、不接真实后端。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
 - 已新增项目记忆 `MEMORY.md`，并在 `项目备份/` 保存 2026-07-09 最新备份。
 - 已按 PRD v1.3 P0 范围完成业务对象和语义路由建模；尚未达到可用标准的入口保留路由与产品定义，但不在生产侧边栏展示。
 - 已完成“已有聚合页拆实”补强：写作题目、翻译题目、今日任务模板、系统日志入口和运营数据分区均以独立业务语义 URL 进入，但底层继续复用现有聚合页、表单、详情、审计和权限能力。
 - 已完成 `/content/wrong-reason-tags` 错因标签字典 MVP：列表、详情、新建、编辑、提交审核、审核发布联动、引用次数、权限和审计闭环。
-- 已完成导航减法第一阶段：代码中建立 11 个一级业务模块；内容运营因暂无可用子页面暂时隐藏，当前生产侧边栏展示 10 个一级模块、15 个已实现二级入口，不再暴露统一占位页。
+- 已完成导航减法第一阶段：代码中建立 11 个一级业务模块；内容运营因暂无可用子页面暂时隐藏，当前生产侧边栏展示 10 个一级模块、16 个已实现二级入口，不再暴露统一占位页。
 - 已建立远程唯一主干与并行开发规范：`origin/main` 是唯一线上基线，功能分支通过 Pull Request 和 GitHub Actions `Verify` 校验后合并，详见 `docs/git-parallel-development-workflow.md`。
 
 ## 目录说明
@@ -76,3 +77,4 @@
 - 2026-07-09：`/content/wrong-reason-tags` 错因标签 MVP 完成，`npm run test -- wrongReasonTagStore`、`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；API smoke 通过，浏览器控制层超时限制见 `logs/wrong-reason-tags-implementation-2026-07-09.md`。
 - 2026-07-10：导航减法第一阶段完成，保留今日任务模板、写作题目、翻译题目、后台账号和角色权限等独立业务入口；运营数据、审计日志和审核发布收敛为稳定入口，未完成页面暂时隐藏。`npm run test`（13 文件、71 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，浏览器验收覆盖 7 类角色、旧 URL 跳转、隐藏语义 URL 高亮和客服直访系统页 403。
 - 2026-07-11：建立 `origin/main` 唯一线上主干、功能分支命名和 Pull Request 合并规范；新增 GitHub Actions `Verify`，统一执行 TypeScript、71 项单测、lint 和生产构建。
+- 2026-07-11：`/learning-path/onboarding` 配置闭环完成，覆盖五字段维护、预校验、审核发布、Mock 用户、版本快照、诊断/任务命中和漏斗回看；`npm run tsc`、`npm run test`（14 文件、77 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过，详见 `logs/onboarding-config-implementation-2026-07-11.md`。

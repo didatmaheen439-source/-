@@ -869,6 +869,119 @@ export async function createSensitiveAccessLog(
   });
 }
 
+/** 获取 Onboarding 配置闭环 GET /api/learning-path/onboarding */
+export async function onboardingOverview(options?: { [key: string]: any }) {
+  return request<{
+    data?: API.OnboardingOverview;
+    success?: boolean;
+  }>('/api/learning-path/onboarding', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 更新 Onboarding 草稿 PATCH /api/learning-path/onboarding/:id */
+export async function updateOnboardingConfig(
+  id: string,
+  body: API.OnboardingSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{ data?: API.OnboardingConfig; success?: boolean }>(
+    `/api/learning-path/onboarding/${id}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+      ...(options || {}),
+    },
+  );
+}
+
+/** 复制 Onboarding 配置为草稿 POST /api/learning-path/onboarding/:id/copy */
+export async function copyOnboardingConfig(
+  id: string,
+  options?: { [key: string]: any },
+) {
+  return request<{ data?: API.OnboardingConfig; success?: boolean }>(
+    `/api/learning-path/onboarding/${id}/copy`,
+    { method: 'POST', ...(options || {}) },
+  );
+}
+
+/** 预校验 Onboarding 配置 POST /api/learning-path/onboarding/:id/precheck */
+export async function precheckOnboardingConfig(
+  id: string,
+  body: API.OnboardingSaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{ data?: API.OnboardingPrecheckResult; success?: boolean }>(
+    `/api/learning-path/onboarding/${id}/precheck`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+      ...(options || {}),
+    },
+  );
+}
+
+/** 提交 Onboarding 配置审核 POST /api/learning-path/onboarding/:id/submit-review */
+export async function submitOnboardingConfigReview(
+  id: string,
+  body: API.LearningPathSubmitReviewParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.OnboardingConfig;
+    reviewTask?: API.ReviewTask;
+    success?: boolean;
+  }>(`/api/learning-path/onboarding/${id}/submit-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 获取 Onboarding 版本 GET /api/learning-path/onboarding/:id/versions */
+export async function onboardingConfigVersions(
+  id: string,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.OnboardingConfigVersion[];
+    total?: number;
+    success?: boolean;
+  }>(`/api/learning-path/onboarding/${id}/versions`, {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+/** 完成固定 Mock 用户 Onboarding POST /api/learning-path/onboarding/mock-user/complete */
+export async function completeMockOnboarding(
+  body: API.OnboardingSubmission,
+  options?: { [key: string]: any },
+) {
+  return request<{ data?: API.OnboardingOverview; success?: boolean }>(
+    '/api/learning-path/onboarding/mock-user/complete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+      ...(options || {}),
+    },
+  );
+}
+
+/** 重置固定 Mock 用户 POST /api/learning-path/onboarding/mock-user/reset */
+export async function resetMockOnboarding(options?: { [key: string]: any }) {
+  return request<{ data?: API.OnboardingOverview; success?: boolean }>(
+    '/api/learning-path/onboarding/mock-user/reset',
+    { method: 'POST', ...(options || {}) },
+  );
+}
+
 /** 获取学习路径配置列表 GET /api/learning-path/configs */
 export async function learningPathConfigs(
   params?: API.LearningPathConfigQueryParams,

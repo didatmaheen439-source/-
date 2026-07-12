@@ -48,6 +48,22 @@ import {
   validateMockExamReviewTransition,
 } from './mockExamStore';
 import {
+  buildOnboardingSnapshot,
+  copyOnboardingConfigAsDraft,
+  getEditableOnboardingConfig,
+  getOnboardingConfig,
+  getOnlineOnboardingConfig,
+  getUpcomingCetExamDates,
+  matchPublishedLearningPath,
+  mockOnboardingMatch,
+  mockOnboardingUser,
+  onboardingConfigsData,
+  precheckOnboardingConfig,
+  resetMockOnboardingState,
+  syncOnboardingFromReviewTask,
+  validateOnboardingSubmission,
+} from './onboardingStore';
+import {
   buildWritingTranslationPrecheck,
   isWritingTranslationReviewTask,
   operatorFromWritingTranslationRole,
@@ -355,6 +371,10 @@ const operationUsersData: API.AdminUser[] = Array.from({ length: 30 }).map((_, z
     accessLogs: [],
   };
 });
+
+if (!operationUsersData.some((user) => user.id === mockOnboardingUser.id)) {
+  operationUsersData.push(mockOnboardingUser);
+}
 
 const initialReviewTasksData: API.ReviewTask[] = [
   {
@@ -1271,6 +1291,8 @@ const userLearningPathMatches: Record<string, API.UserLearningPathMatchSummary> 
   },
 };
 
+userLearningPathMatches[mockOnboardingUser.id] = mockOnboardingMatch;
+
 const resolveRoleId = (username?: string): AdminRoleId | undefined => {
   if (!username) return undefined;
   if (loginAliases[username]) return loginAliases[username];
@@ -2139,6 +2161,94 @@ const buildLearningPathReviewTask = (
   return task;
 };
 
+const buildOnboardingReviewTask = (
+  config: API.OnboardingConfig,
+  operator: ReturnType<typeof getOperator>,
+  changeSummary: string,
+) => {
+  const now = nowText();
+  const existingTask = config.reviewTaskId
+    ? reviewTasksData.find((item) => item.id === config.reviewTaskId)
+    : reviewTasksData.find(
+        (item) =>
+          item.objectType === 'learning_path_config' &&
+          item.objectSubtype === 'onboarding_config' &&
+          item.objectId === config.id,
+      );
+  const payload = {
+    objectType: 'learning_path_config' as API.ReviewObjectType,
+    objectSubtype: 'onboarding_config' as const,
+    objectTypeName: 'Onboarding 配置',
+    objectId: config.id,
+    objectName: config.name,
+    moduleKey: 'learningPath',
+    moduleName: '学习路径配置',
+    submitterId: operator.id,
+    submitter: operator.name,
+    submittedAt: now,
+    version: config.version,
+    priority: 'P0' as const,
+    status: 'pending_review' as API.ReviewTaskStatus,
+    riskLevel: 'high' as const,
+    updatedAt: now,
+    changeSummary,
+    impactScope: '影响之后完成 Onboarding 的新用户目标采集与规则命中。',
+    reviewOpinion: '',
+    reviewerId: '',
+    reviewer: '',
+    releasePlan: '审核通过后进入待发布队列。',
+    rollbackTargetVersion: getOnlineOnboardingConfig()?.version ?? config.version,
+  };
+  if (existingTask) {
+    Object.assign(existingTask, payload);
+    existingTask.versionRecords.unshift({
+      id: `version-${existingTask.id}-${Date.now()}`,
+      version: config.version,
+      status: 'pending_review',
+      summary: changeSummary,
+      createdBy: operator.name,
+      createdAt: now,
+    });
+    existingTask.operationRecords.unshift({
+      id: `op-${existingTask.id}-${Date.now()}`,
+      operator: operator.name,
+      roleName: operator.roleName,
+      action: '提交审核',
+      fromStatus: config.status,
+      toStatus: 'pending_review',
+      reason: changeSummary,
+      time: now,
+    });
+    config.reviewTaskId = existingTask.id;
+    return existingTask;
+  }
+  const task: API.ReviewTask = {
+    id: `review-onboarding-${Date.now()}`,
+    ...payload,
+    versionRecords: [{
+      id: `version-onboarding-${config.id}-${Date.now()}`,
+      version: config.version,
+      status: 'pending_review',
+      summary: changeSummary,
+      createdBy: operator.name,
+      createdAt: now,
+    }],
+    operationRecords: [{
+      id: `op-onboarding-${config.id}-${Date.now()}`,
+      operator: operator.name,
+      roleName: operator.roleName,
+      action: '提交审核',
+      fromStatus: config.status,
+      toStatus: 'pending_review',
+      reason: changeSummary,
+      time: now,
+    }],
+  };
+  reviewTasksData.unshift(task);
+  config.reviewTaskId = task.id;
+  return task;
+};
+
 const syncLearningPathFromReviewTask = (
   task: API.ReviewTask,
   previousStatus: API.ReviewTaskStatus,
@@ -2269,6 +2379,14 @@ const buildUserLearningPathMatch = (userId: string) => {
     : undefined,
   };
 };
+
+const buildOnboardingOverview = (): API.OnboardingOverview => ({
+  config: getEditableOnboardingConfig(),
+  onlineConfig: getOnlineOnboardingConfig(),
+  mockUser: mockOnboardingUser,
+  match: buildUserLearningPathMatch(mockOnboardingUser.id),
+  nextExamDates: getUpcomingCetExamDates(),
+});
 
 const analyticsSectionLabels: Record<API.AnalyticsVisibleSection, string> = {
   users: '用户增长与活跃',
@@ -4633,6 +4751,283 @@ export default {
       reviewTask: task,
     });
   },
+  'GET /api/learning-path/onboarding': (_req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无 Onboarding 配置访问权限。' });
+      return;
+    }
+    res.send({ success: true, data: buildOnboardingOverview() });
+  },
+  'POST /api/learning-path/onboarding/mock-user/complete': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanWriteLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无运行 Onboarding Mock 的权限。' });
+      return;
+    }
+    const onlineConfig = getOnlineOnboardingConfig();
+    if (!onlineConfig) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '当前没有已发布的 Onboarding 配置。' });
+      return;
+    }
+    const submission = req.body as API.OnboardingSubmission;
+    const validationError = validateOnboardingSubmission(onlineConfig, submission);
+    if (validationError) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: validationError });
+      return;
+    }
+    const snapshot = buildOnboardingSnapshot(onlineConfig, submission);
+    const matched = matchPublishedLearningPath(submission, learningPathConfigsData);
+    const actualExamDate = submission.examDate === 'default' ? getUpcomingCetExamDates()[0] : submission.examDate;
+    mockOnboardingUser.examProfile = {
+      examType: submission.examType,
+      targetScore: submission.targetScore,
+      examDate: actualExamDate,
+      dailyStudyMinutes: submission.dailyMinutes,
+    };
+    mockOnboardingUser.lastActiveAt = snapshot.completedAt;
+    mockOnboardingUser.learningStatus.onboardingStatus = 'completed';
+    mockOnboardingUser.learningStatus.diagnosisStatus = 'completed';
+    mockOnboardingUser.learningStatus.weakModules = matched.diagnosisRule
+      ? matched.diagnosisRule.output.weakModules.map((module) => learningPathModuleLabels[module])
+      : [];
+    mockOnboardingUser.learningStatus.todayTaskStatus = 'not_started';
+    mockOnboardingUser.learningStatus.todayTaskProgress = 0;
+    mockOnboardingUser.learningStatus.lastStudyAt = snapshot.completedAt;
+    mockOnboardingUser.currentStudyStatus = '未开始，0%';
+    mockOnboardingMatch.onboardingConfig = snapshot;
+    if (matched.diagnosisRule) {
+      mockOnboardingMatch.diagnosisRule = {
+        ruleId: matched.diagnosisRule.id,
+        ruleName: matched.diagnosisRule.name,
+        version: matched.diagnosisRule.version,
+        matchedAt: snapshot.completedAt,
+        weakModules: matched.diagnosisRule.output.weakModules,
+        weakLevel: matched.diagnosisRule.output.weakLevel,
+        taskPriority: matched.diagnosisRule.output.taskPriority,
+        status: matched.diagnosisRule.status,
+        currentOnline: true,
+      };
+    } else {
+      delete mockOnboardingMatch.diagnosisRule;
+    }
+    if (matched.todayTaskTemplate) {
+      mockOnboardingMatch.todayTaskTemplate = {
+        templateId: matched.todayTaskTemplate.id,
+        templateName: matched.todayTaskTemplate.name,
+        version: matched.todayTaskTemplate.version,
+        matchedAt: snapshot.completedAt,
+        taskItemCount: matched.todayTaskTemplate.taskItems.length,
+        totalEstimatedMinutes: matched.todayTaskTemplate.totalEstimatedMinutes,
+        status: matched.todayTaskTemplate.status,
+        currentOnline: true,
+      };
+    } else {
+      delete mockOnboardingMatch.todayTaskTemplate;
+    }
+    onlineConfig.fields.forEach((field) => {
+      const selected = field.options.find((item) => String(item.value) === String(submission[field.key]));
+      if (selected) selected.referencedCount = 1;
+    });
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'complete_mock_onboarding',
+      objectType: 'learning_path_config',
+      objectSubtype: 'onboarding_config',
+      objectId: onlineConfig.id,
+      sourcePage: '/learning-path/onboarding',
+      reason: '运行固定 Mock 用户 Onboarding。',
+      result: 'success',
+      changeSummary: `Mock 用户完成 Onboarding，使用 ${onlineConfig.version}。`,
+      version: onlineConfig.version,
+    });
+    res.send({ success: true, data: buildOnboardingOverview() });
+  },
+  'POST /api/learning-path/onboarding/mock-user/reset': (_req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanWriteLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无重置 Onboarding Mock 的权限。' });
+      return;
+    }
+    onboardingConfigsData.forEach((config) => {
+      config.fields.forEach((field) => {
+        field.options.forEach((item) => {
+          item.referencedCount = 0;
+        });
+      });
+    });
+    resetMockOnboardingState();
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'reset_mock_onboarding',
+      objectType: 'learning_path_config',
+      objectSubtype: 'onboarding_config',
+      objectId: mockOnboardingUser.id,
+      sourcePage: '/learning-path/onboarding',
+      reason: '重置固定 Mock 用户。',
+      result: 'success',
+      changeSummary: '固定 Mock 用户已恢复为未完成 Onboarding。',
+    });
+    res.send({ success: true, data: buildOnboardingOverview() });
+  },
+  'POST /api/learning-path/onboarding/:id/copy': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanWriteLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无复制 Onboarding 配置权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const source = getOnboardingConfig(id);
+    if (!source) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'Onboarding 配置不存在。' });
+      return;
+    }
+    const activeDraft = onboardingConfigsData.find((item) => item.id !== id && item.status !== 'published' && item.status !== 'offline' && item.status !== 'rolled_back');
+    if (activeDraft) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: `已有进行中的 ${activeDraft.version}，请先处理该版本。` });
+      return;
+    }
+    const copied = copyOnboardingConfigAsDraft(source, getOperator());
+    res.send({ success: true, data: copied });
+  },
+  'PATCH /api/learning-path/onboarding/:id': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanWriteLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无编辑 Onboarding 配置权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const config = getOnboardingConfig(id);
+    if (!config) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'Onboarding 配置不存在。' });
+      return;
+    }
+    if (!editableLearningPathStatuses.includes(config.status)) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '当前状态不可编辑，请复制为新草稿。' });
+      return;
+    }
+    const body = req.body as API.OnboardingSaveParams;
+    if (Number(body.dataVersion) !== config.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '配置已被其他人更新，请刷新后重试。' });
+      return;
+    }
+    const removedReferencedOption = config.fields.some((field) =>
+      field.options.some(
+        (item) =>
+          item.referencedCount > 0 &&
+          !body.fields.find((nextField) => nextField.key === field.key)?.options.some((next) => next.id === item.id),
+      ),
+    );
+    if (removedReferencedOption) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '已被用户快照引用的选项不能删除，只能停用。' });
+      return;
+    }
+    const operator = getOperator();
+    config.name = String(body.name || '').trim();
+    config.description = String(body.description || '').trim();
+    config.changeSummary = String(body.changeSummary || '').trim();
+    config.internalRemark = String(body.internalRemark || '').trim();
+    config.fields = structuredClone(body.fields);
+    config.updatedBy = operator.name;
+    config.updatedById = operator.id;
+    config.updatedAt = nowText();
+    config.dataVersion += 1;
+    config.lastPrecheck = precheckOnboardingConfig(config);
+    config.operationRecords.unshift({
+      id: `onboarding-op-edit-${Date.now()}`,
+      operator: operator.name,
+      roleName: operator.roleName,
+      action: '保存草稿',
+      fromStatus: config.status,
+      toStatus: config.status,
+      reason: config.changeSummary,
+      time: config.updatedAt,
+    });
+    res.send({ success: true, data: config });
+  },
+  'POST /api/learning-path/onboarding/:id/precheck': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanWriteLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无 Onboarding 预校验权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const config = getOnboardingConfig(id);
+    if (!config) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'Onboarding 配置不存在。' });
+      return;
+    }
+    const body = req.body as API.OnboardingSaveParams;
+    if (Number(body.dataVersion) !== config.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '配置已被其他人更新，请刷新后重试。' });
+      return;
+    }
+    const result = precheckOnboardingConfig({ id: config.id, fields: body.fields });
+    config.lastPrecheck = result;
+    res.send({ success: true, data: result });
+  },
+  'POST /api/learning-path/onboarding/:id/submit-review': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanSubmitLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无提交 Onboarding 审核权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const config = getOnboardingConfig(id);
+    if (!config) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'Onboarding 配置不存在。' });
+      return;
+    }
+    if (!editableLearningPathStatuses.includes(config.status)) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '当前状态不可提交审核。' });
+      return;
+    }
+    const body = req.body as API.LearningPathSubmitReviewParams;
+    if (Number(body.dataVersion) !== config.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '配置已被其他人更新，请刷新后重试。' });
+      return;
+    }
+    const changeSummary = String(body.changeSummary || '').trim();
+    if (!changeSummary) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '提交审核必须填写变更说明。' });
+      return;
+    }
+    const precheck = config.lastPrecheck ?? precheckOnboardingConfig(config);
+    if (precheck.level === 'error') {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '预校验存在阻断错误，不能提交审核。' });
+      return;
+    }
+    if (precheck.level === 'warning' && !body.confirmWarnings) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: '预校验存在警告，请确认后再提交审核。' });
+      return;
+    }
+    const operator = getOperator();
+    const previousStatus = config.status;
+    const task = buildOnboardingReviewTask(config, operator, changeSummary);
+    config.status = 'pending_review';
+    config.updatedBy = operator.name;
+    config.updatedById = operator.id;
+    config.updatedAt = task.updatedAt;
+    config.changeSummary = changeSummary;
+    config.dataVersion += 1;
+    config.operationRecords.unshift({
+      id: `onboarding-op-submit-${Date.now()}`,
+      operator: operator.name,
+      roleName: operator.roleName,
+      action: '提交审核',
+      fromStatus: previousStatus,
+      toStatus: 'pending_review',
+      reason: changeSummary,
+      time: task.updatedAt,
+    });
+    res.send({ success: true, data: config, reviewTask: task });
+  },
+  'GET /api/learning-path/onboarding/:id/versions': (req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无 Onboarding 版本访问权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const config = getOnboardingConfig(id);
+    if (!config) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'Onboarding 配置不存在。' });
+      return;
+    }
+    res.send({ success: true, data: config.versionRecords, total: config.versionRecords.length });
+  },
   'GET /api/learning-path/configs': (req: Request, res: Response) => {
     if (!roleCanReadLearningPath(currentRoleId)) {
       if (currentRoleId) {
@@ -5002,6 +5397,23 @@ export default {
       return;
     }
 
+    if (task.objectSubtype === 'onboarding_config' && nextStatus === 'published') {
+      const onboardingConfig = getOnboardingConfig(task.objectId);
+      const onboardingPrecheck = onboardingConfig
+        ? precheckOnboardingConfig(onboardingConfig)
+        : undefined;
+      if (!onboardingConfig || onboardingPrecheck?.level === 'error') {
+        res.status(422).send({
+          success: false,
+          errorCode: '422',
+          errorMessage: 'Onboarding 配置发布前复验失败。',
+          data: onboardingPrecheck,
+        });
+        return;
+      }
+      onboardingConfig.lastPrecheck = onboardingPrecheck;
+    }
+
     const previousStatus = task.status;
     const operator = getOperator();
     const action = reviewStatusActionMap[nextStatus];
@@ -5050,6 +5462,7 @@ export default {
       operator,
       operationReason,
     );
+    syncOnboardingFromReviewTask(task, nextStatus, operator, operationReason);
     syncAiCoachStrategyFromReviewTask(
       task,
       previousStatus,

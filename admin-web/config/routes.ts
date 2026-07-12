@@ -191,7 +191,18 @@ export default [
     routes: [
       {
         path: '/learning-path',
-        redirect: '/learning-path/diagnosis-rules',
+        redirect: '/learning-path/onboarding',
+      },
+      {
+        path: '/learning-path/onboarding',
+        name: 'onboarding',
+        component: './learning-path/onboarding',
+      },
+      {
+        path: '/learning-path/onboarding/:id/edit',
+        name: 'onboarding-edit',
+        hideInMenu: true,
+        component: './learning-path/onboarding/edit/index',
       },
       {
         path: '/learning-path/diagnosis-rules',

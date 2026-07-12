@@ -50,6 +50,12 @@ const objectTypeOptions = [
   { label: '模考试卷', value: 'mock_exam' },
 ];
 
+const objectSubtypeLabels: Record<string, string> = {
+  onboarding_config: 'Onboarding 配置',
+  diagnosis_rule: '诊断规则',
+  today_task_template: '今日任务模板',
+};
+
 const riskLevelText: Record<API.ReviewRiskLevel, string> = {
   low: '低',
   medium: '中',
@@ -320,7 +326,9 @@ const ReviewReleasePage: React.FC = () => {
       render: (_, record) => (
         <Space size={4} wrap>
           <Tag color="blue">{record.objectTypeName}</Tag>
-          {record.objectSubtype ? <Tag>{record.objectSubtype}</Tag> : null}
+          {record.objectSubtype ? (
+            <Tag>{objectSubtypeLabels[record.objectSubtype] ?? record.objectSubtype}</Tag>
+          ) : null}
         </Space>
       ),
     },
