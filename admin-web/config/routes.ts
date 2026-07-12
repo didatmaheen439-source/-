@@ -362,8 +362,15 @@ export default [
       {
         path: '/ai-coach/abnormal-replies',
         name: 'abnormal-replies',
+        access: 'canAccessAiAbnormalReplies',
+        component: './ai-coach/abnormal-replies',
+      },
+      {
+        path: '/ai-coach/abnormal-replies/:id',
+        name: 'abnormal-reply-detail',
         hideInMenu: true,
-        component: './prd-placeholder',
+        access: 'canAccessAiAbnormalReplies',
+        component: './ai-coach/abnormal-replies/detail/index',
       },
       {
         path: '/ai-coach/strategy-versions',

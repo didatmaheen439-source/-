@@ -61,6 +61,7 @@ const visibleSecondLevelPaths = [
   '/learning-path/diagnosis-rules',
   '/learning-path/task-templates',
   '/ai-coach/prompts',
+  '/ai-coach/abnormal-replies',
   '/writing-translation/writing-topics',
   '/writing-translation/translation-topics',
   '/mock-exam/papers',
@@ -79,7 +80,7 @@ describe('admin navigation structure', () => {
     expect(businessRoutes.filter((route) => route?.hideInMenu)).toEqual([]);
   });
 
-  it('exposes only the nineteen implemented second-level entries', () => {
+  it('exposes only the twenty implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];
