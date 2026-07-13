@@ -146,6 +146,27 @@
 
 后端必须持久化字段：配置类型、适用条件、判定条件、输出、任务项、引用对象、优先级、状态、版本、预校验结果、审核任务。
 
+### 进阶学习策略 `/learning-path/advanced-strategies`
+
+| 接口 | 请求参数 | 返回要点 | 权限要求 | 审计要求 |
+| --- | --- | --- | --- | --- |
+| `GET /api/learning-path/advanced-strategies` | 类型、关键词、考试类型、模块、状态、分页 | 轻量任务、追加陪练、复练推荐列表，含效果摘要 | `learningPath.read` | 只读 |
+| `GET /api/learning-path/advanced-strategies/:id` | `id` | 策略详情、预校验、效果、命中记录、版本和操作记录 | `learningPath.read` | 只读 |
+| `POST /api/learning-path/advanced-strategies` | 策略主体、触发条件、主引用、替代规则 | 新草稿 | `super_admin`、`teaching_reviewer`、`ai_operator` 的进阶策略写权限 | 记录新建 |
+| `PATCH /api/learning-path/advanced-strategies/:id` | 策略字段、`dataVersion` | 更新后草稿 | 同上；仅草稿/已驳回 | 版本冲突返回 409，记录编辑 |
+| `POST /api/learning-path/advanced-strategies/precheck` | 新建态策略 | 预校验结果 | 同上 | 记录预校验摘要 |
+| `POST /api/learning-path/advanced-strategies/:id/precheck` | 当前策略 | 预校验结果 | 同上 | 更新最近校验结果并记录 |
+| `POST /api/learning-path/advanced-strategies/:id/submit-review` | 变更说明、`dataVersion`、确认警告 | 审核任务 | `learningPath.submit` 且限进阶策略 | 记录提交审核 |
+| `POST /api/learning-path/advanced-strategies/:id/copy` | 复制来源 | 新草稿 | 进阶策略写权限 | 记录复制来源 |
+| `GET /api/learning-path/advanced-strategies/:id/effects` | `id` | 命中、开始、完成、替换、跳过和完成率 | `learningPath.read` | 只读 |
+| `GET /api/learning-path/advanced-strategies/:id/versions` | `id` | 策略版本列表 | `learningPath.read` | 只读 |
+| `GET /api/learning-path/advanced-strategies/references` | 考试类型 | 可引用题目、题组、错因标签和模块 | `learningPath.read` | 只读 |
+| `GET /api/learning-path/advanced-strategies/mock-profiles` | 无 | Mock 用户画像 | `learningPath.read` | 只读 |
+| `POST /api/learning-path/advanced-strategies/mock-runs` | Mock 用户、策略类型 | 命中结果和替代结果 | `learningPath.read` | 记录 Mock 命中 |
+| `PATCH /api/learning-path/advanced-strategies/mock-runs/:id/status` | 执行状态 | 更新后命中记录 | 进阶策略写权限 | 记录效果回填 |
+
+后端必须持久化字段：策略类型、触发条件组、主引用、替代规则、优先级、线上版本、回滚目标、预校验结果、Mock 命中记录、操作审计。`ai_operator` 只能写进阶学习策略，不能获得旧诊断规则、今日任务模板或用户列表权限。
+
 ## AI 陪练管理 `/ai-coach/prompts`
 
 | 接口 | 请求参数 | 返回要点 | 权限要求 | 审计要求 |

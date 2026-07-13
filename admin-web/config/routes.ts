@@ -274,22 +274,39 @@ export default [
         component: './learning-path/diagnosis-rules',
       },
       {
-        path: '/learning-path/light-task-strategies',
-        name: 'light-task-strategies',
+        path: '/learning-path/advanced-strategies',
+        name: 'advanced-strategies',
+        component: './learning-path/advanced-strategies',
+      },
+      {
+        path: '/learning-path/advanced-strategies/new',
+        name: 'advanced-strategy-new',
         hideInMenu: true,
-        component: './prd-placeholder',
+        component: './learning-path/advanced-strategies/edit/index',
+      },
+      {
+        path: '/learning-path/advanced-strategies/:id/edit',
+        name: 'advanced-strategy-edit',
+        hideInMenu: true,
+        component: './learning-path/advanced-strategies/edit/index',
+      },
+      {
+        path: '/learning-path/advanced-strategies/:id',
+        name: 'advanced-strategy-detail',
+        hideInMenu: true,
+        component: './learning-path/advanced-strategies/detail/index',
+      },
+      {
+        path: '/learning-path/light-task-strategies',
+        redirect: '/learning-path/advanced-strategies?tab=light_task',
       },
       {
         path: '/learning-path/extra-practice-strategies',
-        name: 'extra-practice-strategies',
-        hideInMenu: true,
-        component: './prd-placeholder',
+        redirect: '/learning-path/advanced-strategies?tab=extra_practice',
       },
       {
         path: '/learning-path/review-recommendation-strategies',
-        name: 'review-recommendation-strategies',
-        hideInMenu: true,
-        component: './prd-placeholder',
+        redirect: '/learning-path/advanced-strategies?tab=review_recommendation',
       },
       {
         path: '/learning-path/diagnosis-rules/new',

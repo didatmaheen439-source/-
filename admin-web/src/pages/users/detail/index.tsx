@@ -81,6 +81,12 @@ const aiBusinessSceneText: Record<API.AiCoachBusinessScene, string> = {
   learning_path_recommendation: '学习路径推荐',
 };
 
+const advancedStrategyKindText: Record<API.AdvancedLearningStrategyKind, string> = {
+  light_task: '轻量任务',
+  extra_practice: '追加陪练',
+  review_recommendation: '复练推荐',
+};
+
 const UserDetailPage: React.FC = () => {
   const { id = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -648,7 +654,8 @@ const UserDetailPage: React.FC = () => {
             <Card title="学习路径匹配摘要">
               {learningPathMatch?.onboardingConfig ||
               learningPathMatch?.diagnosisRule ||
-              learningPathMatch?.todayTaskTemplate ? (
+              learningPathMatch?.todayTaskTemplate ||
+              learningPathMatch?.advancedStrategies?.length ? (
                 <Descriptions column={2}>
                   <Descriptions.Item label="Onboarding 配置" span={2}>
                     {learningPathMatch.onboardingConfig ? (
@@ -792,6 +799,32 @@ const UserDetailPage: React.FC = () => {
                     ) : (
                       '-'
                     )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="进阶学习策略" span={2}>
+                    {learningPathMatch.advancedStrategies?.length ? (
+                      <Space orientation="vertical" size={6}>
+                        {learningPathMatch.advancedStrategies.map((item) => (
+                          <Space key={item.runId} wrap>
+                            <Tag>{advancedStrategyKindText[item.kind]}</Tag>
+                            {canOpenLearningPathConfig ? (
+                              <Button
+                                type="link"
+                                size="small"
+                                onClick={() => history.push(`/learning-path/advanced-strategies/${item.strategyId}`)}
+                              >
+                                {item.strategyName}
+                              </Button>
+                            ) : (
+                              <Typography.Text>{item.strategyName}</Typography.Text>
+                            )}
+                            <Tag>{item.version}</Tag>
+                            <Typography.Text type="secondary">
+                              {item.resultReferenceName} · {item.executionStatus} · {item.matchedAt}
+                            </Typography.Text>
+                          </Space>
+                        ))}
+                      </Space>
+                    ) : '-'}
                   </Descriptions.Item>
                 </Descriptions>
               ) : (
