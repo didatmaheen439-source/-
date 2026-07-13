@@ -1624,6 +1624,105 @@ export async function userLearningPathMatchSummary(
   });
 }
 
+export async function advancedLearningStrategies(
+  params?: Record<string, unknown>,
+  options?: { [key: string]: any },
+) {
+  return request<API.AdvancedLearningStrategyList>(
+    '/api/learning-path/advanced-strategies',
+    { method: 'GET', params, ...(options || {}) },
+  );
+}
+
+export async function advancedLearningStrategyDetail(
+  id: string,
+  options?: { [key: string]: any },
+) {
+  return request<{ success?: boolean; data?: API.AdvancedLearningStrategy; effects?: API.StrategyEffectSummary; runs?: API.StrategyMatchRun[] }>(
+    `/api/learning-path/advanced-strategies/${id}`,
+    { method: 'GET', ...(options || {}) },
+  );
+}
+
+export async function createAdvancedLearningStrategy(
+  body: API.AdvancedLearningStrategySaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{ success?: boolean; data?: API.AdvancedLearningStrategy }>(
+    '/api/learning-path/advanced-strategies',
+    { method: 'POST', data: body, ...(options || {}) },
+  );
+}
+
+export async function updateAdvancedLearningStrategy(
+  id: string,
+  body: API.AdvancedLearningStrategySaveParams,
+  options?: { [key: string]: any },
+) {
+  return request<{ success?: boolean; data?: API.AdvancedLearningStrategy }>(
+    `/api/learning-path/advanced-strategies/${id}`,
+    { method: 'PATCH', data: body, ...(options || {}) },
+  );
+}
+
+export async function copyAdvancedLearningStrategy(id: string) {
+  return request<{ success?: boolean; data?: API.AdvancedLearningStrategy }>(
+    `/api/learning-path/advanced-strategies/${id}/copy`,
+    { method: 'POST' },
+  );
+}
+
+export async function precheckAdvancedLearningStrategy(
+  body: API.AdvancedLearningStrategySaveParams,
+) {
+  const suffix = body.id ? `/${body.id}` : '';
+  return request<{ success?: boolean; data?: API.StrategyPrecheckResult }>(
+    `/api/learning-path/advanced-strategies${suffix}/precheck`,
+    { method: 'POST', data: body },
+  );
+}
+
+export async function submitAdvancedLearningStrategyReview(
+  id: string,
+  body: { dataVersion: number; changeSummary: string; confirmWarnings?: boolean },
+) {
+  return request<{ success?: boolean; data?: API.AdvancedLearningStrategy; reviewTask?: API.ReviewTask }>(
+    `/api/learning-path/advanced-strategies/${id}/submit-review`,
+    { method: 'POST', data: body },
+  );
+}
+
+export async function advancedStrategyReferences(params?: { examType?: API.ExamType }) {
+  return request<{ success?: boolean; data?: API.StrategyReference[]; total?: number }>(
+    '/api/learning-path/advanced-strategies/references',
+    { method: 'GET', params },
+  );
+}
+
+export async function advancedStrategyMockProfiles() {
+  return request<{ success?: boolean; data?: API.StrategyMockProfile[] }>(
+    '/api/learning-path/advanced-strategies/mock-profiles',
+    { method: 'GET' },
+  );
+}
+
+export async function runAdvancedStrategyMock(body: { profileId: string; kind: API.AdvancedLearningStrategyKind }) {
+  return request<{ success?: boolean; data?: API.StrategyMatchRun }>(
+    '/api/learning-path/advanced-strategies/mock-runs',
+    { method: 'POST', data: body },
+  );
+}
+
+export async function updateAdvancedStrategyMockRun(
+  id: string,
+  status: API.StrategyExecutionStatus,
+) {
+  return request<{ success?: boolean; data?: API.StrategyMatchRun }>(
+    `/api/learning-path/advanced-strategies/mock-runs/${id}/status`,
+    { method: 'PATCH', data: { status } },
+  );
+}
+
 /** 获取运营数据总览 GET /api/analytics/overview */
 export async function analyticsOverview(
   params?: API.AnalyticsFilterParams,

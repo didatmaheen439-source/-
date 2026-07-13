@@ -61,6 +61,7 @@ const visibleSecondLevelPaths = [
   '/learning-path/onboarding',
   '/learning-path/diagnosis-rules',
   '/learning-path/task-templates',
+  '/learning-path/advanced-strategies',
   '/ai-coach/prompts',
   '/ai-coach/session-review',
   '/ai-coach/abnormal-replies',

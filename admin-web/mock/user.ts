@@ -15,6 +15,20 @@ import {
   validateArticleReviewTransition,
 } from './articleStore';
 import {
+  advancedLearningStrategies,
+  advancedStrategyKindLabels,
+  copyAdvancedStrategy,
+  precheckAdvancedStrategy,
+  recordStrategyRun,
+  runStrategyMatch,
+  strategyEffects,
+  strategyMatchRuns,
+  strategyMockProfiles,
+  strategyReferences,
+  syncAdvancedStrategyFromReviewTask,
+  updateStrategyRunStatus,
+} from './advancedLearningStrategyStore';
+import {
   canSubmitFeedbackResolution,
   feedbackOwnerRoleLabels,
   feedbackOwnerRoles,
@@ -2143,6 +2157,103 @@ const roleCanSubmitLearningPath = (roleId?: AdminRoleId | '') =>
       roleCanPerformAction(roleId, 'learningPath', 'submit'),
   );
 
+const roleCanWriteAdvancedStrategy = (roleId?: AdminRoleId | '') =>
+  Boolean(
+    roleId &&
+      ['super_admin', 'teaching_reviewer', 'ai_operator'].includes(roleId) &&
+      roleCanPerformAction(roleId, 'learningPath', 'edit'),
+  );
+
+const roleCanSubmitAdvancedStrategy = (roleId?: AdminRoleId | '') =>
+  Boolean(
+    roleId &&
+      ['super_admin', 'teaching_reviewer', 'ai_operator'].includes(roleId) &&
+      roleCanPerformAction(roleId, 'learningPath', 'submit'),
+  );
+
+const buildAdvancedStrategyReviewTask = (
+  strategy: API.AdvancedLearningStrategy,
+  operator: ReturnType<typeof getOperator>,
+  changeSummary: string,
+) => {
+  const now = nowText();
+  const existing = strategy.reviewTaskId
+    ? reviewTasksData.find((item) => item.id === strategy.reviewTaskId)
+    : reviewTasksData.find(
+        (item) =>
+          item.objectType === 'learning_path_config' &&
+          item.objectId === strategy.id,
+      );
+  const payload = {
+    objectType: 'learning_path_config' as const,
+    objectSubtype: strategy.kind,
+    objectTypeName: advancedStrategyKindLabels[strategy.kind],
+    objectId: strategy.id,
+    objectName: strategy.name,
+    moduleKey: 'learningPath',
+    moduleName: '学习路径配置',
+    submitterId: operator.id,
+    submitter: operator.name,
+    submittedAt: now,
+    version: strategy.version,
+    priority: strategy.priority <= 10 ? ('P0' as const) : strategy.priority <= 30 ? ('P1' as const) : ('P2' as const),
+    status: 'pending_review' as const,
+    riskLevel: strategy.priority <= 10 ? ('high' as const) : ('medium' as const),
+    updatedAt: now,
+    changeSummary,
+    impactScope: strategy.impactScope,
+    reviewOpinion: '',
+    reviewerId: '',
+    reviewer: '',
+    releasePlan: '审核通过后进入待发布队列。',
+    rollbackTargetVersion: strategy.rollbackTargetVersion ?? strategy.version,
+  };
+  if (existing) {
+    Object.assign(existing, payload);
+    existing.versionRecords.unshift({ id: `version-${existing.id}-${Date.now()}`, version: strategy.version, status: 'pending_review', summary: changeSummary, createdBy: operator.name, createdAt: now });
+    existing.operationRecords.unshift({ id: `op-${existing.id}-${Date.now()}`, operator: operator.name, roleName: operator.roleName, action: '提交审核', fromStatus: strategy.status, toStatus: 'pending_review', reason: changeSummary, time: now });
+    strategy.reviewTaskId = existing.id;
+    return existing;
+  }
+  const task: API.ReviewTask = {
+    id: `review-advanced-strategy-${Date.now()}`,
+    ...payload,
+    versionRecords: [{ id: `version-review-${strategy.id}-${Date.now()}`, version: strategy.version, status: 'pending_review', summary: changeSummary, createdBy: operator.name, createdAt: now }],
+    operationRecords: [{ id: `op-review-${strategy.id}-${Date.now()}`, operator: operator.name, roleName: operator.roleName, action: '提交审核', fromStatus: strategy.status, toStatus: 'pending_review', reason: changeSummary, time: now }],
+  };
+  reviewTasksData.unshift(task);
+  strategy.reviewTaskId = task.id;
+  return task;
+};
+
+const pushAdvancedStrategyAudit = (
+  action: string,
+  strategy: API.AdvancedLearningStrategy,
+  params: {
+    reason: string;
+    result?: 'success' | 'denied' | 'failed';
+    originalStatus?: API.LearningPathConfigStatus;
+    newStatus?: API.LearningPathConfigStatus;
+    sourcePage?: string;
+  },
+) => {
+  if (!currentRoleId) return;
+  pushOperationAuditLog({
+    roleId: currentRoleId,
+    action,
+    objectType: 'learning_path_config',
+    objectSubtype: strategy.kind,
+    objectId: strategy.id,
+    sourcePage: params.sourcePage ?? `/learning-path/advanced-strategies/${strategy.id}`,
+    reason: params.reason,
+    result: params.result ?? 'success',
+    changeSummary: params.reason,
+    originalStatus: params.originalStatus,
+    newStatus: params.newStatus,
+    version: strategy.onlineVersion ?? strategy.version,
+  });
+};
+
 const editableLearningPathStatuses: API.LearningPathConfigStatus[] = ['draft', 'rejected'];
 
 const nextLearningPathVersion = (version: string) => {
@@ -2779,6 +2890,11 @@ const copyLearningPathConfigAsDraft = (config: API.LearningPathConfigItem) => {
 
 const buildUserLearningPathMatch = (userId: string) => {
   const existing = userLearningPathMatches[userId] ?? { userId };
+  const profileId = userId === 'app-user-001'
+    ? 'mock-cet4-reading'
+    : userId === 'app-user-002'
+      ? 'mock-cet6-listening'
+      : undefined;
   const diagnosisConfig = existing.diagnosisRule ? getLearningPathConfig(existing.diagnosisRule.ruleId) : undefined;
   const templateConfig = existing.todayTaskTemplate ? getLearningPathConfig(existing.todayTaskTemplate.templateId) : undefined;
   return {
@@ -2797,6 +2913,20 @@ const buildUserLearningPathMatch = (userId: string) => {
           currentOnline: templateConfig?.status === 'published' || templateConfig?.status === 'rolled_back',
         }
     : undefined,
+    advancedStrategies: profileId
+      ? strategyMatchRuns
+          .filter((run) => run.profileId === profileId && run.matched && run.strategyId)
+          .map((run) => ({
+            runId: run.id,
+            kind: run.kind,
+            strategyId: run.strategyId!,
+            strategyName: run.strategyName ?? run.strategyId!,
+            version: run.strategyVersion ?? '-',
+            matchedAt: run.matchedAt,
+            executionStatus: run.status,
+            resultReferenceName: run.resultReferenceName,
+          }))
+      : [],
   };
 };
 
@@ -3058,7 +3188,8 @@ const taskExamType = (task: API.ReviewTask): API.ExamType | undefined => {
   const wrongReasonTag = wrongReasonTagData.find((item) => item.id === task.objectId);
   if (wrongReasonTag) return wrongReasonTag.examTypes[0];
   const config = learningPathConfigsData.find((item) => item.id === task.objectId);
-  return config?.examType;
+  if (config) return config.examType;
+  return advancedLearningStrategies.find((item) => item.id === task.objectId)?.examType;
 };
 
 const buildAnalyticsOverview = (
@@ -3170,6 +3301,15 @@ const buildAnalyticsOverview = (
     : undefined;
   const publishedRules = learningPathConfigsData.filter((item) => item.kind === 'diagnosis_rule' && item.status === 'published' && sameExam(filters.examType, item.examType)).length;
   const publishedTemplates = learningPathConfigsData.filter((item) => item.kind === 'today_task_template' && item.status === 'published' && sameExam(filters.examType, item.examType)).length;
+  const onlineAdvancedStrategies = advancedLearningStrategies.filter((item) => ['published', 'rolled_back'].includes(item.status) && sameExam(filters.examType, item.examType));
+  const advancedStrategyRuns = strategyMatchRuns.filter((item) => {
+    const strategy = item.strategyId ? advancedLearningStrategies.find((candidate) => candidate.id === item.strategyId) : undefined;
+    return !strategy || sameExam(filters.examType, strategy.examType);
+  });
+  const advancedStrategyCompletionRate = percentValue(
+    advancedStrategyRuns.filter((item) => item.status === 'completed').length,
+    advancedStrategyRuns.filter((item) => item.matched).length,
+  );
 
   const questions = simulateEmpty ? [] : questionData.filter((item) => sameExam(filters.examType, item.examType));
   const contentObjects = [
@@ -3285,6 +3425,8 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'average_task_minutes', title: '平均任务预计分钟', value: avgEstimatedMinutes, unit: '分钟', type: 'duration', timeSemantic: 'snapshot', direction: 'neutral', section: 'learningPath', tooltip: '用户匹配到的今日任务模板预计分钟均值。', updatedAt }),
     metricCard({ id: 'published_diagnosis_rules', title: '已发布诊断规则', value: publishedRules, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的诊断规则数。', updatedAt, jumpTo: '/learning-path/diagnosis-rules' }),
     metricCard({ id: 'published_task_templates', title: '已发布任务模板', value: publishedTemplates, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前状态为已发布的今日任务模板数。', updatedAt, jumpTo: '/learning-path/task-templates' }),
+    metricCard({ id: 'online_advanced_strategies', title: '在线进阶策略', value: onlineAdvancedStrategies.length, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: '当前已发布或已回滚到线上版本的进阶学习策略数。', updatedAt, jumpTo: '/learning-path/advanced-strategies' }),
+    metricCard({ id: 'advanced_strategy_completion_rate', title: '进阶策略完成率', value: advancedStrategyCompletionRate, unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'learningPath', tooltip: 'Mock 命中后完成次数 / Mock 命中次数。', updatedAt, jumpTo: '/learning-path/advanced-strategies' }),
   ];
 
   const dailyStats = dailySentenceAnalytics(filters.startDate, filters.endDate);
@@ -3315,7 +3457,7 @@ const buildAnalyticsOverview = (
   const mockStats = mockExamDashboardStats();
   const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
     { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
-    { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates, displayValue: displayNumber(publishedRules + publishedTemplates), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/diagnosis-rules' },
+    { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates + onlineAdvancedStrategies.length, displayValue: displayNumber(publishedRules + publishedTemplates + onlineAdvancedStrategies.length), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置和进阶策略共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/advanced-strategies' },
     { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组、错因标签、每日一句和外刊共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/analytics/content' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/feedback?view=triage' },
@@ -3837,6 +3979,29 @@ const buildDashboardTodoCandidates = (roleId: AdminRoleId) => {
     }));
   });
 
+  advancedLearningStrategies.forEach((strategy) => {
+    const precheck = precheckAdvancedStrategy(strategy);
+    if (strategy.status !== 'rejected' && precheck.level !== 'error') return;
+    todos.push(createDashboardTodo({
+      type: strategy.status === 'rejected' ? 'learning_path_rejected' : 'learning_path_precheck_error',
+      title: strategy.name,
+      objectType: advancedStrategyKindLabels[strategy.kind],
+      objectId: strategy.id,
+      priority: strategy.priority <= 10 ? 'P0' : 'P1',
+      status: strategy.status,
+      statusLabel: reviewStatusLabels[strategy.status],
+      createdAt: strategy.updatedAt,
+      owner: strategy.updatedBy,
+      sourceModule: 'learningPath',
+      targetRoute: `/learning-path/advanced-strategies/${strategy.id}`,
+      description: strategy.status === 'rejected'
+        ? strategy.changeSummary
+        : precheck.issues.find((item) => item.level === 'error')?.message ?? precheck.summary,
+      roleId,
+      riskLevel: 'medium',
+    }));
+  });
+
   const writingStats = writingTranslationDashboardStats();
   writingStats.precheckErrors.forEach((topic) => {
     const precheck = buildWritingTranslationPrecheck(topic, topic.id);
@@ -4212,7 +4377,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
     { id: 'content-questions', title: '去题库管理', description: '查看题目草稿、驳回和审核状态。', icon: 'DatabaseOutlined', targetRoute: '/content/questions', requiredModule: 'content', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'content').length },
     { id: 'content-articles', title: '去外刊内容', description: '查看外刊草稿、审核状态和内容效果风险。', icon: 'ReadOutlined', targetRoute: '/content-operations/articles', requiredModule: 'content', requiredAction: 'read', todoCount: articleData.filter((item) => item.effects.risks.some((risk) => risk.code !== 'insufficient_sample')).length },
     { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
-    { id: 'learning-path', title: '去学习路径配置', description: '检查诊断规则和今日任务模板。', icon: 'BranchesOutlined', targetRoute: '/learning-path/diagnosis-rules', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
+    { id: 'learning-path', title: '去学习路径配置', description: '检查诊断、任务和进阶学习策略。', icon: 'BranchesOutlined', targetRoute: '/learning-path/advanced-strategies', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
     { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/writing-topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
     { id: 'mock-exam', title: '去模考试卷管理', description: '检查试卷结构、题目引用和发布状态。', icon: 'FileDoneOutlined', targetRoute: '/mock-exam/papers', requiredModule: 'mockExam', requiredAction: 'read', todoCount: todos.filter((item) => item.objectType === '模考试卷').length },
     { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/users', requiredModule: 'analytics', requiredAction: 'read' },
@@ -4277,10 +4442,10 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
       sourceModule: 'learningPath',
       targetRoute: '/learning-path/diagnosis-rules',
       items: [
-        { label: '草稿', value: learningPathConfigsData.filter((item) => item.status === 'draft').length },
-        { label: '待审核', value: learningPathConfigsData.filter((item) => item.status === 'pending_review').length, status: 'warning' },
-        { label: '预校验阻断', value: learningPathConfigsData.filter((item) => precheckLearningPathPayload(item as API.LearningPathSaveParams, item.id).level === 'error').length, status: 'risk' },
-        { label: '已发布', value: learningPathConfigsData.filter((item) => item.status === 'published').length },
+        { label: '草稿', value: [...learningPathConfigsData, ...advancedLearningStrategies].filter((item) => item.status === 'draft').length },
+        { label: '待审核', value: [...learningPathConfigsData, ...advancedLearningStrategies].filter((item) => item.status === 'pending_review').length, status: 'warning' },
+        { label: '预校验阻断', value: learningPathConfigsData.filter((item) => precheckLearningPathPayload(item as API.LearningPathSaveParams, item.id).level === 'error').length + advancedLearningStrategies.filter((item) => precheckAdvancedStrategy(item).level === 'error').length, status: 'risk' },
+        { label: '已发布', value: [...learningPathConfigsData, ...advancedLearningStrategies].filter((item) => item.status === 'published').length },
       ],
     },
     {
@@ -6097,6 +6262,269 @@ export default {
     }
     res.send({ success: true, ...paginateArray(filterLearningPathReferences(questionGroupReferences(), req.query), req.query) });
   },
+  'GET /api/learning-path/advanced-strategies': (req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无进阶学习策略访问权限。' });
+      return;
+    }
+    const keyword = getQueryValue(req.query.keyword).trim().toLowerCase();
+    const kind = getQueryValue(req.query.kind);
+    const examType = getQueryValue(req.query.examType);
+    const moduleName = getQueryValue(req.query.module);
+    const status = getQueryValue(req.query.status);
+    const data = advancedLearningStrategies
+      .filter((item) => !kind || item.kind === kind)
+      .filter((item) => !examType || item.examType === examType)
+      .filter((item) => !moduleName || item.module === moduleName)
+      .filter((item) => !status || item.status === status)
+      .filter((item) => !keyword || [item.id, item.name, item.description].some((value) => value.toLowerCase().includes(keyword)))
+      .sort((a, b) => a.priority - b.priority || b.updatedAt.localeCompare(a.updatedAt))
+      .map((item) => ({ ...item, effects: strategyEffects(item.id) }));
+    res.send({ success: true, ...paginateArray(data, req.query) });
+  },
+  'GET /api/learning-path/advanced-strategies/references': (req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无引用对象访问权限。' });
+      return;
+    }
+    const examType = getQueryValue(req.query.examType);
+    const data = strategyReferences.filter((item) => !examType || !item.examType || item.examType === examType);
+    res.send({ success: true, data, total: data.length });
+  },
+  'GET /api/learning-path/advanced-strategies/mock-profiles': (_req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无 Mock 命中验证权限。' });
+      return;
+    }
+    res.send({ success: true, data: strategyMockProfiles });
+  },
+  'POST /api/learning-path/advanced-strategies/precheck': (req: Request, res: Response) => {
+    if (!roleCanWriteAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无进阶策略预校验权限。' });
+      return;
+    }
+    const strategy = req.body as API.AdvancedLearningStrategy;
+    const result = precheckAdvancedStrategy(strategy);
+    if (currentRoleId) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        action: 'advanced_strategy_precheck',
+        objectType: 'learning_path_config',
+        objectSubtype: strategy.kind,
+        objectId: strategy.id ?? 'draft',
+        sourcePage: '/learning-path/advanced-strategies/new',
+        reason: '执行进阶学习策略预校验。',
+        result: result.level === 'error' ? 'failed' : 'success',
+        changeSummary: result.summary,
+        version: strategy.version,
+      });
+    }
+    res.send({ success: true, data: result });
+  },
+  'POST /api/learning-path/advanced-strategies/mock-runs': (req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无 Mock 命中验证权限。' });
+      return;
+    }
+    const profile = strategyMockProfiles.find((item) => item.id === req.body?.profileId);
+    const kind = req.body?.kind as API.AdvancedLearningStrategyKind;
+    if (!profile || !advancedStrategyKindLabels[kind]) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: 'Mock 用户或策略类型无效。' });
+      return;
+    }
+    const run = recordStrategyRun(runStrategyMatch(profile, kind));
+    if (currentRoleId) pushOperationAuditLog({ roleId: currentRoleId, action: 'mock_match', objectType: 'learning_path_config', objectSubtype: kind, objectId: run.strategyId ?? 'no-match', sourcePage: '/learning-path/advanced-strategies', reason: `使用 ${profile.name} 执行 Mock 命中。`, result: 'success', changeSummary: run.reason });
+    res.send({ success: true, data: run });
+  },
+  'PATCH /api/learning-path/advanced-strategies/mock-runs/:id/status': (req: Request, res: Response) => {
+    if (!roleCanWriteAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无 Mock 执行回填权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const allowed: API.StrategyExecutionStatus[] = ['assigned', 'started', 'completed', 'replaced', 'skipped', 'expired'];
+    const status = req.body?.status as API.StrategyExecutionStatus;
+    if (!allowed.includes(status)) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '执行状态无效。' });
+      return;
+    }
+    const run = updateStrategyRunStatus(id, status);
+    if (!run) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'Mock 命中记录不存在。' });
+      return;
+    }
+    if (currentRoleId) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        action: 'mock_execution_update',
+        objectType: 'learning_path_config',
+        objectSubtype: run.kind,
+        objectId: run.strategyId ?? id,
+        sourcePage: '/learning-path/advanced-strategies',
+        reason: `回填 Mock 命中执行状态为 ${status}。`,
+        result: 'success',
+        changeSummary: run.reason,
+        version: run.strategyVersion,
+      });
+    }
+    res.send({ success: true, data: run });
+  },
+  'GET /api/learning-path/advanced-strategies/:id/effects': (req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无效果数据访问权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    res.send({ success: true, data: strategyEffects(id), runs: strategyMatchRuns.filter((item) => item.strategyId === id) });
+  },
+  'GET /api/learning-path/advanced-strategies/:id': (req: Request, res: Response) => {
+    if (!roleCanReadLearningPath(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无进阶策略详情权限。' });
+      return;
+    }
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const strategy = advancedLearningStrategies.find((item) => item.id === id);
+    if (!strategy) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '进阶学习策略不存在。' });
+      return;
+    }
+    res.send({ success: true, data: strategy, effects: strategyEffects(id), runs: strategyMatchRuns.filter((item) => item.strategyId === id) });
+  },
+  'POST /api/learning-path/advanced-strategies': (req: Request, res: Response) => {
+    if (!roleCanWriteAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无新建进阶策略权限。' });
+      return;
+    }
+    const body = req.body as API.AdvancedLearningStrategySaveParams;
+    const operator = getOperator();
+    const now = nowText();
+    const id = `strategy-${body.kind}-${Date.now()}`;
+    const strategy: API.AdvancedLearningStrategy = { ...body, id, status: 'draft', version: 'V0.1', dataVersion: 1, createdById: operator.id, createdBy: operator.name, createdAt: now, updatedById: operator.id, updatedBy: operator.name, updatedAt: now, versionRecords: [], operationRecords: [] };
+    strategy.lastPrecheck = precheckAdvancedStrategy(strategy);
+    advancedLearningStrategies.unshift(strategy);
+    pushAdvancedStrategyAudit('advanced_strategy_create', strategy, {
+      reason: `新建进阶学习策略：${strategy.name}。`,
+      newStatus: 'draft',
+      sourcePage: '/learning-path/advanced-strategies/new',
+    });
+    res.send({ success: true, data: strategy });
+  },
+  'PATCH /api/learning-path/advanced-strategies/:id': (req: Request, res: Response) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const strategy = advancedLearningStrategies.find((item) => item.id === id);
+    if (!strategy) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '进阶学习策略不存在。' });
+      return;
+    }
+    if (!roleCanWriteAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无编辑进阶策略权限。' });
+      return;
+    }
+    if (!['draft', 'rejected'].includes(strategy.status)) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '当前状态不允许直接编辑，请复制为新草稿。' });
+      return;
+    }
+    if (Number(req.body?.dataVersion) !== strategy.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '策略已被其他人更新，请刷新后重试。' });
+      return;
+    }
+    const operator = getOperator();
+    const originalStatus = strategy.status;
+    Object.assign(strategy, req.body, { id, status: strategy.status, version: strategy.version, dataVersion: strategy.dataVersion + 1, updatedById: operator.id, updatedBy: operator.name, updatedAt: nowText() });
+    strategy.lastPrecheck = precheckAdvancedStrategy(strategy);
+    pushAdvancedStrategyAudit('advanced_strategy_update', strategy, {
+      reason: `编辑进阶学习策略：${strategy.changeSummary || strategy.name}。`,
+      originalStatus,
+      newStatus: strategy.status,
+    });
+    res.send({ success: true, data: strategy });
+  },
+  'POST /api/learning-path/advanced-strategies/:id/copy': (req: Request, res: Response) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const strategy = advancedLearningStrategies.find((item) => item.id === id);
+    if (!strategy) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '进阶学习策略不存在。' });
+      return;
+    }
+    if (!roleCanWriteAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无复制策略权限。' });
+      return;
+    }
+    const operator = getOperator();
+    const copy = copyAdvancedStrategy(strategy, operator);
+    pushAdvancedStrategyAudit('advanced_strategy_copy', copy, {
+      reason: `基于 ${strategy.name} 复制草稿。`,
+      originalStatus: strategy.status,
+      newStatus: 'draft',
+    });
+    res.send({ success: true, data: copy });
+  },
+  'POST /api/learning-path/advanced-strategies/:id/precheck': (req: Request, res: Response) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const strategy = advancedLearningStrategies.find((item) => item.id === id);
+    if (!strategy) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '进阶学习策略不存在。' });
+      return;
+    }
+    if (!roleCanWriteAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无预校验权限。' });
+      return;
+    }
+    strategy.lastPrecheck = precheckAdvancedStrategy({ ...strategy, ...req.body, id });
+    pushAdvancedStrategyAudit('advanced_strategy_precheck', strategy, {
+      reason: strategy.lastPrecheck.summary,
+      result: strategy.lastPrecheck.level === 'error' ? 'failed' : 'success',
+    });
+    res.send({ success: true, data: strategy.lastPrecheck });
+  },
+  'POST /api/learning-path/advanced-strategies/:id/submit-review': (req: Request, res: Response) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const strategy = advancedLearningStrategies.find((item) => item.id === id);
+    if (!strategy) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: '进阶学习策略不存在。' });
+      return;
+    }
+    if (!roleCanSubmitAdvancedStrategy(currentRoleId)) {
+      res.status(403).send({ success: false, errorCode: '403', errorMessage: '当前账号无提交审核权限。' });
+      return;
+    }
+    if (Number(req.body?.dataVersion) !== strategy.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '策略已被其他人更新，请刷新后重试。' });
+      return;
+    }
+    const result = precheckAdvancedStrategy(strategy);
+    strategy.lastPrecheck = result;
+    if (result.level === 'error' || (result.level === 'warning' && !req.body?.confirmWarnings)) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: result.level === 'error' ? '预校验存在阻断错误。' : '预校验存在警告，需要确认后提交。', data: result });
+      return;
+    }
+    const changeSummary = String(req.body?.changeSummary ?? strategy.changeSummary).trim();
+    if (!changeSummary) {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '提交审核必须填写变更说明。' });
+      return;
+    }
+    const operator = getOperator();
+    const task = buildAdvancedStrategyReviewTask(strategy, operator, changeSummary);
+    strategy.status = 'pending_review';
+    strategy.dataVersion += 1;
+    strategy.updatedAt = task.updatedAt;
+    strategy.changeSummary = changeSummary;
+    pushAdvancedStrategyAudit('advanced_strategy_submit_review', strategy, {
+      reason: changeSummary,
+      originalStatus: task.operationRecords[0]?.fromStatus,
+      newStatus: 'pending_review',
+    });
+    res.send({ success: true, data: strategy, reviewTask: task });
+  },
+  'GET /api/learning-path/advanced-strategies/:id/versions': (req: Request, res: Response) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const strategy = advancedLearningStrategies.find((item) => item.id === id);
+    if (!strategy || !roleCanReadLearningPath(currentRoleId)) {
+      res.status(strategy ? 403 : 404).send({ success: false, errorCode: strategy ? '403' : '404', errorMessage: strategy ? '当前账号无版本访问权限。' : '进阶学习策略不存在。' });
+      return;
+    }
+    res.send({ success: true, data: strategy.versionRecords, total: strategy.versionRecords.length });
+  },
   'GET /api/review-release/tasks': (req: Request, res: Response) => {
     reconcileDueDailySentenceSchedules(reviewTasksData);
     const data = filterReviewTasks(req.query);
@@ -6320,6 +6748,30 @@ export default {
       onboardingConfig.lastPrecheck = onboardingPrecheck;
     }
 
+    if (
+      nextStatus === 'published' &&
+      ['light_task', 'extra_practice', 'review_recommendation'].includes(
+        String(task.objectSubtype),
+      )
+    ) {
+      const strategy = advancedLearningStrategies.find(
+        (item) => item.id === task.objectId,
+      );
+      const precheck = strategy
+        ? precheckAdvancedStrategy(strategy)
+        : undefined;
+      if (!strategy || precheck?.level === 'error') {
+        res.status(422).send({
+          success: false,
+          errorCode: '422',
+          errorMessage: '进阶学习策略发布前复验失败。',
+          data: precheck,
+        });
+        return;
+      }
+      strategy.lastPrecheck = precheck;
+    }
+
     const previousStatus = task.status;
     const operator = getOperator();
     const action = reviewStatusActionMap[nextStatus];
@@ -6380,6 +6832,17 @@ export default {
       previousStatus,
       nextStatus,
       operator,
+      operationReason,
+    );
+    syncAdvancedStrategyFromReviewTask(
+      task,
+      previousStatus,
+      nextStatus,
+      {
+        id: operator.id,
+        name: operator.name,
+        roleName: operator.roleName,
+      },
       operationReason,
     );
     syncOnboardingFromReviewTask(task, nextStatus, operator, operationReason);

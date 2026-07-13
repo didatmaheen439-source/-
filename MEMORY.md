@@ -48,6 +48,39 @@
 - 浏览器验收：附件策略页内 Tab、成功/失败 Mock 分流、抽检/异常详情、1024 宽度和 console 检查通过。
 - 完整验证结果见 `logs/ai-attachment-policy-implementation-2026-07-13.md`。
 
+## 2026-07-13 Advanced Learning Strategies MVP
+
+### Summary
+- `/learning-path/advanced-strategies` 已从三个隐藏占位入口升级为一个可见二级模块，包含轻量任务、追加陪练、复练推荐三个 Tab。
+- 核心闭环覆盖触发条件、优先级、替代规则、预校验、统一审核发布、Mock 用户命中、完成状态回填、用户详情快照、工作台待办和运营数据回流。
+- 进阶策略复用 `learning_path_config` 审核对象，`objectSubtype` 区分 `light_task`、`extra_practice`、`review_recommendation`。
+- `ai_operator` 只获得进阶策略范围内的学习路径写权限，不获得旧诊断规则、今日任务模板或用户列表权限。
+
+### Key Files
+- `admin-web/mock/advancedLearningStrategyStore.ts`
+- `admin-web/src/pages/learning-path/advanced-strategies/`
+- `admin-web/src/foundation/advancedLearningStrategyStore.test.ts`
+- `docs/advanced-learning-strategies-mvp.md`
+- `logs/advanced-learning-strategies-implementation-2026-07-13.md`
+
+### Decisions
+- 三类 P0 进阶策略使用一个二级入口和三个 Tab，旧 URL 只做重定向。
+- 已发布或已回滚策略通过 `onlineVersion` 表达线上服务版本；已发布对象不可直接编辑，只能复制为草稿。
+- Mock 效果数据从 `StrategyMatchRun` 派生，不维护重复完成率字段。
+- 本期仍为 Mock，不接真实后端、真实 App、真实 AI、灰度实验或自动派单。
+
+### Verification
+- `npm run test`：通过，21 个测试文件、112 条测试。
+- `npm run tsc`：通过。
+- `npm run lint`：通过，Biome 扫描 360 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 325 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，75 个资源文件。
+- in-app browser：列表、详情、Mock 命中、AI/内容运营权限和 1440/1280/1024 断点通过，console 无 error/warn。
+
+### Next Context
+- 真实后端接入需保留进阶策略对象表、触发条件表、引用表、Mock 命中/效果表、审核任务快照、操作审计和 `dataVersion` 乐观锁。
+- 若以后拆独立策略页，必须继续保持一个线上版本指针和统一审核发布状态机，避免三处统计口径分叉。
+
 ## 2026-07-12 AI Abnormal Reply Operations MVP
 
 ### Summary

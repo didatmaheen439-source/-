@@ -141,6 +141,7 @@ declare namespace API {
     objectType: ReviewObjectType;
     objectSubtype?:
       | LearningPathConfigKind
+      | AdvancedLearningStrategyKind
       | 'onboarding_config'
       | AiCoachConfigType
       | WritingTranslationTopicType
@@ -1869,6 +1870,176 @@ declare namespace API {
 
   type LearningPathConfigKind = 'diagnosis_rule' | 'today_task_template';
 
+  type AdvancedLearningStrategyKind =
+    | 'light_task'
+    | 'extra_practice'
+    | 'review_recommendation';
+
+  type StrategyTriggerMetric =
+    | 'available_minutes'
+    | 'weak_module'
+    | 'accuracy'
+    | 'consecutive_errors'
+    | 'wrong_reason_tag'
+    | 'days_since_practice';
+
+  type StrategyTriggerCondition = {
+    id: string;
+    metric: StrategyTriggerMetric;
+    operator: 'eq' | 'in' | 'lt' | 'lte' | 'gt' | 'gte';
+    value: string | number | string[];
+    description: string;
+  };
+
+  type StrategyTriggerGroup = {
+    mode: 'all' | 'any';
+    conditions: StrategyTriggerCondition[];
+  };
+
+  type StrategyReference = {
+    id: string;
+    name: string;
+    type: 'question' | 'question_group' | 'wrong_reason_tag' | 'module';
+    examType?: ExamType;
+    module?: LearningPathModule;
+    status: string;
+    available: boolean;
+  };
+
+  type StrategyFallbackRule = {
+    enabled: boolean;
+    trigger: 'primary_unavailable' | 'already_completed' | 'insufficient_time';
+    targetId?: string;
+    targetName?: string;
+  };
+
+  type StrategyPrecheckIssue = {
+    id: string;
+    level: 'error' | 'warning';
+    field: string;
+    code: string;
+    message: string;
+  };
+
+  type StrategyPrecheckResult = {
+    level: 'passed' | 'warning' | 'error';
+    summary: string;
+    checkedAt: string;
+    issues: StrategyPrecheckIssue[];
+  };
+
+  type AdvancedLearningStrategy = {
+    id: string;
+    kind: AdvancedLearningStrategyKind;
+    name: string;
+    description: string;
+    examType: ExamType;
+    module: LearningPathModule;
+    priority: number;
+    status: LearningPathConfigStatus;
+    version: string;
+    dataVersion: number;
+    triggerGroup: StrategyTriggerGroup;
+    primaryReference: StrategyReference;
+    fallbackRule: StrategyFallbackRule;
+    estimatedMinutes?: number;
+    practiceCount?: number;
+    reviewIntervalDays?: number;
+    questionTypes?: string[];
+    wrongReasonTagIds?: string[];
+    createdById: string;
+    createdBy: string;
+    createdAt: string;
+    updatedById: string;
+    updatedBy: string;
+    updatedAt: string;
+    changeSummary: string;
+    impactScope: string;
+    reviewTaskId?: string;
+    releaseVersionId?: string;
+    onlineVersion?: string;
+    rollbackTargetVersion?: string;
+    lastPrecheck?: StrategyPrecheckResult;
+    versionRecords: LearningPathConfigVersion[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type AdvancedLearningStrategySaveParams = Omit<
+    AdvancedLearningStrategy,
+    | 'id'
+    | 'status'
+    | 'version'
+    | 'createdById'
+    | 'createdBy'
+    | 'createdAt'
+    | 'updatedById'
+    | 'updatedBy'
+    | 'updatedAt'
+    | 'reviewTaskId'
+    | 'releaseVersionId'
+    | 'onlineVersion'
+    | 'rollbackTargetVersion'
+    | 'lastPrecheck'
+    | 'versionRecords'
+    | 'operationRecords'
+  > & { id?: string; dataVersion?: number };
+
+  type StrategyExecutionStatus =
+    | 'assigned'
+    | 'started'
+    | 'completed'
+    | 'replaced'
+    | 'skipped'
+    | 'expired';
+
+  type StrategyMockProfile = {
+    id: string;
+    name: string;
+    examType: ExamType;
+    availableMinutes: number;
+    weakModule: LearningPathModule;
+    accuracy: number;
+    consecutiveErrors: number;
+    wrongReasonTags: string[];
+    daysSincePractice: number;
+  };
+
+  type StrategyMatchRun = {
+    id: string;
+    profileId: string;
+    profileName: string;
+    kind: AdvancedLearningStrategyKind;
+    matched: boolean;
+    strategyId?: string;
+    strategyName?: string;
+    strategyVersion?: string;
+    resultReferenceId?: string;
+    resultReferenceName?: string;
+    usedFallback: boolean;
+    reason: string;
+    status: StrategyExecutionStatus;
+    matchedAt: string;
+    updatedAt: string;
+  };
+
+  type StrategyEffectSummary = {
+    strategyId: string;
+    hits: number;
+    started: number;
+    completed: number;
+    replaced: number;
+    skippedOrExpired: number;
+    completionRate: number;
+  };
+
+  type AdvancedLearningStrategyList = {
+    success?: boolean;
+    data?: AdvancedLearningStrategy[];
+    total?: number;
+    current?: number;
+    pageSize?: number;
+  };
+
   type OnboardingFieldKey =
     | 'examType'
     | 'targetScore'
@@ -2158,7 +2329,7 @@ declare namespace API {
   type LearningPathConfigVersion = {
     id: string;
     configId: string;
-    kind: LearningPathConfigKind;
+    kind: LearningPathConfigKind | AdvancedLearningStrategyKind;
     version: string;
     status: LearningPathConfigStatus;
     createdBy: string;
@@ -2211,6 +2382,16 @@ declare namespace API {
       status: LearningPathConfigStatus;
       currentOnline: boolean;
     };
+    advancedStrategies?: Array<{
+      runId: string;
+      kind: AdvancedLearningStrategyKind;
+      strategyId: string;
+      strategyName: string;
+      version: string;
+      matchedAt: string;
+      executionStatus: StrategyExecutionStatus;
+      resultReferenceName?: string;
+    }>;
   };
 
   type LearningPathConfigList = {

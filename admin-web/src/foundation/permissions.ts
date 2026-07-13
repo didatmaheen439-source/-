@@ -268,7 +268,7 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     actions: {
       dashboard: readOnly,
       aiCoach: ['read', 'create', 'edit', 'submit', 'publish', 'config'],
-      learningPath: readOnly,
+      learningPath: ['read', 'create', 'edit', 'submit'],
       writingTranslation: readOnly,
       analytics: readOnly,
       reviewRelease: ['read', 'submit', 'publish'],

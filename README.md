@@ -34,6 +34,7 @@
 - 已完成 `/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP：双 Tab、模板版本、权重与引用校验、审核发布、题目版本绑定和 Mock 批改记录追溯。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
+- 已完成 `/learning-path/advanced-strategies` 进阶学习策略 Mock MVP：轻量任务、追加陪练、复练推荐三个 Tab，触发/优先级/替代规则、预校验、审核发布、Mock 命中、效果回流、下架和回滚版本同步。
 - 已完成 `/content-operations/daily-sentences` 每日一句运营闭环 MVP：列表/日历、新建编辑、来源与配图校验、用户侧预览、审核排期、立即/定时发布、Mock 阅读打卡、效果回流、下架和版本复制。
 - 已完成第十一阶段全链路验收与后端接入准备：新增接口契约、核心数据模型、状态机/权限基线和全链路验收记录，不新增业务页面、不接真实后端。
 - 已完成外层项目 Git 初始化准备：新增 `.gitignore`，排除依赖、构建产物、缓存、备份和本机会话文件。
@@ -71,6 +72,7 @@
 
 - 2026-07-13：`/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP 完成，覆盖评分维度/反馈模板双 Tab、版本引用、题目绑定和 Mock 批改记录追溯；`npm run tsc`、`npm run test`（21 文件、114 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器和 API 权限烟测见 `logs/writing-translation-templates-implementation-2026-07-13/summary.md`。
 - 2026-07-13：AI 陪练“附件策略”Tab 完成；`npm run tsc`、`npm run test`（22 文件、118 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build`、`git diff --check` 通过；浏览器验收覆盖附件 Tab、成功/失败 Mock 分流、抽检/异常详情和 1024 宽度，记录见 `logs/ai-attachment-policy-implementation-2026-07-13.md`。
+- 2026-07-13：`/learning-path/advanced-strategies` 进阶学习策略 Mock MVP 完成，`npm run test`（21 文件、112 测试）、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器验收覆盖列表、详情、Mock 命中、AI/内容运营权限和 1440/1280/1024 断点，记录见 `docs/advanced-learning-strategies-mvp.md`、`logs/advanced-learning-strategies-implementation-2026-07-13.md`。
 - 2026-07-12：`/content-operations/daily-sentences` 每日一句运营闭环完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；浏览器验证记录见 `logs/daily-sentences-implementation-2026-07-12.md`。
 - 2026-07-12：`/users/feedback` 反馈工作队列 Mock MVP 完成，`npm run test`、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 与浏览器验证记录见 `logs/feedback-work-queue-implementation-2026-07-12.md`。
 - 2026-07-12：`/ai-coach/abnormal-replies` AI 异常回复处置 Mock MVP 完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 和浏览器验证记录见 `logs/ai-abnormal-replies-implementation-2026-07-12/summary.md`。
