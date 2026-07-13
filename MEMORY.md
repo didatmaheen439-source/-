@@ -1,5 +1,31 @@
 # 过级搭子后台管理系统项目记忆
 
+## 2026-07-13 Writing Translation Templates MVP
+
+### Summary
+- 新增 `/writing-translation/scoring-feedback-templates` 单一二级入口，以“评分维度”和“反馈模板”两个 Tab 承载可复用规则管理。
+- 教研维护评分维度，AI 策略运营维护反馈结构，教研统一审核发布，提交人不能自审。
+- 题目可绑定两个已发布模板的具体版本，服务端复制评分和反馈快照；Mock 批改记录固定题目、模板和 AI 回答结构版本。
+- 本阶段继续使用 Mock，不接真实后端、真实 AI 或真实用户答案。
+
+### Key Files
+- `admin-web/mock/writingTranslationTemplateStore.ts`
+- `admin-web/mock/writingTranslationTemplate.ts`
+- `admin-web/src/pages/writing-translation/scoring-feedback-templates/index.tsx`
+- `docs/writing-translation-templates-mvp.md`
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test`：通过，21 个测试文件、114 条测试。
+- `npm run lint`：通过，Biome 扫描 357 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 322 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，73 个资源文件。
+- 浏览器与 API 权限烟测结果见 `logs/writing-translation-templates-implementation-2026-07-13/summary.md`。
+
+### Next Context
+- 真实后端需要持久化模板发布快照、题目引用和 Mock/真实批改记录的版本链。
+- 后续建设完整批改记录摘要页时，只展示脱敏答案摘要和聚合信息，不直接暴露用户原文。
+
 ## 2026-07-12 AI Abnormal Reply Operations MVP
 
 ### Summary

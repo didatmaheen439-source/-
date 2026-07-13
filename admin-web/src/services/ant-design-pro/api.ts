@@ -1681,6 +1681,37 @@ export async function getNotices(options?: { [key: string]: any }) {
   });
 }
 
+export async function writingTranslationTemplates(params?: API.WritingTranslationTemplateQueryParams) {
+  return request<API.WritingTranslationTemplateList>('/api/writing-translation/templates', { method: 'GET', params });
+}
+export async function writingTranslationTemplate(id: string) {
+  return request<{ data?: API.WritingTranslationTemplate; success?: boolean }>(`/api/writing-translation/templates/${id}`, { method: 'GET' });
+}
+export async function createWritingTranslationTemplate(data: API.WritingTranslationTemplateSaveParams) {
+  return request<{ data?: API.WritingTranslationTemplate; success?: boolean }>('/api/writing-translation/templates', { method: 'POST', data });
+}
+export async function updateWritingTranslationTemplate(id: string, data: API.WritingTranslationTemplateSaveParams) {
+  return request<{ data?: API.WritingTranslationTemplate; success?: boolean }>(`/api/writing-translation/templates/${id}`, { method: 'PATCH', data });
+}
+export async function precheckWritingTranslationTemplate(id: string) {
+  return request<{ data?: API.WritingTranslationPrecheckResult; success?: boolean }>(`/api/writing-translation/templates/${id}/precheck`, { method: 'POST' });
+}
+export async function submitWritingTranslationTemplateReview(id: string, data: API.WritingTranslationSubmitParams) {
+  return request<{ data?: API.WritingTranslationTemplate; reviewTask?: API.ReviewTask; success?: boolean }>(`/api/writing-translation/templates/${id}/submit-review`, { method: 'POST', data });
+}
+export async function copyWritingTranslationTemplate(id: string) {
+  return request<{ data?: API.WritingTranslationTemplate; success?: boolean }>(`/api/writing-translation/templates/${id}/copy`, { method: 'POST' });
+}
+export async function writingTranslationTemplateReferences(id: string) {
+  return request<{ data?: API.MockCorrectionRecord[]; total?: number; success?: boolean }>(`/api/writing-translation/templates/${id}/references`, { method: 'GET' });
+}
+export async function bindWritingTranslationTopicTemplates(id: string, data: API.WritingTranslationTopicTemplateBindingParams) {
+  return request<{ data?: API.WritingTranslationTopic; success?: boolean }>(`/api/writing-translation/topics/${id}/template-references`, { method: 'PATCH', data });
+}
+export async function runWritingTranslationMockCorrection(topicId: string) {
+  return request<{ data?: API.MockCorrectionRecord; success?: boolean }>('/api/writing-translation/mock-corrections', { method: 'POST', data: { topicId } });
+}
+
 /** 获取规则列表 GET /api/rule */
 export async function rule(
   params: {
