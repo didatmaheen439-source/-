@@ -23,6 +23,58 @@
 ### Verification
 - 相关单测和类型检查已通过；完整验证记录见 `logs/writing-translation-correction-summaries-implementation-2026-07-13.md`。
 
+## 2026-07-13 Mock Exam Results MVP
+
+### Summary
+- 新增 `/mock-exam/results` 模考结果二级入口。
+- 支持查看 Mock 开始人数、完成人数、完成率、均分、平均耗时、分区表现、题目风险和时间配置风险。
+- 结果详情给出定位建议，已发布/下架/回滚试卷可复制为修正草稿，草稿/已驳回试卷可直接进入编辑。
+- 修正仍复用 `/mock-exam/papers` 草稿、预校验、审核发布和版本链，不在结果页直接修改线上试卷。
+
+### Key Files
+- `admin-web/src/pages/mock-exam/results/index.tsx`
+- `admin-web/mock/mockExamStore.ts`
+- `admin-web/mock/mockExam.ts`
+- `docs/mock-exam-results-mvp.md`
+
+### Verification
+- `npm run test`：通过，24 个测试文件、129 条测试。
+- `npm run tsc`：通过。
+- `npm run lint`：通过，Biome 扫描 366 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 331 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，78 个资源文件。
+- API smoke：超级管理员可读结果并创建修正草稿；数据分析只读；AI 运营 403；结果详情不返回答案字段。
+
+### Next Context
+- 本期仍为 Mock，题目风险和时间风险由稳定派生规则生成。
+- 真实后端接入时，结果聚合必须保持只返回聚合数据，不返回用户 ID、逐题用户答案、作文原文或翻译原文。
+
+## 2026-07-13 Writing Revision Strategies MVP
+
+### Summary
+- 新增 `/writing-translation/revision-strategies` 二次修改策略二级入口。
+- 支持触发条件、二改要求、提示方式、评分/反馈模板发布版本绑定、预校验、审核发布、Mock 学生二改触发和效果回流。
+- Mock 二改记录固定题目、评分模板、反馈模板和策略版本快照，不保存真实学生原文。
+
+### Key Files
+- `admin-web/mock/writingRevisionStrategyStore.ts`
+- `admin-web/mock/writingRevisionStrategy.ts`
+- `admin-web/src/pages/writing-translation/revision-strategies/index.tsx`
+- `docs/writing-revision-strategies-mvp.md`
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test -- writingRevisionStrategyStore routes.test access.test`：通过，3 个测试文件、20 条测试。
+- `npm run test`：通过，22 个测试文件、118 条测试。
+- `npm run lint`：通过，Biome 扫描 359 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 324 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，74 个资源文件，并生成 `writing-translation/revision-strategies/index.html`。
+- 浏览器验证结果见 `logs/writing-revision-strategies-implementation-2026-07-13/summary.md`。
+
+### Next Context
+- 真实后端需要持久化二改策略发布快照、二改任务、触发条件快照和学生二改状态。
+- 后续如果建设批改记录摘要页，应合并展示首次批改、二改任务和二改效果，不展示真实学生原文。
+
 ## 2026-07-13 Writing Translation Templates MVP
 
 ### Summary

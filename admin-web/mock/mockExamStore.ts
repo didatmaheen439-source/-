@@ -6,6 +6,15 @@ import type {
   MockExamPaper,
   MockExamPaperItemSnapshot,
   MockExamPaperQueryParams,
+  MockExamResultDetail,
+  MockExamResultDiagnosis,
+  MockExamResultItem,
+  MockExamResultListResponse,
+  MockExamResultQueryParams,
+  MockExamResultRiskLevel,
+  MockExamResultRiskType,
+  MockExamTimeRisk,
+  MockExamItemStatistic,
   MockExamPaperSaveParams,
   MockExamPaperSubmitParams,
   MockExamPrecheckIssue,
@@ -1225,6 +1234,405 @@ export const buildMockExamStatistics = (
     containsSensitiveFields: false,
     mockOnly: true,
     updatedAt: nowText(),
+  };
+};
+
+const resultVisibleStatuses: API.ReviewTaskStatus[] = [
+  'rejected',
+  'pending_review',
+  'approved',
+  'pending_publish',
+  'published',
+  'offline',
+  'rolled_back',
+];
+
+const riskWeight: Record<MockExamResultRiskLevel, number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+const strongestRisk = (
+  levels: MockExamResultRiskLevel[],
+): MockExamResultRiskLevel =>
+  levels.sort((first, second) => riskWeight[second] - riskWeight[first])[0] ??
+  'low';
+
+const uniqueRisks = (risks: MockExamResultRiskType[]) =>
+  Array.from(new Set(risks));
+
+const scoreRate = (score: number, total: number) =>
+  total > 0 ? Number(((score / total) * 100).toFixed(1)) : 0;
+
+const itemBase = (paperId: string, itemId: string) =>
+  [...`${paperId}:${itemId}`].reduce(
+    (sum, character) => sum + character.charCodeAt(0),
+    0,
+  );
+
+export const buildMockExamItemStatistics = (
+  paper: MockExamPaper,
+): MockExamItemStatistic[] =>
+  paper.sections.flatMap((section, sectionIndex) =>
+    section.items.map((item, itemIndex) => {
+      const base = itemBase(paper.id, item.id);
+      const averageRate = Number(
+        Math.max(38, 78 - ((base + sectionIndex * 7 + itemIndex * 3) % 34)).toFixed(1),
+      );
+      const skipRate = Number(((base + itemIndex * 11) % 42).toFixed(1));
+      const riskReasons = [
+        averageRate < 45 ? '题目得分率低于 45%。' : '',
+        skipRate > 30 ? '题目跳过率高于 30%。' : '',
+      ].filter(Boolean);
+      return {
+        itemId: item.id,
+        title: item.title,
+        sectionId: section.id,
+        sectionName: section.name,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        sourceVersion: item.sourceVersion,
+        averageScore: Number(((item.score * averageRate) / 100).toFixed(1)),
+        fullScore: item.score,
+        averageRate,
+        skipRate,
+        riskLevel:
+          averageRate < 45 || skipRate > 35
+            ? 'high'
+            : skipRate > 30
+              ? 'medium'
+              : 'low',
+        riskReasons,
+      };
+    }),
+  );
+
+export const buildMockExamTimeRisks = (
+  paper: MockExamPaper,
+  statistics: MockExamStatistics,
+): MockExamTimeRisk[] => {
+  const risks: MockExamTimeRisk[] = [];
+  const paperPressure = scoreRate(statistics.averageMinutes, paper.totalMinutes);
+  if (paperPressure >= 95) {
+    risks.push({
+      scope: 'paper',
+      targetId: paper.id,
+      targetName: paper.name,
+      configuredMinutes: paper.totalMinutes,
+      averageMinutes: statistics.averageMinutes,
+      pressureRate: paperPressure,
+      riskLevel: paperPressure >= 100 ? 'high' : 'medium',
+      message: '全卷平均耗时接近或超过配置时长。',
+    });
+  }
+  statistics.sectionStats.forEach((section) => {
+    const source = paper.sections.find((item) => item.id === section.sectionId);
+    if (!source) return;
+    const pressureRate = scoreRate(section.averageMinutes, source.durationMinutes);
+    if (pressureRate >= 95) {
+      risks.push({
+        scope: 'section',
+        targetId: section.sectionId,
+        targetName: section.sectionName,
+        configuredMinutes: source.durationMinutes,
+        averageMinutes: section.averageMinutes,
+        pressureRate,
+        riskLevel: pressureRate >= 100 ? 'high' : 'medium',
+        message: `${section.sectionName}平均耗时接近或超过配置时长。`,
+      });
+    }
+  });
+  return risks;
+};
+
+const resultRiskTypes = (
+  paper: MockExamPaper,
+  statistics: MockExamStatistics,
+  itemStats: MockExamItemStatistic[],
+  timeRisks: MockExamTimeRisk[],
+): MockExamResultRiskType[] => {
+  const averageScoreRate = scoreRate(statistics.averageScore, paper.totalScore);
+  const sectionWeak = statistics.sectionStats.some(
+    (section) => section.averageRate < 55 || section.averageRate < averageScoreRate - 8,
+  );
+  return uniqueRisks([
+    statistics.completionRate < 60 ? 'low_completion' : undefined,
+    averageScoreRate < 60 ? 'low_average_score' : undefined,
+    sectionWeak ? 'weak_section' : undefined,
+    itemStats.some((item) => item.riskReasons.length) ? 'weak_item' : undefined,
+    timeRisks.length ? 'time_pressure' : undefined,
+    paper.lastPrecheck?.level === 'error' ? 'precheck_blocked' : undefined,
+  ].filter(Boolean) as MockExamResultRiskType[]);
+};
+
+const resultRiskLevel = (
+  riskTypes: MockExamResultRiskType[],
+  itemStats: MockExamItemStatistic[],
+  timeRisks: MockExamTimeRisk[],
+): MockExamResultRiskLevel => {
+  if (!riskTypes.length) return 'low';
+  return strongestRisk([
+    riskTypes.includes('low_completion') ? 'high' : undefined,
+    riskTypes.includes('low_average_score') ? 'high' : undefined,
+    riskTypes.includes('precheck_blocked') ? 'high' : undefined,
+    itemStats.some((item) => item.riskLevel === 'high') ? 'high' : undefined,
+    timeRisks.some((item) => item.riskLevel === 'high') ? 'high' : undefined,
+    'medium',
+  ].filter(Boolean) as MockExamResultRiskLevel[]);
+};
+
+export const buildMockExamResultItem = (
+  paper: MockExamPaper,
+  period: MockExamStatisticsPeriod = '30d',
+): MockExamResultItem => {
+  const statistics = buildMockExamStatistics(paper, period);
+  const itemStats = buildMockExamItemStatistics(paper);
+  const timeRisks = buildMockExamTimeRisks(paper, statistics);
+  const riskTypes = resultRiskTypes(paper, statistics, itemStats, timeRisks);
+  const weakestSection =
+    [...statistics.sectionStats].sort(
+      (first, second) => first.averageRate - second.averageRate,
+    )[0] ?? statistics.sectionStats[0];
+  return {
+    paperId: paper.id,
+    paperName: paper.name,
+    paperVersion: statistics.paperVersion,
+    examType: paper.examType,
+    status: paper.status,
+    period,
+    startedCount: statistics.startedCount,
+    completedCount: statistics.completedCount,
+    completionRate: statistics.completionRate,
+    averageScore: statistics.averageScore,
+    totalScore: statistics.totalScore,
+    averageScoreRate: scoreRate(statistics.averageScore, statistics.totalScore),
+    averageMinutes: statistics.averageMinutes,
+    totalMinutes: paper.totalMinutes,
+    lowestSectionName: weakestSection?.sectionName ?? '-',
+    lowestSectionRate: weakestSection?.averageRate ?? 0,
+    riskTypes,
+    riskLevel: resultRiskLevel(riskTypes, itemStats, timeRisks),
+    updatedAt: statistics.updatedAt,
+  };
+};
+
+const resultBandMatch = (
+  value: number,
+  band?: 'low' | 'normal' | 'high',
+) => {
+  if (!band) return true;
+  if (band === 'low') return value < 60;
+  if (band === 'high') return value >= 80;
+  return value >= 60 && value < 80;
+};
+
+export const filterMockExamResults = (query: MockExamResultQueryParams) => {
+  const keyword = String(query.keyword ?? '').trim().toLowerCase();
+  const period = query.period ?? '30d';
+  return mockExamPapersData
+    .filter((paper) => resultVisibleStatuses.includes(paper.status))
+    .map((paper) => buildMockExamResultItem(paper, period))
+    .filter(
+      (item) =>
+        !keyword ||
+        [item.paperId, item.paperName, item.paperVersion]
+          .join(' ')
+          .toLowerCase()
+          .includes(keyword),
+    )
+    .filter((item) => !query.examType || item.examType === query.examType)
+    .filter((item) => !query.status || item.status === query.status)
+    .filter((item) => !query.riskType || item.riskTypes.includes(query.riskType))
+    .filter((item) => resultBandMatch(item.completionRate, query.completionBand))
+    .filter((item) => resultBandMatch(item.averageScoreRate, query.averageBand))
+    .sort((first, second) => {
+      const riskDelta =
+        riskWeight[second.riskLevel] - riskWeight[first.riskLevel];
+      if (riskDelta) return riskDelta;
+      return second.updatedAt.localeCompare(first.updatedAt);
+    });
+};
+
+export const paginateMockExamResults = (
+  data: MockExamResultItem[],
+  query: MockExamResultQueryParams,
+): MockExamResultListResponse => {
+  const current = Number(query.current || 1);
+  const pageSize = Number(query.pageSize || 20);
+  const startedCount = sumBy(data, (item) => item.startedCount);
+  const completedCount = sumBy(data, (item) => item.completedCount);
+  const averageScore =
+    data.length > 0
+      ? Number(
+          (
+            sumBy(data, (item) => item.averageScore) / data.length
+          ).toFixed(1),
+        )
+      : 0;
+  const averageScoreRate =
+    data.length > 0
+      ? Number(
+          (
+            sumBy(data, (item) => item.averageScoreRate) / data.length
+          ).toFixed(1),
+        )
+      : 0;
+  const averageMinutes =
+    data.length > 0
+      ? Number(
+          (
+            sumBy(data, (item) => item.averageMinutes) / data.length
+          ).toFixed(1),
+        )
+      : 0;
+  return {
+    success: true,
+    data: data.slice((current - 1) * pageSize, current * pageSize),
+    total: data.length,
+    current,
+    pageSize,
+    summary: {
+      startedCount,
+      completedCount,
+      completionRate:
+        startedCount > 0
+          ? Number(((completedCount / startedCount) * 100).toFixed(1))
+          : 0,
+      averageScore,
+      averageScoreRate,
+      averageMinutes,
+      riskPaperCount: data.filter((item) => item.riskTypes.length).length,
+      mockOnly: true,
+    },
+  };
+};
+
+const diagnosisFromRisks = (
+  paper: MockExamPaper,
+  summary: MockExamResultItem,
+  itemStats: MockExamItemStatistic[],
+  timeRisks: MockExamTimeRisk[],
+): MockExamResultDiagnosis[] => {
+  const diagnosis: MockExamResultDiagnosis[] = [];
+  if (summary.riskTypes.includes('low_completion')) {
+    diagnosis.push({
+      id: `${paper.id}-low-completion`,
+      riskType: 'low_completion',
+      title: '完成率偏低',
+      description: `完成率 ${summary.completionRate}%，低于 60% 风险线。`,
+      affectedScope: '全卷',
+      suggestion: '检查试卷总时长、分区顺序和难度梯度，优先复制为草稿调整配置。',
+      targetRoute: `/mock-exam/papers/${paper.id}`,
+    });
+  }
+  if (summary.riskTypes.includes('low_average_score')) {
+    diagnosis.push({
+      id: `${paper.id}-low-score`,
+      riskType: 'low_average_score',
+      title: '均分偏低',
+      description: `均分 ${summary.averageScore}，得分率 ${summary.averageScoreRate}%。`,
+      affectedScope: '全卷',
+      suggestion: '检查题目难度组合和分值配置，必要时替换低表现题目。',
+      targetRoute: `/mock-exam/papers/${paper.id}?tab=structure`,
+    });
+  }
+  if (summary.riskTypes.includes('weak_section')) {
+    diagnosis.push({
+      id: `${paper.id}-weak-section`,
+      riskType: 'weak_section',
+      title: '分区表现异常',
+      description: `${summary.lowestSectionName} 得分率 ${summary.lowestSectionRate}%，是当前最低分区。`,
+      affectedScope: summary.lowestSectionName,
+      suggestion: '回到试卷结构检查该分区题目数量、分值和题型组合。',
+      targetRoute: `/mock-exam/papers/${paper.id}?tab=structure`,
+    });
+  }
+  const weakItems = itemStats.filter((item) => item.riskReasons.length);
+  if (weakItems.length) {
+    diagnosis.push({
+      id: `${paper.id}-weak-item`,
+      riskType: 'weak_item',
+      title: '题目表现异常',
+      description: `${weakItems.length} 道题存在低得分率或高跳过率。`,
+      affectedScope: weakItems.slice(0, 3).map((item) => item.title).join('、'),
+      suggestion: '优先替换或调整这些题目的分值、位置和解析。',
+      targetRoute: `/mock-exam/papers/${paper.id}?tab=structure`,
+    });
+  }
+  if (timeRisks.length) {
+    diagnosis.push({
+      id: `${paper.id}-time-risk`,
+      riskType: 'time_pressure',
+      title: '时间配置压力',
+      description: `${timeRisks.length} 个范围的平均耗时接近配置时长。`,
+      affectedScope: timeRisks.map((item) => item.targetName).join('、'),
+      suggestion: '检查分区时长和题量配比，避免学生在中后段集中流失。',
+      targetRoute: `/mock-exam/papers/${paper.id}?tab=overview`,
+    });
+  }
+  if (summary.riskTypes.includes('precheck_blocked')) {
+    diagnosis.push({
+      id: `${paper.id}-precheck-blocked`,
+      riskType: 'precheck_blocked',
+      title: '发布前校验阻断',
+      description: paper.lastPrecheck?.summary ?? '预校验存在阻断错误。',
+      affectedScope: '试卷配置',
+      suggestion: '先修复预校验错误，再提交审核发布。',
+      targetRoute: `/mock-exam/papers/${paper.id}?tab=validation`,
+    });
+  }
+  if (!diagnosis.length) {
+    diagnosis.push({
+      id: `${paper.id}-healthy`,
+      title: '暂无明显配置风险',
+      description: '当前 Mock 聚合结果未触发风险线。',
+      affectedScope: '全卷',
+      suggestion: '继续观察完成率、均分和分区耗时变化。',
+      targetRoute: `/mock-exam/papers/${paper.id}`,
+    });
+  }
+  return diagnosis;
+};
+
+const sanitizedResultPaper = (paper: MockExamPaper): MockExamPaper => ({
+  ...clone(paper),
+  sections: paper.sections.map((section) => ({
+    ...section,
+    items: section.items.map((item) => ({
+      id: item.id,
+      sourceType: item.sourceType,
+      sourceId: item.sourceId,
+      sourceVersion: item.sourceVersion,
+      sourceStatusAtBinding: item.sourceStatusAtBinding,
+      title: item.title,
+      sectionType: item.sectionType,
+      score: item.score,
+      order: item.order,
+      sourceGroupId: item.sourceGroupId,
+      sourceGroupName: item.sourceGroupName,
+      sourceGroupVersion: item.sourceGroupVersion,
+    })),
+  })),
+});
+
+export const buildMockExamResultDetail = (
+  paper: MockExamPaper,
+  period: MockExamStatisticsPeriod = '30d',
+): MockExamResultDetail => {
+  const statistics = buildMockExamStatistics(paper, period);
+  const itemStats = buildMockExamItemStatistics(paper);
+  const timeRisks = buildMockExamTimeRisks(paper, statistics);
+  const summary = buildMockExamResultItem(paper, period);
+  return {
+    summary,
+    paper: sanitizedResultPaper(paper),
+    statistics,
+    itemStats,
+    timeRisks,
+    diagnosis: diagnosisFromRisks(paper, summary, itemStats, timeRisks),
+    containsSensitiveFields: false,
+    mockOnly: true,
   };
 };
 

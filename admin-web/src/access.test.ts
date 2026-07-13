@@ -62,6 +62,21 @@ describe('access', () => {
     expect(ai.canBindWritingTranslationTemplates).toBe(false);
   });
 
+  it('allows teaching and AI operators to manage revision strategies', () => {
+    expect(
+      access({ currentUser: { roleId: 'teaching_reviewer' } }).canManageWritingRevisionStrategies,
+    ).toBe(true);
+    expect(
+      access({ currentUser: { roleId: 'ai_operator' } }).canManageWritingRevisionStrategies,
+    ).toBe(true);
+    expect(
+      access({ currentUser: { roleId: 'data_analyst' } }).canAccessWritingTranslation,
+    ).toBe(true);
+    expect(
+      access({ currentUser: { roleId: 'data_analyst' } }).canManageWritingRevisionStrategies,
+    ).toBe(false);
+  });
+
   it('should return canAdmin false when user access is undefined', () => {
     const initialState = {
       currentUser: {

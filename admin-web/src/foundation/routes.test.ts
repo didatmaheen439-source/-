@@ -69,7 +69,9 @@ const visibleSecondLevelPaths = [
   '/writing-translation/translation-topics',
   '/writing-translation/scoring-feedback-templates',
   '/writing-translation/correction-summaries',
+  '/writing-translation/revision-strategies',
   '/mock-exam/papers',
+  '/mock-exam/results',
   '/analytics/overview',
   '/review-release/pending',
   '/system/accounts',
@@ -85,7 +87,7 @@ describe('admin navigation structure', () => {
     expect(businessRoutes.filter((route) => route?.hideInMenu)).toEqual([]);
   });
 
-  it('exposes only the twenty-three implemented second-level entries', () => {
+  it('exposes only the implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];
@@ -138,6 +140,9 @@ describe('admin navigation structure', () => {
     expect(findRoute('/analytics/users')?.parentKeys).toEqual([
       '/analytics/overview',
     ]);
+    expect(findRoute('/analytics/retention')?.parentKeys).toEqual([
+      '/analytics/overview',
+    ]);
     expect(findRoute('/system/sensitive-access-logs')?.parentKeys).toEqual([
       '/system/operation-logs',
     ]);
@@ -161,6 +166,10 @@ describe('admin navigation structure', () => {
     expect(zhCNMenu['menu.writing-translation.correction-summaries']).toBe(
       '批改记录摘要',
     );
+    expect(zhCNMenu['menu.writing-translation.revision-strategies']).toBe(
+      '二次修改策略',
+    );
+    expect(zhCNMenu['menu.mock-exam.results']).toBe('模考结果');
     expect(zhCNMenu['menu.system']).toBe('系统与审计');
     expect(zhCNMenu['menu.system.operation-logs']).toBe('审计日志');
   });

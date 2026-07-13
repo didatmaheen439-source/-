@@ -112,6 +112,7 @@ declare namespace API {
     | 'ai_coach_strategy'
     | 'writing_translation'
     | 'writing_translation_template'
+    | 'writing_translation_revision_strategy'
     | 'mock_exam';
 
   type ReviewRiskLevel = 'low' | 'medium' | 'high';
@@ -146,6 +147,7 @@ declare namespace API {
       | AiCoachConfigType
       | WritingTranslationTopicType
       | WritingTranslationTemplateType
+      | 'revision_strategy'
       | WrongReasonTagCategory;
     objectTypeName: string;
     objectId: string;
@@ -916,6 +918,148 @@ declare namespace API {
     targetType: CorrectionFixTargetType;
     diagnosis: string;
     changeSummary: string;
+  };
+
+  type WritingRevisionStrategyStatus = ReviewTaskStatus;
+
+  type RevisionPromptMode = 'inline_hint' | 'ai_guided' | 'strong_reminder';
+
+  type RevisionRequirement = {
+    focus: string;
+    minChangedWords: number;
+    mustAddressIssueTags: string[];
+    responseFormat: string;
+    deadlineMinutes: number;
+  };
+
+  type RevisionTriggerCondition = {
+    scoreBelow?: number;
+    dimensionScoreBelow?: Array<{
+      dimensionKey: string;
+      dimensionName: string;
+      threshold: number;
+    }>;
+    issueTags?: string[];
+    feedbackSectionKeys?: string[];
+  };
+
+  type WritingRevisionStrategyVersion = {
+    id: string;
+    strategyId: string;
+    version: string;
+    status: WritingRevisionStrategyStatus;
+    createdBy: string;
+    createdAt: string;
+    changeSummary: string;
+    currentOnline: boolean;
+    snapshot: Partial<WritingRevisionStrategy>;
+  };
+
+  type WritingRevisionStrategy = {
+    id: string;
+    name: string;
+    description?: string;
+    topicTypes: WritingTranslationTopicType[];
+    examTypes: ExamType[];
+    status: WritingRevisionStrategyStatus;
+    version: string;
+    dataVersion: number;
+    scoringTemplateRef: WritingTranslationTemplateReference;
+    feedbackTemplateRef: WritingTranslationTemplateReference;
+    triggerCondition: RevisionTriggerCondition;
+    requirement: RevisionRequirement;
+    promptMode: RevisionPromptMode;
+    promptTemplate: string;
+    statusAtBinding?: ReviewTaskStatus;
+    createdBy: string;
+    createdById?: string;
+    createdAt: string;
+    updatedBy: string;
+    updatedById?: string;
+    updatedAt: string;
+    reviewTaskId?: string;
+    releaseVersionId?: string;
+    rollbackTargetVersion?: string;
+    changeSummary: string;
+    lastPrecheck?: WritingTranslationPrecheckResult;
+    effectSummary: RevisionEffectSummary;
+    versionRecords: WritingRevisionStrategyVersion[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type WritingRevisionStrategyQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    topicType?: WritingTranslationTopicType;
+    examType?: ExamType;
+    status?: WritingRevisionStrategyStatus;
+  };
+
+  type WritingRevisionStrategySaveParams = {
+    name: string;
+    description?: string;
+    topicTypes: WritingTranslationTopicType[];
+    examTypes: ExamType[];
+    scoringTemplateId: string;
+    feedbackTemplateId: string;
+    triggerCondition: RevisionTriggerCondition;
+    requirement: RevisionRequirement;
+    promptMode: RevisionPromptMode;
+    promptTemplate: string;
+    changeSummary?: string;
+    dataVersion?: number;
+  };
+
+  type WritingRevisionStrategyList = {
+    data?: WritingRevisionStrategy[];
+    total?: number;
+    current?: number;
+    pageSize?: number;
+    success?: boolean;
+  };
+
+  type MockRevisionStatus = 'not_triggered' | 'triggered' | 'revised' | 'skipped' | 'expired';
+
+  type MockRevisionRecord = {
+    id: string;
+    strategyId: string;
+    strategyName: string;
+    strategyVersion: string;
+    topicId: string;
+    topicName: string;
+    topicType: WritingTranslationTopicType;
+    topicVersion: string;
+    scoringTemplateRef: WritingTranslationTemplateReference;
+    feedbackTemplateRef: WritingTranslationTemplateReference;
+    score: number;
+    dimensionScores: Array<{ dimensionKey: string; dimensionName: string; score: number; maxScore: number }>;
+    issueTags: string[];
+    triggerMatched: boolean;
+    triggerSnapshot: RevisionTriggerCondition;
+    requirementSnapshot: RevisionRequirement;
+    status: MockRevisionStatus;
+    firstSubmittedAt: string;
+    revisedAt?: string;
+    mockOnly: true;
+  };
+
+  type MockRevisionSubmissionParams = {
+    strategyId: string;
+    topicId?: string;
+    action?: 'submit' | 'skip';
+  };
+
+  type RevisionEffectSummary = {
+    submissions: number;
+    triggered: number;
+    revised: number;
+    skipped: number;
+    triggerRate: number;
+    revisionRate: number;
+    completionRate: number;
+    commonIssues: Array<{ tag: string; count: number }>;
+    updatedAt: string;
   };
 
   type WritingTranslationStatus = ReviewTaskStatus;
@@ -2502,22 +2646,26 @@ declare namespace API {
     | 'users'
     | 'learningPath'
     | 'content'
+    | 'wrongReason'
     | 'reviewRelease'
     | 'feedback'
     | 'aiCoach'
     | 'writingTranslation'
     | 'mockExam'
+    | 'retention'
     | 'audit';
 
   type AnalyticsVisibleSection =
     | 'users'
     | 'learningPath'
     | 'content'
+    | 'wrongReason'
     | 'reviewRelease'
     | 'feedback'
     | 'aiCoach'
     | 'writingTranslation'
     | 'mockExam'
+    | 'retention'
     | 'audit';
 
   type AnalyticsMetricType = 'count' | 'rate' | 'duration';
@@ -2642,6 +2790,48 @@ declare namespace API {
     formal: boolean;
   };
 
+  type AnalyticsDrilldownRiskLevel = 'info' | 'warning' | 'error';
+
+  type AnalyticsDrilldownItem = {
+    id: string;
+    section: AnalyticsVisibleSection;
+    objectType: string;
+    objectId: string;
+    objectName: string;
+    metricLabel: string;
+    metricValue: string;
+    riskLevel: AnalyticsDrilldownRiskLevel;
+    reason: string;
+    ownerModule: string;
+    targetRoute: string;
+    targetAccessible?: boolean;
+    correctionRoute?: string;
+    correctionLabel?: string;
+    correctionAccessible?: boolean;
+    updatedAt: string;
+  };
+
+  type AnalyticsCorrectionIntentParams = {
+    drilldownId: string;
+    section: AnalyticsVisibleSection;
+    objectType: string;
+    objectId: string;
+    objectName: string;
+    metricLabel: string;
+    metricValue: string;
+    riskLevel: AnalyticsDrilldownRiskLevel;
+    targetRoute: string;
+    correctionRoute?: string;
+    reason: string;
+  };
+
+  type AnalyticsCorrectionIntentResult = {
+    id: string;
+    targetRoute: string;
+    createdAt: string;
+    mockOnly: true;
+  };
+
   type AnalyticsOverview = {
     filters: Required<Pick<AnalyticsFilterParams, 'startDate' | 'endDate' | 'granularity' | 'module'>> & {
       examType: ExamType | 'all';
@@ -2653,6 +2843,10 @@ declare namespace API {
     learningPathMetrics: AnalyticsMetricCard[];
     contentStatusDistribution: AnalyticsDistributionItem[];
     contentMetrics: AnalyticsMetricCard[];
+    sectionMetrics: Partial<Record<AnalyticsVisibleSection, AnalyticsMetricCard[]>>;
+    sectionTrends: Partial<Record<AnalyticsVisibleSection, AnalyticsTrendPoint[]>>;
+    sectionDistributions: Partial<Record<AnalyticsVisibleSection, AnalyticsDistributionItem[]>>;
+    drilldowns: Partial<Record<AnalyticsVisibleSection, AnalyticsDrilldownItem[]>>;
     reviewReleaseStats?: AnalyticsReviewStats;
     reviewRiskItems: AnalyticsDistributionItem[];
     feedbackStats?: AnalyticsFeedbackStats;

@@ -1,5 +1,7 @@
 import type {
   MockExamPrecheckLevel,
+  MockExamResultRiskLevel,
+  MockExamResultRiskType,
   MockExamSectionType,
   MockExamSourceType,
 } from './data';
@@ -39,6 +41,27 @@ export const precheckLevelColor: Record<MockExamPrecheckLevel, string> = {
   passed: 'success',
   warning: 'warning',
   error: 'error',
+};
+
+export const resultRiskTypeText: Record<MockExamResultRiskType, string> = {
+  low_completion: '完成率低',
+  low_average_score: '均分偏低',
+  weak_section: '分区异常',
+  weak_item: '题目异常',
+  time_pressure: '时间压力',
+  precheck_blocked: '校验阻断',
+};
+
+export const resultRiskLevelText: Record<MockExamResultRiskLevel, string> = {
+  high: '高风险',
+  medium: '需关注',
+  low: '正常',
+};
+
+export const resultRiskLevelColor: Record<MockExamResultRiskLevel, string> = {
+  high: 'error',
+  medium: 'warning',
+  low: 'success',
 };
 
 export const editableStatuses: API.ReviewTaskStatus[] = [

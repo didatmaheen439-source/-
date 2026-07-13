@@ -13,6 +13,16 @@ export type MockExamPrecheckLevel = 'passed' | 'warning' | 'error';
 
 export type MockExamStatisticsPeriod = '7d' | '30d' | 'all';
 
+export type MockExamResultRiskType =
+  | 'low_completion'
+  | 'low_average_score'
+  | 'weak_section'
+  | 'weak_item'
+  | 'time_pressure'
+  | 'precheck_blocked';
+
+export type MockExamResultRiskLevel = 'high' | 'medium' | 'low';
+
 export type MockExamReference = {
   sourceType: MockExamSourceType;
   sourceId: string;
@@ -197,4 +207,104 @@ export type MockExamStatistics = {
   containsSensitiveFields: false;
   mockOnly: true;
   updatedAt: string;
+};
+
+export type MockExamResultQueryParams = {
+  current?: number;
+  pageSize?: number;
+  keyword?: string;
+  examType?: API.ExamType;
+  status?: API.ReviewTaskStatus;
+  period?: MockExamStatisticsPeriod;
+  riskType?: MockExamResultRiskType;
+  completionBand?: 'low' | 'normal' | 'high';
+  averageBand?: 'low' | 'normal' | 'high';
+};
+
+export type MockExamResultItem = {
+  paperId: string;
+  paperName: string;
+  paperVersion: string;
+  examType: API.ExamType;
+  status: API.ReviewTaskStatus;
+  period: MockExamStatisticsPeriod;
+  startedCount: number;
+  completedCount: number;
+  completionRate: number;
+  averageScore: number;
+  totalScore: number;
+  averageScoreRate: number;
+  averageMinutes: number;
+  totalMinutes: number;
+  lowestSectionName: string;
+  lowestSectionRate: number;
+  riskTypes: MockExamResultRiskType[];
+  riskLevel: MockExamResultRiskLevel;
+  updatedAt: string;
+};
+
+export type MockExamItemStatistic = {
+  itemId: string;
+  title: string;
+  sectionId: string;
+  sectionName: string;
+  sourceType: MockExamSourceType;
+  sourceId: string;
+  sourceVersion: string;
+  averageScore: number;
+  fullScore: number;
+  averageRate: number;
+  skipRate: number;
+  riskLevel: MockExamResultRiskLevel;
+  riskReasons: string[];
+};
+
+export type MockExamTimeRisk = {
+  scope: 'paper' | 'section';
+  targetId: string;
+  targetName: string;
+  configuredMinutes: number;
+  averageMinutes: number;
+  pressureRate: number;
+  riskLevel: MockExamResultRiskLevel;
+  message: string;
+};
+
+export type MockExamResultDiagnosis = {
+  id: string;
+  riskType?: MockExamResultRiskType;
+  title: string;
+  description: string;
+  affectedScope: string;
+  suggestion: string;
+  targetRoute?: string;
+};
+
+export type MockExamResultDetail = {
+  summary: MockExamResultItem;
+  paper: MockExamPaper;
+  statistics: MockExamStatistics;
+  itemStats: MockExamItemStatistic[];
+  timeRisks: MockExamTimeRisk[];
+  diagnosis: MockExamResultDiagnosis[];
+  containsSensitiveFields: false;
+  mockOnly: true;
+};
+
+export type MockExamResultListResponse = {
+  success: boolean;
+  data: MockExamResultItem[];
+  total: number;
+  current: number;
+  pageSize: number;
+  summary: {
+    startedCount: number;
+    completedCount: number;
+    completionRate: number;
+    averageScore: number;
+    averageScoreRate: number;
+    averageMinutes: number;
+    riskPaperCount: number;
+    mockOnly: true;
+  };
 };

@@ -496,6 +496,11 @@ export default [
         component: './writing-translation/correction-summaries',
       },
       {
+        path: '/writing-translation/revision-strategies',
+        name: 'revision-strategies',
+        component: './writing-translation/revision-strategies',
+      },
+      {
         path: '/writing-translation/scoring-dimensions',
         hideInMenu: true,
         redirect: '/writing-translation/scoring-feedback-templates?tab=scoring',
@@ -547,6 +552,11 @@ export default [
         path: '/mock-exam/papers',
         name: 'papers',
         component: './mock-exam/papers',
+      },
+      {
+        path: '/mock-exam/results',
+        name: 'results',
+        component: './mock-exam/results',
       },
       {
         path: '/mock-exam/papers/new',
@@ -630,6 +640,13 @@ export default [
       {
         path: '/analytics/ai',
         name: 'ai',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
+        component: './analytics/overview',
+      },
+      {
+        path: '/analytics/retention',
+        name: 'retention',
         hideInMenu: true,
         parentKeys: ['/analytics/overview'],
         component: './analytics/overview',
