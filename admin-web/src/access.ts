@@ -42,6 +42,10 @@ export default function access(
       roleId === 'super_admin' || roleId === 'ai_operator',
     canBindWritingTranslationTemplates:
       roleId === 'super_admin' || roleId === 'teaching_reviewer',
+    canManageWritingRevisionStrategies:
+      roleId === 'super_admin' ||
+      roleId === 'teaching_reviewer' ||
+      roleId === 'ai_operator',
     canAccessMockExam: roleCanAccessModule(roleId, 'mockExam'),
     canAccessAnalytics: roleCanAccessModule(roleId, 'analytics'),
     canAccessReviewRelease: roleCanAccessModule(roleId, 'reviewRelease'),

@@ -32,6 +32,7 @@
 - 已完成 AI 陪练“附件策略”Tab：附件类型、大小、识别方式、失败提示、预校验、审核发布复用、Mock 成功/失败会话和抽检/异常队列联动。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP：双 Tab、模板版本、权重与引用校验、审核发布、题目版本绑定和 Mock 批改记录追溯。
+- 已完成 `/writing-translation/revision-strategies` 二次修改策略 Mock MVP：触发条件、二改要求、提示方式、评分/反馈模板绑定、审核发布、Mock 学生二改触发和效果回流。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
 - 已完成 `/learning-path/advanced-strategies` 进阶学习策略 Mock MVP：轻量任务、追加陪练、复练推荐三个 Tab，触发/优先级/替代规则、预校验、审核发布、Mock 命中、效果回流、下架和回滚版本同步。
@@ -70,6 +71,7 @@
 
 ## 最近验证
 
+- 2026-07-13：`/writing-translation/revision-strategies` 二次修改策略 Mock MVP 已实现，最终验证见 `logs/writing-revision-strategies-implementation-2026-07-13/summary.md`。
 - 2026-07-13：`/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP 完成，覆盖评分维度/反馈模板双 Tab、版本引用、题目绑定和 Mock 批改记录追溯；`npm run tsc`、`npm run test`（21 文件、114 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器和 API 权限烟测见 `logs/writing-translation-templates-implementation-2026-07-13/summary.md`。
 - 2026-07-13：AI 陪练“附件策略”Tab 完成；`npm run tsc`、`npm run test`（22 文件、118 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build`、`git diff --check` 通过；浏览器验收覆盖附件 Tab、成功/失败 Mock 分流、抽检/异常详情和 1024 宽度，记录见 `logs/ai-attachment-policy-implementation-2026-07-13.md`。
 - 2026-07-13：`/learning-path/advanced-strategies` 进阶学习策略 Mock MVP 完成，`npm run test`（21 文件、112 测试）、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器验收覆盖列表、详情、Mock 命中、AI/内容运营权限和 1440/1280/1024 断点，记录见 `docs/advanced-learning-strategies-mvp.md`、`logs/advanced-learning-strategies-implementation-2026-07-13.md`。
