@@ -8,7 +8,11 @@ import {
   bindTemplatesToTopic,
   canEditWritingTranslationTemplate,
   copyWritingTranslationTemplate,
+  correctionSummaryStats,
+  createCorrectionFixDraft,
+  filterCorrectionSummaries,
   filterWritingTranslationTemplates,
+  getCorrectionSummary,
   getWritingTranslationTemplate,
   mockCorrectionRecords,
   precheckWritingTranslationTemplate,
@@ -30,7 +34,48 @@ const forbidden = (res: Response, action: string, objectId = 'writing-translatio
 const missing = (res: Response) => res.status(404).send({ success: false, errorCode: '404', errorMessage: '模板不存在。' });
 const auditSuccess = (action: string, objectId: string, summary: string, version?: string) => pushOperationAuditLog({ roleId: roleId() as AdminRoleId, action, objectType: 'writing_translation_template', objectId, sourcePage: '/writing-translation/scoring-feedback-templates', reason: summary, result: 'success', changeSummary: summary, version });
 
+const correctionQuery = (req: Request): API.CorrectionSummaryQueryParams => ({
+  current: Number(req.query.current || 1),
+  pageSize: Number(req.query.pageSize || 20),
+  keyword: typeof req.query.keyword === 'string' ? req.query.keyword : undefined,
+  topicType: typeof req.query.topicType === 'string' ? req.query.topicType as API.WritingTranslationTopicType : undefined,
+  examType: typeof req.query.examType === 'string' ? req.query.examType as API.ExamType : undefined,
+  scoreBand: typeof req.query.scoreBand === 'string' ? req.query.scoreBand as API.MockCorrectionRecord['scoreBand'] : undefined,
+  correctionStatus: typeof req.query.correctionStatus === 'string' ? req.query.correctionStatus as API.MockCorrectionRecord['correctionStatus'] : undefined,
+  fixStatus: typeof req.query.fixStatus === 'string' ? req.query.fixStatus as API.CorrectionFixStatus : undefined,
+  issueCode: typeof req.query.issueCode === 'string' ? req.query.issueCode : undefined,
+  causeType: typeof req.query.causeType === 'string' ? req.query.causeType as API.CorrectionFixTargetType : undefined,
+  strategyVersion: typeof req.query.strategyVersion === 'string' ? req.query.strategyVersion : undefined,
+});
+
 export default {
+  'GET /api/writing-translation/correction-summaries/stats': (req: Request, res: Response) => {
+    if (!canRead()) return forbidden(res, 'read_correction_summary');
+    res.send({ success: true, data: correctionSummaryStats(correctionQuery(req)) });
+  },
+  'GET /api/writing-translation/correction-summaries': (req: Request, res: Response) => {
+    if (!canRead()) return forbidden(res, 'read_correction_summary');
+    const query = correctionQuery(req);
+    const rows = filterCorrectionSummaries(query);
+    const start = ((query.current || 1) - 1) * (query.pageSize || 20);
+    res.send({ success: true, data: rows.slice(start, start + (query.pageSize || 20)), total: rows.length });
+  },
+  'GET /api/writing-translation/correction-summaries/:id': (req: Request, res: Response) => {
+    if (!canRead()) return forbidden(res, 'read_correction_summary', String(req.params.id));
+    const record = getCorrectionSummary(String(req.params.id));
+    if (!record) return res.status(404).send({ success: false, errorCode: '404', errorMessage: '批改记录不存在。' });
+    res.send({ success: true, data: record });
+  },
+  'POST /api/writing-translation/correction-summaries/:id/fix-drafts': (req: Request, res: Response) => {
+    if (!roleId()) return forbidden(res, 'create_fix_draft', String(req.params.id));
+    const result = createCorrectionFixDraft(String(req.params.id), req.body as API.CorrectionFixDraftParams, operator());
+    if ('missing' in result) return res.status(404).send({ success: false, errorCode: '404', errorMessage: '批改记录不存在。' });
+    if ('forbidden' in result) return forbidden(res, 'create_fix_draft', String(req.params.id));
+    if ('conflict' in result) return res.status(409).send({ success: false, errorCode: '409', errorMessage: '批改记录已变化，请刷新后再操作。' });
+    if ('invalid' in result) return res.status(422).send({ success: false, errorCode: '422', errorMessage: result.errorMessage });
+    pushOperationAuditLog({ roleId: roleId() as AdminRoleId, action: 'create_fix_draft', objectType: 'writing_translation_correction_summary', objectId: result.record.id, sourcePage: '/writing-translation/correction-summaries', reason: req.body?.diagnosis || '从批改记录发起修正草稿。', result: 'success', changeSummary: `创建${result.draft.targetName}修正草稿，来源 ${result.record.id}。`, version: result.draft.targetVersion });
+    res.send({ success: true, data: result.record, draft: result.draft });
+  },
   'GET /api/writing-translation/templates': (req: Request, res: Response) => {
     if (!canRead()) return forbidden(res, 'read');
     const query: API.WritingTranslationTemplateQueryParams = { current: Number(req.query.current || 1), pageSize: Number(req.query.pageSize || 20), templateType: typeof req.query.templateType === 'string' ? req.query.templateType as API.WritingTranslationTemplateType : undefined, keyword: typeof req.query.keyword === 'string' ? req.query.keyword : undefined, status: typeof req.query.status === 'string' ? req.query.status as API.WritingTranslationTemplateStatus : undefined, topicType: typeof req.query.topicType === 'string' ? req.query.topicType as API.WritingTranslationTopicType : undefined, examType: typeof req.query.examType === 'string' ? req.query.examType as API.ExamType : undefined };

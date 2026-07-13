@@ -69,6 +69,7 @@ export default {
   'menu.writing-translation.scoring-dimensions': 'Scoring Dimensions',
   'menu.writing-translation.feedback-templates': 'Feedback Templates',
   'menu.writing-translation.scoring-feedback-templates': 'Scoring & Feedback Templates',
+  'menu.writing-translation.correction-summaries': 'Correction Summaries',
   'menu.writing-translation.revision-strategies': 'Revision Strategies',
   'menu.writing-translation.topics': 'Topics',
   'menu.writing-translation.topic-new': 'Create Writing/Translation Topic',

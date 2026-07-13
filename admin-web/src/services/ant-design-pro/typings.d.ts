@@ -821,18 +821,103 @@ declare namespace API {
     dataVersion: number;
   };
 
+  type CorrectionFixTargetType = 'topic' | 'scoring_template' | 'feedback_template' | 'ai_strategy';
+
+  type CorrectionFixStatus =
+    | 'none'
+    | 'draft_created'
+    | 'pending_review'
+    | 'published'
+    | 'closed_no_fix';
+
+  type CorrectionIssueTag = {
+    code: string;
+    name: string;
+    severity: 'low' | 'medium' | 'high';
+    causeType: CorrectionFixTargetType;
+    count: number;
+  };
+
+  type CorrectionDimensionScore = {
+    key: string;
+    name: string;
+    score: number;
+    maxScore: number;
+    issueCount: number;
+  };
+
+  type CorrectionFixDraft = {
+    id: string;
+    targetType: CorrectionFixTargetType;
+    targetId: string;
+    targetName: string;
+    targetVersion: string;
+    targetPath: string;
+    createdBy: string;
+    createdAt: string;
+    reviewTaskId?: string;
+  };
+
   type MockCorrectionRecord = {
     id: string;
     topicId: string;
     topicName: string;
+    topicType: WritingTranslationTopicType;
+    examType: ExamType;
     topicVersion: string;
     scoringTemplateRef: WritingTranslationTemplateReference;
     feedbackTemplateRef: WritingTranslationTemplateReference;
+    aiStrategySnapshot: WritingTranslationAiStrategyReference;
     aiStrategyVersion: string;
+    totalScore: number;
     score: number;
+    scoreBand: 'excellent' | 'stable' | 'attention' | 'abnormal';
+    answerSummary: string;
+    dimensionScores: CorrectionDimensionScore[];
+    issueTags: CorrectionIssueTag[];
     feedbackSections: Array<{ title: string; content: string }>;
+    correctionStatus: 'normal' | 'needs_review' | 'abnormal';
+    revisionCount: number;
+    fixStatus: CorrectionFixStatus;
+    rootCauseType?: CorrectionFixTargetType;
+    diagnosis?: string;
+    linkedFixDrafts: CorrectionFixDraft[];
+    updatedAt: string;
+    dataVersion: number;
     createdAt: string;
     mockOnly: true;
+  };
+
+  type CorrectionSummaryQueryParams = {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+    topicType?: WritingTranslationTopicType;
+    examType?: ExamType;
+    scoreBand?: MockCorrectionRecord['scoreBand'];
+    correctionStatus?: MockCorrectionRecord['correctionStatus'];
+    fixStatus?: CorrectionFixStatus;
+    issueCode?: string;
+    causeType?: CorrectionFixTargetType;
+    strategyVersion?: string;
+  };
+
+  type CorrectionSummaryStats = {
+    total: number;
+    normalCount: number;
+    abnormalCount: number;
+    needsReviewCount: number;
+    averageScore: number;
+    scoreBands: Array<{ band: MockCorrectionRecord['scoreBand']; label: string; count: number }>;
+    topIssues: CorrectionIssueTag[];
+    dimensionAverages: Array<{ key: string; name: string; averageScore: number; maxScore: number }>;
+  };
+
+  type CorrectionFixDraftParams = {
+    dataVersion: number;
+    targetType: CorrectionFixTargetType;
+    diagnosis: string;
+    changeSummary: string;
   };
 
   type WritingRevisionStrategyStatus = ReviewTaskStatus;

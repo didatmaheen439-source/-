@@ -1847,6 +1847,19 @@ export async function runWritingTranslationMockCorrection(topicId: string) {
   return request<{ data?: API.MockCorrectionRecord; success?: boolean }>('/api/writing-translation/mock-corrections', { method: 'POST', data: { topicId } });
 }
 
+export async function writingTranslationCorrectionSummaries(params?: API.CorrectionSummaryQueryParams) {
+  return request<{ data?: API.MockCorrectionRecord[]; total?: number; success?: boolean }>('/api/writing-translation/correction-summaries', { method: 'GET', params });
+}
+export async function writingTranslationCorrectionSummary(id: string) {
+  return request<{ data?: API.MockCorrectionRecord; success?: boolean }>(`/api/writing-translation/correction-summaries/${id}`, { method: 'GET' });
+}
+export async function writingTranslationCorrectionSummaryStats(params?: API.CorrectionSummaryQueryParams) {
+  return request<{ data?: API.CorrectionSummaryStats; success?: boolean }>('/api/writing-translation/correction-summaries/stats', { method: 'GET', params });
+}
+export async function createWritingTranslationCorrectionFixDraft(id: string, data: API.CorrectionFixDraftParams) {
+  return request<{ data?: API.MockCorrectionRecord; draft?: API.CorrectionFixDraft; success?: boolean }>(`/api/writing-translation/correction-summaries/${id}/fix-drafts`, { method: 'POST', data });
+}
+
 export async function writingRevisionStrategies(params?: API.WritingRevisionStrategyQueryParams) {
   return request<API.WritingRevisionStrategyList>('/api/writing-translation/revision-strategies', { method: 'GET', params });
 }

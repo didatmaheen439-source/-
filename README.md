@@ -32,6 +32,7 @@
 - 已完成 AI 陪练“附件策略”Tab：附件类型、大小、识别方式、失败提示、预校验、审核发布复用、Mock 成功/失败会话和抽检/异常队列联动。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
 - 已完成 `/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP：双 Tab、模板版本、权重与引用校验、审核发布、题目版本绑定和 Mock 批改记录追溯。
+- 已完成 `/writing-translation/correction-summaries` 批改记录摘要 Mock MVP：批改记录列表、评分分布、常见问题、版本定位、归因诊断和修正草稿创建闭环。
 - 已完成 `/writing-translation/revision-strategies` 二次修改策略 Mock MVP：触发条件、二改要求、提示方式、评分/反馈模板绑定、审核发布、Mock 学生二改触发和效果回流。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/mock-exam/results` 模考结果 Mock MVP：开始、完成、均分、分区表现、题目风险、时间配置风险、定位建议和修正草稿闭环。
@@ -75,6 +76,7 @@
 - 2026-07-13：`/mock-exam/results` 模考结果 Mock MVP 已实现，验证计划见 `logs/mock-exam-results-implementation-2026-07-13.md`。
 - 2026-07-13：`/writing-translation/revision-strategies` 二次修改策略 Mock MVP 已实现，最终验证见 `logs/writing-revision-strategies-implementation-2026-07-13/summary.md`。
 - 2026-07-13：`/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP 完成，覆盖评分维度/反馈模板双 Tab、版本引用、题目绑定和 Mock 批改记录追溯；`npm run tsc`、`npm run test`（21 文件、114 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器和 API 权限烟测见 `logs/writing-translation-templates-implementation-2026-07-13/summary.md`。
+- 2026-07-13：`/writing-translation/correction-summaries` 批改记录摘要 Mock MVP 完成，覆盖摘要列表、统计、详情、版本定位和修正草稿创建；记录见 `docs/writing-translation-correction-summaries-mvp.md`、`logs/writing-translation-correction-summaries-implementation-2026-07-13.md`。
 - 2026-07-13：AI 陪练“附件策略”Tab 完成；`npm run tsc`、`npm run test`（22 文件、118 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build`、`git diff --check` 通过；浏览器验收覆盖附件 Tab、成功/失败 Mock 分流、抽检/异常详情和 1024 宽度，记录见 `logs/ai-attachment-policy-implementation-2026-07-13.md`。
 - 2026-07-13：`/learning-path/advanced-strategies` 进阶学习策略 Mock MVP 完成，`npm run test`（21 文件、112 测试）、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器验收覆盖列表、详情、Mock 命中、AI/内容运营权限和 1440/1280/1024 断点，记录见 `docs/advanced-learning-strategies-mvp.md`、`logs/advanced-learning-strategies-implementation-2026-07-13.md`。
 - 2026-07-12：`/content-operations/daily-sentences` 每日一句运营闭环完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；浏览器验证记录见 `logs/daily-sentences-implementation-2026-07-12.md`。

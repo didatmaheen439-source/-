@@ -3,6 +3,9 @@ import { roleConfigs } from './permissions';
 import {
   bindTemplatesToTopic,
   canEditWritingTranslationTemplate,
+  correctionSummaryStats,
+  createCorrectionFixDraft,
+  filterCorrectionSummaries,
   getWritingTranslationTemplate,
   precheckWritingTranslationTemplate,
   runMockCorrection,
@@ -10,7 +13,7 @@ import {
 } from '../../mock/writingTranslationTemplateStore';
 import { writingTranslationTopicsData } from '../../mock/writingTranslationStore';
 
-const operator = (roleId: 'teaching_reviewer' | 'ai_operator') => ({
+const operator = (roleId: 'super_admin' | 'teaching_reviewer' | 'ai_operator') => ({
   id: `${roleId}-test`,
   name: roleConfigs[roleId].name,
   roleId,
@@ -76,5 +79,43 @@ describe('writing translation template workflow', () => {
     expect(result.record.scoringTemplateRef.version).toBe('v1.0.0');
     expect(result.record.feedbackTemplateRef.version).toBe('v1.0.0');
     expect(result.record.aiStrategyVersion).toBeTruthy();
+    expect(result.record.answerSummary).toContain('脱敏摘要');
+    expect(result.record.dimensionScores.length).toBeGreaterThan(0);
+  });
+
+  it('aggregates mock correction summaries without storing raw answers', () => {
+    const rows = filterCorrectionSummaries({ correctionStatus: 'abnormal' });
+    const stats = correctionSummaryStats();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(stats.total).toBeGreaterThanOrEqual(rows.length);
+    expect(stats.topIssues.length).toBeGreaterThan(0);
+    expect(filterCorrectionSummaries({ keyword: '用户完整作答' })).toHaveLength(0);
+  });
+
+  it('creates a traceable fix draft from a correction summary', () => {
+    const record = filterCorrectionSummaries({ correctionStatus: 'abnormal' })[0];
+    expect(record).toBeTruthy();
+    const result = createCorrectionFixDraft(record.id, {
+      dataVersion: record.dataVersion,
+      targetType: 'topic',
+      diagnosis: '题目要求和样例覆盖不清晰。',
+      changeSummary: '根据 Mock 批改异常创建题目修正草稿。',
+    }, operator('teaching_reviewer'));
+    if (!('draft' in result) || !result.draft) throw new Error('fix draft was not created');
+    expect(result.draft.targetType).toBe('topic');
+    expect(result.record.fixStatus).toBe('draft_created');
+    expect(result.record.linkedFixDrafts[0].targetPath).toContain('/writing-translation/');
+  });
+
+  it('keeps AI strategy fix drafts under AI operator ownership', () => {
+    const record = filterCorrectionSummaries({ causeType: 'ai_strategy' })[0];
+    expect(record).toBeTruthy();
+    const denied = createCorrectionFixDraft(record.id, {
+      dataVersion: record.dataVersion,
+      targetType: 'ai_strategy',
+      diagnosis: 'AI 输出结构偏离模板。',
+      changeSummary: '创建 AI 策略修正草稿。',
+    }, operator('teaching_reviewer'));
+    expect('forbidden' in denied).toBe(true);
   });
 });
