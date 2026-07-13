@@ -1,5 +1,31 @@
 # 过级搭子后台管理系统项目记忆
 
+## 2026-07-13 Writing Revision Strategies MVP
+
+### Summary
+- 新增 `/writing-translation/revision-strategies` 二次修改策略二级入口。
+- 支持触发条件、二改要求、提示方式、评分/反馈模板发布版本绑定、预校验、审核发布、Mock 学生二改触发和效果回流。
+- Mock 二改记录固定题目、评分模板、反馈模板和策略版本快照，不保存真实学生原文。
+
+### Key Files
+- `admin-web/mock/writingRevisionStrategyStore.ts`
+- `admin-web/mock/writingRevisionStrategy.ts`
+- `admin-web/src/pages/writing-translation/revision-strategies/index.tsx`
+- `docs/writing-revision-strategies-mvp.md`
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test -- writingRevisionStrategyStore routes.test access.test`：通过，3 个测试文件、20 条测试。
+- `npm run test`：通过，22 个测试文件、118 条测试。
+- `npm run lint`：通过，Biome 扫描 359 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 324 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，74 个资源文件，并生成 `writing-translation/revision-strategies/index.html`。
+- 浏览器验证结果见 `logs/writing-revision-strategies-implementation-2026-07-13/summary.md`。
+
+### Next Context
+- 真实后端需要持久化二改策略发布快照、二改任务、触发条件快照和学生二改状态。
+- 后续如果建设批改记录摘要页，应合并展示首次批改、二改任务和二改效果，不展示真实学生原文。
+
 ## 2026-07-13 Writing Translation Templates MVP
 
 ### Summary

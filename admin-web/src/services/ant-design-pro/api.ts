@@ -1832,6 +1832,40 @@ export async function runWritingTranslationMockCorrection(topicId: string) {
   return request<{ data?: API.MockCorrectionRecord; success?: boolean }>('/api/writing-translation/mock-corrections', { method: 'POST', data: { topicId } });
 }
 
+export async function writingRevisionStrategies(params?: API.WritingRevisionStrategyQueryParams) {
+  return request<API.WritingRevisionStrategyList>('/api/writing-translation/revision-strategies', { method: 'GET', params });
+}
+export async function writingRevisionStrategy(id: string) {
+  return request<{ data?: API.WritingRevisionStrategy; success?: boolean }>(`/api/writing-translation/revision-strategies/${id}`, { method: 'GET' });
+}
+export async function createWritingRevisionStrategy(data: API.WritingRevisionStrategySaveParams) {
+  return request<{ data?: API.WritingRevisionStrategy; success?: boolean }>('/api/writing-translation/revision-strategies', { method: 'POST', data });
+}
+export async function updateWritingRevisionStrategy(id: string, data: API.WritingRevisionStrategySaveParams) {
+  return request<{ data?: API.WritingRevisionStrategy; success?: boolean }>(`/api/writing-translation/revision-strategies/${id}`, { method: 'PATCH', data });
+}
+export async function precheckWritingRevisionStrategy(id: string) {
+  return request<{ data?: API.WritingTranslationPrecheckResult; success?: boolean }>(`/api/writing-translation/revision-strategies/${id}/precheck`, { method: 'POST' });
+}
+export async function submitWritingRevisionStrategyReview(id: string, data: API.WritingTranslationSubmitParams) {
+  return request<{ data?: API.WritingRevisionStrategy; reviewTask?: API.ReviewTask; success?: boolean }>(`/api/writing-translation/revision-strategies/${id}/submit-review`, { method: 'POST', data });
+}
+export async function copyWritingRevisionStrategy(id: string) {
+  return request<{ data?: API.WritingRevisionStrategy; success?: boolean }>(`/api/writing-translation/revision-strategies/${id}/copy`, { method: 'POST' });
+}
+export async function writingRevisionStrategyMockRecords(id: string) {
+  return request<{ data?: API.MockRevisionRecord[]; total?: number; success?: boolean }>(`/api/writing-translation/revision-strategies/${id}/mock-records`, { method: 'GET' });
+}
+export async function writingRevisionMockRecords() {
+  return request<{ data?: API.MockRevisionRecord[]; total?: number; success?: boolean }>('/api/writing-translation/mock-revision-records', { method: 'GET' });
+}
+export async function runWritingRevisionMockSubmission(data: API.MockRevisionSubmissionParams) {
+  return request<{ data?: API.MockRevisionRecord; effect?: API.RevisionEffectSummary; success?: boolean }>('/api/writing-translation/mock-revision-submissions', { method: 'POST', data });
+}
+export async function writingRevisionEffects() {
+  return request<{ data?: Array<API.RevisionEffectSummary & { strategyId: string; strategyName: string; version: string }>; success?: boolean }>('/api/writing-translation/revision-effects', { method: 'GET' });
+}
+
 /** 获取规则列表 GET /api/rule */
 export async function rule(
   params: {

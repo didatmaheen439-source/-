@@ -295,10 +295,11 @@ export const roleConfigs: Record<AdminRoleId, AdminRoleConfig> = {
     username: 'data_analyst',
     password: MOCK_LOGIN_PASSWORD,
     description: '查看聚合看板和导出分析数据，不处理内容与系统配置。',
-    modules: ['dashboard', 'users', 'mockExam', 'analytics'],
+    modules: ['dashboard', 'users', 'writingTranslation', 'mockExam', 'analytics'],
     actions: {
       dashboard: readOnly,
       users: readOnly,
+      writingTranslation: readOnly,
       mockExam: readOnly,
       analytics: ['read', 'export'],
     },

@@ -491,6 +491,11 @@ export default [
         component: './writing-translation/scoring-feedback-templates',
       },
       {
+        path: '/writing-translation/revision-strategies',
+        name: 'revision-strategies',
+        component: './writing-translation/revision-strategies',
+      },
+      {
         path: '/writing-translation/scoring-dimensions',
         hideInMenu: true,
         redirect: '/writing-translation/scoring-feedback-templates?tab=scoring',

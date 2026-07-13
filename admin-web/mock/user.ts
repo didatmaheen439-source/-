@@ -138,6 +138,10 @@ import {
   validateWritingTranslationTemplateReviewTransition,
 } from './writingTranslationTemplateStore';
 import {
+  syncRevisionStrategyFromReviewTask,
+  validateRevisionStrategyReviewTransition,
+} from './writingRevisionStrategyStore';
+import {
   dailySentenceAnalytics,
   dailySentencesData,
   isDailySentenceReviewTask,
@@ -202,6 +206,7 @@ const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   ai_coach_strategy: 'aiCoach',
   writing_translation: 'writingTranslation',
   writing_translation_template: 'writingTranslation',
+  writing_translation_revision_strategy: 'writingTranslation',
   mock_exam: 'mockExam',
 };
 
@@ -6688,6 +6693,13 @@ export default {
       return;
     }
 
+    const revisionStrategyTransitionCheck = validateRevisionStrategyReviewTransition(task, nextStatus);
+    if (!revisionStrategyTransitionCheck.ok) {
+      pushReviewAuditLog(currentRoleId, task, reviewStatusActionMap[nextStatus], 'failed', revisionStrategyTransitionCheck.errorMessage, `二改策略发布前复验失败：${revisionStrategyTransitionCheck.errorMessage}`);
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: revisionStrategyTransitionCheck.errorMessage, data: 'precheck' in revisionStrategyTransitionCheck ? revisionStrategyTransitionCheck.precheck : undefined });
+      return;
+    }
+
     const mockExamTransitionCheck = validateMockExamReviewTransition(
       task,
       nextStatus,
@@ -6861,6 +6873,12 @@ export default {
       operationReason,
     );
     syncWritingTranslationTemplateFromReviewTask(
+      task,
+      nextStatus,
+      { id: operator.id, name: operator.name, roleId: operator.roleId, roleName: operator.roleName },
+      operationReason,
+    );
+    syncRevisionStrategyFromReviewTask(
       task,
       nextStatus,
       { id: operator.id, name: operator.name, roleId: operator.roleId, roleName: operator.roleName },
