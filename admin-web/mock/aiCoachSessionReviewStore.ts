@@ -1,6 +1,9 @@
 import { roleConfigs } from '../src/foundation/permissions';
 import type { AdminRoleId } from '../src/foundation/permissions';
-import { createAiAbnormalReplyFromSessionReview } from './aiAbnormalReplyStore';
+import {
+  closeAiAbnormalReplyAsFalsePositive,
+  createAiAbnormalReplyFromSessionReview,
+} from './aiAbnormalReplyStore';
 import { nowText } from './auditStore';
 import { getAiCoachStrategy } from './aiCoachStore';
 
@@ -29,6 +32,7 @@ export const aiSessionAbnormalTypeLabels: Record<API.AiSessionAbnormalType, stri
   boundary_violation: '边界违规',
   incorrect_guidance: '错误引导',
   sensitive_content: '敏感内容',
+  attachment_policy_failure: '附件处理失败',
   other: '其它异常',
 };
 
@@ -239,6 +243,95 @@ export const aiSessionReviewsData: InternalAiSessionReview[] = [
   }),
 ];
 
+const attachmentMockResults = new Map<
+  string,
+  { sample: API.AiAttachmentMockSample; sessionReview: API.AiSessionReview; abnormalReply?: API.AiAbnormalReply }
+>();
+
+export const createAttachmentPolicyMockSession = (
+  strategy: API.AiAttachmentPolicyStrategy,
+  params: API.AiAttachmentMockSessionParams,
+  operator: AiSessionReviewOperator,
+) => {
+  const existing = attachmentMockResults.get(params.idempotencyKey);
+  if (existing) return { ...clone(existing), duplicate: true as const };
+  const body = strategy.body;
+  const firstRule = body.rules.find((item) => item.enabled) ?? body.rules[0];
+  const scenarioData: Record<API.AiAttachmentMockScenario, Pick<API.AiAttachmentMockSample, 'attachmentType' | 'format' | 'sizeMb' | 'recognitionMode' | 'result' | 'message'>> = {
+    success: { attachmentType: firstRule?.attachmentType ?? 'image', format: firstRule?.allowedFormats[0] ?? 'jpg', sizeMb: Math.min(firstRule?.maxSizeMb ?? 10, 2.4), recognitionMode: firstRule?.recognitionMode, result: 'passed', message: '附件预校验和 Mock 识别成功。' },
+    unsupported_type: { attachmentType: 'document', format: 'xlsx', sizeMb: 1.2, result: 'failed', message: body.failureMessages.unsupportedType },
+    size_exceeded: { attachmentType: firstRule?.attachmentType ?? 'image', format: firstRule?.allowedFormats[0] ?? 'jpg', sizeMb: (firstRule?.maxSizeMb ?? 10) + 5, recognitionMode: firstRule?.recognitionMode, result: 'failed', message: body.failureMessages.sizeExceeded },
+    recognition_failed: { attachmentType: firstRule?.attachmentType ?? 'image', format: firstRule?.allowedFormats[0] ?? 'jpg', sizeMb: Math.min(firstRule?.maxSizeMb ?? 10, 3), recognitionMode: firstRule?.recognitionMode, result: 'failed', message: body.failureMessages.recognitionFailed },
+  };
+  const data = scenarioData[params.scenario];
+  const now = nowText();
+  const suffix = params.idempotencyKey.replace(/[^a-zA-Z0-9-]/g, '').slice(-24) || String(Date.now());
+  const sample: API.AiAttachmentMockSample = {
+    id: `attachment-sample-${suffix}`,
+    scenario: params.scenario,
+    strategyId: strategy.id,
+    strategyVersion: strategy.version,
+    createdAt: now,
+    ...data,
+  };
+  const internal = createSessionReview({
+    id: `ai-session-review-attachment-${suffix}`,
+    sessionId: `mock-attachment-session-${suffix}`,
+    sessionTime: now,
+    userLabel: 'Mock 附件用户',
+    examType: strategy.examTypes[0] ?? 'CET4',
+    intentKey: 'intent_attachment_processing',
+    intentName: '附件处理',
+    businessScene: strategy.businessScenes[0],
+    summaryPreview: `${data.attachmentType}/${data.format} 附件${data.result === 'passed' ? '处理成功' : '处理失败'}。`,
+    summary: `Mock 附件场景 ${params.scenario}，${data.message}`,
+    riskLevel: data.result === 'passed' ? 'low' : 'medium',
+    riskSignals: data.result === 'passed' ? [] : [{ id: `attachment-risk-${suffix}`, label: '附件处理失败', level: 'medium', summary: data.message }],
+    strategyId: strategy.id,
+    sensitiveContext: {
+      context_excerpt: `Mock 附件策略验证：${params.scenario}。`,
+      user_input_excerpt: '用户提交了 Mock 附件，不含真实内容。',
+      assistant_reply_excerpt: data.message,
+      attachment_summary: `${data.attachmentType}/${data.format}，${data.sizeMb} MB，${data.recognitionMode ?? '未识别'}。`,
+    },
+  });
+  internal.source = 'attachment_policy_mock';
+  internal.attachmentMockSample = sample;
+  aiSessionReviewsData.unshift(internal);
+  let abnormalReply: API.AiAbnormalReply | undefined;
+  if (data.result === 'failed') {
+    const handlingItem: API.AiAbnormalHandlingItem = {
+      id: `abnormal-attachment-${suffix}`,
+      sourceSessionReviewId: internal.id,
+      sourceSessionId: internal.sessionId,
+      abnormalType: 'attachment_policy_failure',
+      severity: 'P1',
+      evidenceSummary: data.message,
+      reviewNote: `Mock 失败场景：${params.scenario}。`,
+      strategySnapshot: clone(internal.strategySnapshot),
+      status: 'pending',
+      creatorId: operator.id,
+      creator: operator.name,
+      createdAt: now,
+      updatedAt: now,
+    };
+    aiAbnormalHandlingItemsData.unshift(handlingItem);
+    internal.abnormalItemId = handlingItem.id;
+    abnormalReply = createAiAbnormalReplyFromSessionReview({
+      id: handlingItem.id,
+      session: sanitizeSessionReview(internal),
+      abnormalType: handlingItem.abnormalType,
+      severity: handlingItem.severity,
+      evidenceSummary: handlingItem.evidenceSummary,
+      reviewNote: handlingItem.reviewNote,
+      operator,
+    });
+  }
+  const result = { sample, sessionReview: sanitizeSessionReview(internal), abnormalReply };
+  attachmentMockResults.set(params.idempotencyKey, clone(result));
+  return clone(result);
+};
+
 aiSessionReviewsData[3].conclusion = 'normal';
 aiSessionReviewsData[3].reviewNote = '摘要、策略和风险信号一致，未发现异常。';
 aiSessionReviewsData[3].reviewerId = 'ai_operator';
@@ -435,6 +528,9 @@ export const concludeAiSessionReview = (
   }
   const now = nowText();
   let abnormalItem: API.AiAbnormalHandlingItem | undefined;
+  if (params.conclusion === 'normal' && session.abnormalItemId) {
+    closeAiAbnormalReplyAsFalsePositive(session.abnormalItemId, params.reviewNote, operator);
+  }
   if (params.conclusion === 'abnormal') {
     const existing = aiAbnormalHandlingItemsData.find(
       (item) => item.sourceSessionReviewId === session.id,

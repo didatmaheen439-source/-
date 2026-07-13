@@ -26,6 +26,28 @@
 - 真实后端需要持久化模板发布快照、题目引用和 Mock/真实批改记录的版本链。
 - 后续建设完整批改记录摘要页时，只展示脱敏答案摘要和聚合信息，不直接暴露用户原文。
 
+## 2026-07-13 AI Attachment Policy MVP
+
+### Summary
+- 附件策略作为 `/ai-coach/prompts?configType=attachment_policy` 页内 Tab，不新增侧栏入口。
+- 支持附件类型、格式、大小、识别方式、失败提示、预校验和统一审核发布。
+- 已发布版本可生成 Mock 成功/失败会话；成功进抽检，失败同时进抽检和异常回复。
+
+### Decisions
+- 同一场景和考试类型只允许一个已发布附件策略。
+- 失败样例判定正常时关联异常项按误报关闭；判定异常时不重复创建。
+- 本阶段不上传真实附件，不调用真实 OCR、ASR 或 AI。
+
+### Verification
+- `npm run tsc`：通过。
+- `npm run test`：通过，22 个测试文件、118 条测试。
+- `npm run lint`：通过，Biome 检查 358 个文件无问题，附带 TypeScript 检查通过。
+- `npx antd lint ./src`：通过，扫描 323 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，73 个资源文件。
+- `git diff --check`：通过，无输出。
+- 浏览器验收：附件策略页内 Tab、成功/失败 Mock 分流、抽检/异常详情、1024 宽度和 console 检查通过。
+- 完整验证结果见 `logs/ai-attachment-policy-implementation-2026-07-13.md`。
+
 ## 2026-07-12 AI Abnormal Reply Operations MVP
 
 ### Summary

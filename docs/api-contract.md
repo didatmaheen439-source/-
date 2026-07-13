@@ -162,6 +162,7 @@
 | `GET /api/ai-coach/strategies/:id/version-diff` | 版本参数 | 字段级差异 | `aiCoach.read` | 不返回密钥或敏感正文 |
 | `GET /api/ai-coach/available-intents` | 无 | 可引用意图 | `aiCoach.read` | 只读 |
 | `GET /api/ai-coach/available-response-structures` | 无 | 可引用回答结构 | `aiCoach.read` | 只读 |
+| `POST /api/ai-coach/strategies/:id/mock-attachment-session` | Mock 场景、`dataVersion`、`idempotencyKey` | Mock 样例、会话抽检；失败时同时返回异常项 | `aiCoach.edit`；仅 AI 运营/超管；仅已发布附件策略 | 只记录附件元数据、结果和队列对象 ID |
 
 后端必须持久化字段：配置类型、业务场景、策略主体、风险等级、测试样例、预校验结果、版本快照、发布版本、审计摘要。禁止保存真实密钥或用户完整会话到审计日志。
 

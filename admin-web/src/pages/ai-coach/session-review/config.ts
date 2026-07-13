@@ -37,6 +37,7 @@ export const abnormalTypeOptions = [
   { label: '边界违规', value: 'boundary_violation' },
   { label: '错误引导', value: 'incorrect_guidance' },
   { label: '敏感内容', value: 'sensitive_content' },
+  { label: '附件处理失败', value: 'attachment_policy_failure' },
   { label: '其它异常', value: 'other' },
 ];
 

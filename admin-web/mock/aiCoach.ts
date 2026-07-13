@@ -6,6 +6,7 @@ import {
   canOperateAiSessionReview,
   claimAiSessionReview,
   concludeAiSessionReview,
+  createAttachmentPolicyMockSession,
   filterAiSessionReviews,
   getAiSessionReview,
   getSafeAiSessionReview,
@@ -679,6 +680,53 @@ export default {
       version: strategy.version,
     });
     res.send({ success: true, data: result.strategy, reviewTask: result.task });
+  },
+
+  'POST /api/ai-coach/strategies/:id/mock-attachment-session': (req: Request, res: Response) => {
+    if (!canEditAiCoach() || !canReviewAiSession()) {
+      sendForbidden(res, 'mock_attachment_session', String(req.params.id));
+      return;
+    }
+    const strategy = getAiCoachStrategy(String(req.params.id));
+    if (!strategy) {
+      res.status(404).send({ success: false, errorCode: '404', errorMessage: 'AI 策略不存在。' });
+      return;
+    }
+    if (strategy.configType !== 'attachment_policy') {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '只有附件策略可以触发附件 Mock 会话。' });
+      return;
+    }
+    if (strategy.status !== 'published') {
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: '附件策略发布后才能触发 Mock 会话。' });
+      return;
+    }
+    const body = req.body as API.AiAttachmentMockSessionParams;
+    if (body.dataVersion !== strategy.dataVersion) {
+      res.status(409).send({ success: false, errorCode: '409', errorMessage: '策略版本已变化，请刷新后重试。' });
+      return;
+    }
+    if (!body.idempotencyKey?.trim() || !['success', 'unsupported_type', 'size_exceeded', 'recognition_failed'].includes(body.scenario)) {
+      res.status(400).send({ success: false, errorCode: '400', errorMessage: 'Mock 场景或幂等键无效。' });
+      return;
+    }
+    const result = createAttachmentPolicyMockSession(
+      strategy,
+      body,
+      aiSessionReviewOperatorFromRole(currentRoleId() as AdminRoleId, mockSession.currentAccountId, mockSession.currentAccountName),
+    );
+    pushOperationAuditLog({
+      roleId: currentRoleId() as AdminRoleId,
+      action: 'mock_attachment_session',
+      objectType: 'ai_coach_strategy',
+      objectId: strategy.id,
+      objectSubtype: strategy.configType,
+      sourcePage: `/ai-coach/prompts/${strategy.id}`,
+      reason: `触发附件 Mock 场景：${body.scenario}。`,
+      result: 'success',
+      changeSummary: `生成会话抽检 ${result.sessionReview.id}${result.abnormalReply ? ` 和异常项 ${result.abnormalReply.id}` : ''}。`,
+      version: strategy.version,
+    });
+    res.send({ success: true, data: result });
   },
 
   'GET /api/ai-coach/strategies/:id/versions': (req: Request, res: Response) => {

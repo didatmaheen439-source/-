@@ -70,6 +70,7 @@ const aiConfigTypeText: Record<API.AiCoachConfigType, string> = {
   prompt_template: 'Prompt 模板',
   response_structure: '回答结构',
   dependency_rule: '防依赖规则',
+  attachment_policy: '附件策略',
 };
 
 const aiBusinessSceneText: Record<API.AiCoachBusinessScene, string> = {

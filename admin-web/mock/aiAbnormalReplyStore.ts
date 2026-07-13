@@ -182,6 +182,7 @@ export const abnormalTypeLabels: Record<API.AiAbnormalReplyType, string> = {
   answer_deviation: '回答偏离',
   structure_missing: '结构缺失',
   dependency_boundary_violation: '边界失守',
+  attachment_policy_failure: '附件处理失败',
 };
 
 export const abnormalStatusLabels: Record<API.AiAbnormalReplyStatus, string> = {
@@ -205,6 +206,7 @@ const reviewTypeToAbnormalReplyType: Record<API.AiSessionAbnormalType, API.AiAbn
   boundary_violation: 'dependency_boundary_violation',
   incorrect_guidance: 'answer_deviation',
   sensitive_content: 'answer_deviation',
+  attachment_policy_failure: 'attachment_policy_failure',
   other: 'answer_deviation',
 };
 
@@ -238,7 +240,7 @@ export const createAiAbnormalReplyFromSessionReview = (params: {
     userNickname: params.session.userLabel,
     sessionId: params.session.sessionId,
     sessionStartedAt: params.session.sessionTime,
-    source: 'mock_session_review',
+    source: params.session.source === 'attachment_policy_mock' ? 'mock_attachment_validation' : 'mock_session_review',
     linkedStrategyId: params.session.strategySnapshot.strategyId,
     linkedStrategyTitle: params.session.strategySnapshot.strategyTitle,
     linkedStrategyVersion: params.session.strategySnapshot.strategyVersion,
@@ -257,6 +259,27 @@ export const createAiAbnormalReplyFromSessionReview = (params: {
     ],
   };
   aiAbnormalRepliesData.unshift(abnormal);
+  return abnormal;
+};
+
+export const closeAiAbnormalReplyAsFalsePositive = (
+  id: string,
+  reason: string,
+  operator: AiCoachOperator,
+) => {
+  const abnormal = getAiAbnormalReply(id);
+  if (!abnormal || abnormal.status === 'closed') return abnormal;
+  const previousStatus = abnormal.status;
+  abnormal.resolutionType = 'false_positive';
+  abnormal.resolutionSummary = reason;
+  abnormal.closedAt = nowText();
+  touch(abnormal, {
+    operator,
+    action: '抽检判定为误报',
+    fromStatus: previousStatus,
+    toStatus: 'closed',
+    reason,
+  });
   return abnormal;
 };
 

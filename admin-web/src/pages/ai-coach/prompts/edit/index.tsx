@@ -15,7 +15,7 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { history, useParams } from '@umijs/max';
+import { history, useParams, useSearchParams } from '@umijs/max';
 import { Alert, App, Button, Form, Modal, Result, Skeleton, Space, Tag, Typography } from 'antd';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -43,8 +43,59 @@ import {
 
 type FormValues = API.AiCoachStrategySaveParams;
 
+const attachmentFormatOptions: Record<API.AiAttachmentType, string[]> = {
+  image: ['jpg', 'jpeg', 'png', 'webp'],
+  document: ['pdf', 'docx', 'txt'],
+  audio: ['mp3', 'm4a', 'wav'],
+};
+
+const attachmentRecognitionModeByType: Record<API.AiAttachmentType, API.AiAttachmentRecognitionMode> = {
+  image: 'image_ocr',
+  document: 'document_text_extract',
+  audio: 'audio_asr',
+};
+
+const attachmentTypeOptions: { label: string; value: API.AiAttachmentType }[] = [
+  { label: '图片', value: 'image' },
+  { label: '文档', value: 'document' },
+  { label: '音频', value: 'audio' },
+];
+
+const attachmentRecognitionModeOptions: { label: string; value: API.AiAttachmentRecognitionMode }[] = [
+  { label: '图片 OCR', value: 'image_ocr' },
+  { label: '文档文本提取', value: 'document_text_extract' },
+  { label: '音频 ASR', value: 'audio_asr' },
+];
+
+const normalizeAttachmentPolicyBody = (
+  body: Partial<API.AiAttachmentPolicyBody> = {},
+): API.AiAttachmentPolicyBody => ({
+  rules: (body.rules ?? []).map((rule) => {
+    const attachmentType = rule.attachmentType ?? 'image';
+    const allowedFormats = new Set(attachmentFormatOptions[attachmentType]);
+    return {
+      ...rule,
+      attachmentType,
+      allowedFormats: (rule.allowedFormats ?? [])
+        .map((format) => String(format).toLowerCase())
+        .filter((format) => allowedFormats.has(format)),
+      recognitionMode: attachmentRecognitionModeByType[attachmentType],
+      enabled: rule.enabled !== false,
+    };
+  }),
+  failureMessages: {
+    unsupportedType: body.failureMessages?.unsupportedType ?? '',
+    sizeExceeded: body.failureMessages?.sizeExceeded ?? '',
+    recognitionFailed: body.failureMessages?.recognitionFailed ?? '',
+  },
+});
+
 const toSaveParams = (values: FormValues): API.AiCoachStrategySaveParams => ({
   ...values,
+  body:
+    values.configType === 'attachment_policy'
+      ? normalizeAttachmentPolicyBody(values.body as Partial<API.AiAttachmentPolicyBody>)
+      : values.body,
   riskPolicy: {
     ...defaultRiskPolicy,
     ...(values.riskPolicy ?? {}),
@@ -76,6 +127,7 @@ const PrecheckResult: React.FC<{ result?: API.AiCoachPrecheckResult }> = ({ resu
 const AiCoachStrategyEditPage: React.FC = () => {
   const { id } = useParams();
   const isCreate = !id || id === 'new';
+  const [searchParams] = useSearchParams();
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<FormValues>();
   const [loading, setLoading] = useState(!isCreate);
@@ -90,7 +142,12 @@ const AiCoachStrategyEditPage: React.FC = () => {
 
   useEffect(() => {
     if (isCreate) {
-      form.setFieldsValue(defaultStrategyFormValues);
+      const requestedType = searchParams.get('configType') as API.AiCoachConfigType | null;
+      form.setFieldsValue(
+        requestedType
+          ? { ...defaultStrategyFormValues, configType: requestedType, body: defaultBodyByType(requestedType) }
+          : defaultStrategyFormValues,
+      );
       return;
     }
     const load = async () => {
@@ -149,7 +206,7 @@ const AiCoachStrategyEditPage: React.FC = () => {
 
   const saveDraft = async () => {
     const values = await form.validateFields();
-    const payload = toSaveParams(values);
+    const payload = { ...toSaveParams(values), strategyId: strategy?.id };
     try {
       if (isCreate) {
         const response = await createAiCoachStrategy(payload);
@@ -182,7 +239,7 @@ const AiCoachStrategyEditPage: React.FC = () => {
   const runPrecheck = async () => {
     const values = await form.validateFields();
     try {
-      const response = await precheckAiCoachStrategy(toSaveParams(values));
+      const response = await precheckAiCoachStrategy({ ...toSaveParams(values), strategyId: strategy?.id });
       setPrecheckResult(response.data);
       message.success('预校验完成');
     } catch (error: any) {
@@ -193,7 +250,7 @@ const AiCoachStrategyEditPage: React.FC = () => {
   const runSampleValidation = async () => {
     const values = await form.validateFields();
     try {
-      const response = await validateAiCoachStrategySamples(toSaveParams(values));
+      const response = await validateAiCoachStrategySamples({ ...toSaveParams(values), strategyId: strategy?.id });
       const result = response.data;
       if (!result) return;
       Modal.info({
@@ -304,6 +361,44 @@ const AiCoachStrategyEditPage: React.FC = () => {
           <ProFormTextArea name={['body', 'interventionMessage']} label="干预话术" rules={[{ required: true }]} />
           <ProFormDigit name={['body', 'maxConsecutiveAnswers']} label="连续回答阈值" min={1} max={10} />
           <ProFormDigit name={['body', 'cooldownMinutes']} label="冷却时间（分钟）" min={1} max={240} />
+        </>
+      );
+    }
+    if (configType === 'attachment_policy') {
+      return (
+        <>
+          <ProFormList
+            name={['body', 'rules']}
+            label="附件规则"
+            creatorButtonProps={{ creatorButtonText: '新增附件规则' }}
+            copyIconProps={false}
+          >
+            <ProFormText name="id" label="规则 ID" rules={[{ required: true }]} />
+            <ProFormSelect
+              name="attachmentType"
+              label="附件类型"
+              options={attachmentTypeOptions}
+              rules={[{ required: true }]}
+            />
+            <ProFormSelect
+              name="allowedFormats"
+              label="允许格式"
+              mode="multiple"
+              options={Object.values(attachmentFormatOptions).flat().map((value) => ({ label: value.toUpperCase(), value }))}
+              rules={[{ required: true }]}
+            />
+            <ProFormDigit name="maxSizeMb" label="大小上限（MB）" min={0.1} max={100} rules={[{ required: true }]} />
+            <ProFormSelect
+              name="recognitionMode"
+              label="识别方式"
+              options={attachmentRecognitionModeOptions}
+              rules={[{ required: true }]}
+            />
+            <ProFormSwitch name="enabled" label="启用" />
+          </ProFormList>
+          <ProFormTextArea name={['body', 'failureMessages', 'unsupportedType']} label="不支持类型提示" rules={[{ required: true }]} />
+          <ProFormTextArea name={['body', 'failureMessages', 'sizeExceeded']} label="超过大小提示" rules={[{ required: true }]} />
+          <ProFormTextArea name={['body', 'failureMessages', 'recognitionFailed']} label="识别失败提示" rules={[{ required: true }]} />
         </>
       );
     }

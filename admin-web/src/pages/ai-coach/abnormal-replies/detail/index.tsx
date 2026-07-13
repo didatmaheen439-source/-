@@ -447,7 +447,7 @@ const AiAbnormalReplyDetailPage: React.FC = () => {
             children: (
               <Timeline
                 items={abnormal.operationRecords.map((record) => ({
-                  children: (
+                  content: (
                     <Space orientation="vertical" size={0}>
                       <Typography.Text strong>{record.action}</Typography.Text>
                       <Typography.Text>{record.reason}</Typography.Text>

@@ -7,6 +7,7 @@ export const aiCoachConfigTypeLabels: Record<API.AiCoachConfigType, string> = {
   prompt_template: 'Prompt 模板',
   response_structure: '回答结构',
   dependency_rule: '防依赖规则',
+  attachment_policy: '附件策略',
 };
 
 export const aiCoachBusinessSceneLabels: Record<API.AiCoachBusinessScene, string> = {
@@ -126,6 +127,25 @@ const defaultBody = (
       outputExample: '{"diagnosis":"定位错误原因","steps":["先复看题干"],"nextTask":"完成 3 道同类题"}',
     };
   }
+  if (configType === 'attachment_policy') {
+    return {
+      rules: [
+        {
+          id: `attachment-rule-${seed}`,
+          attachmentType: 'image',
+          allowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+          maxSizeMb: 10,
+          recognitionMode: 'image_ocr',
+          enabled: true,
+        },
+      ],
+      failureMessages: {
+        unsupportedType: '暂不支持该附件类型，请更换后重试。',
+        sizeExceeded: '附件超过大小限制，请压缩后重试。',
+        recognitionFailed: '附件识别失败，请检查内容清晰度后重试。',
+      },
+    };
+  }
   return {
     dependencySignals: ['反复索要直接答案', '要求代写全文', '跳过练习步骤'],
     interventionMessage: '我可以帮你拆解思路，但不能替你直接完成。先从第一步判断依据开始。',
@@ -150,6 +170,11 @@ const bodySummary = (
   if (configType === 'response_structure') {
     const responseBody = body as API.AiCoachResponseStructureBody;
     return `${responseBody.schemaName}，${responseBody.sections?.length ?? 0} 个区块`;
+  }
+  if (configType === 'attachment_policy') {
+    const attachmentBody = body as API.AiAttachmentPolicyBody;
+    const enabledRules = attachmentBody.rules?.filter((item) => item.enabled) ?? [];
+    return `${enabledRules.length} 条附件规则，${enabledRules.map((item) => item.attachmentType).join('、') || '未启用'}`;
   }
   const dependencyBody = body as API.AiCoachDependencyRuleBody;
   return `${dependencyBody.dependencySignals?.length ?? 0} 个依赖信号，冷却 ${dependencyBody.cooldownMinutes} 分钟`;
@@ -246,6 +271,32 @@ const createStrategy = (params: {
 };
 
 export const aiCoachStrategiesData: API.AiCoachStrategy[] = [
+  createStrategy({
+    id: 'ai-attachment-global-v10',
+    title: '陪练附件识别策略 V1.0',
+    description: '管理图片、文档和音频附件的大小与识别方式。',
+    configType: 'attachment_policy',
+    businessScenes: ['listening_coach', 'writing_explanation'],
+    status: 'published',
+    riskLevel: 'medium',
+    version: 'V1.0',
+    seed: 90,
+    updatedAt: '2026-07-12 14:00:00',
+    changeSummary: '发布附件识别基线。',
+    impactScope: '影响听力和写作陪练的 Mock 附件处理。',
+    body: {
+      rules: [
+        { id: 'rule-image', attachmentType: 'image', allowedFormats: ['jpg', 'jpeg', 'png', 'webp'], maxSizeMb: 10, recognitionMode: 'image_ocr', enabled: true },
+        { id: 'rule-document', attachmentType: 'document', allowedFormats: ['pdf', 'docx', 'txt'], maxSizeMb: 20, recognitionMode: 'document_text_extract', enabled: true },
+        { id: 'rule-audio', attachmentType: 'audio', allowedFormats: ['mp3', 'm4a', 'wav'], maxSizeMb: 30, recognitionMode: 'audio_asr', enabled: true },
+      ],
+      failureMessages: {
+        unsupportedType: '暂不支持该附件类型，请更换后重试。',
+        sizeExceeded: '附件超过大小限制，请压缩后重试。',
+        recognitionFailed: '附件识别失败，请检查内容清晰度后重试。',
+      },
+    },
+  }),
   createStrategy({
     id: 'ai-intent-listening-v12',
     title: '听力陪练意图识别 V1.2',
@@ -606,6 +657,53 @@ export const buildAiCoachPrecheck = (
       });
     }
   }
+  if (params.configType === 'attachment_policy') {
+    const body = params.body as Partial<API.AiAttachmentPolicyBody>;
+    const rules = body.rules ?? [];
+    const formatAllowlist: Record<API.AiAttachmentType, string[]> = {
+      image: ['jpg', 'jpeg', 'png', 'webp'],
+      document: ['pdf', 'docx', 'txt'],
+      audio: ['mp3', 'm4a', 'wav'],
+    };
+    const recognitionByType: Record<API.AiAttachmentType, API.AiAttachmentRecognitionMode> = {
+      image: 'image_ocr',
+      document: 'document_text_extract',
+      audio: 'audio_asr',
+    };
+    if (!rules.some((item) => item.enabled)) {
+      issues.push({ id: 'attachment-rule-required', level: 'error', field: 'body.rules', message: '至少启用一条附件规则。', suggestion: '新增并启用附件规则。' });
+    }
+    const seen = new Set<string>();
+    rules.forEach((rule, index) => {
+      if (seen.has(rule.attachmentType)) {
+        issues.push({ id: `attachment-duplicate-${index}`, level: 'error', field: `body.rules.${index}.attachmentType`, message: '同一附件类型不能重复配置。', suggestion: '合并同类型规则。' });
+      }
+      seen.add(rule.attachmentType);
+      if (!(rule.maxSizeMb > 0 && rule.maxSizeMb <= 100)) {
+        issues.push({ id: `attachment-size-${index}`, level: 'error', field: `body.rules.${index}.maxSizeMb`, message: '大小限制必须在 0 到 100 MB 之间。', suggestion: '设置有效的大小上限。' });
+      }
+      if (!rule.allowedFormats?.length || rule.allowedFormats.some((format) => !formatAllowlist[rule.attachmentType]?.includes(format.toLowerCase()))) {
+        issues.push({ id: `attachment-format-${index}`, level: 'error', field: `body.rules.${index}.allowedFormats`, message: '存在空格式或系统不支持的格式。', suggestion: '从当前附件类型的格式白名单中选择。' });
+      }
+      if (recognitionByType[rule.attachmentType] !== rule.recognitionMode) {
+        issues.push({ id: `attachment-recognition-${index}`, level: 'error', field: `body.rules.${index}.recognitionMode`, message: '识别方式与附件类型不匹配。', suggestion: '选择当前附件类型对应的识别方式。' });
+      }
+    });
+    const messages = body.failureMessages;
+    if (!messages?.unsupportedType?.trim() || !messages.sizeExceeded?.trim() || !messages.recognitionFailed?.trim()) {
+      issues.push({ id: 'attachment-failure-messages', level: 'error', field: 'body.failureMessages', message: '三类失败提示均为必填项。', suggestion: '补齐不支持类型、超限和识别失败提示。' });
+    }
+    const conflict = aiCoachStrategiesData.find((item) =>
+      item.id !== params.strategyId &&
+      item.configType === 'attachment_policy' &&
+      item.status === 'published' &&
+      item.businessScenes.some((scene) => params.businessScenes.includes(scene)) &&
+      item.examTypes.some((exam) => params.examTypes.includes(exam)),
+    );
+    if (conflict) {
+      issues.push({ id: 'attachment-scope-conflict', level: 'error', field: 'businessScenes', message: `与已发布附件策略「${conflict.title}」的生效范围重叠。`, suggestion: '调整业务场景或考试类型后再提交。' });
+    }
+  }
   if (params.riskPolicy?.highRiskKeywords?.some((item) => ['代写', '直接答案', '作弊'].includes(item))) {
     issues.push({
       id: 'high-risk-keyword',
@@ -708,6 +806,22 @@ const normalizedStrategyBody = (
       sections: Array.isArray(body.sections) ? body.sections : [],
       outputExample: String(body.outputExample ?? ''),
     };
+  }
+  if (configType === 'attachment_policy') {
+    return {
+      rules: Array.isArray(body.rules) ? body.rules.map((rule) => ({
+        ...rule,
+        id: String(rule.id || `attachment-rule-${Date.now()}`),
+        allowedFormats: (rule.allowedFormats ?? []).map((format) => String(format).toLowerCase()),
+        maxSizeMb: Number(rule.maxSizeMb ?? 0),
+        enabled: rule.enabled !== false,
+      })) : [],
+      failureMessages: {
+        unsupportedType: String(body.failureMessages?.unsupportedType ?? ''),
+        sizeExceeded: String(body.failureMessages?.sizeExceeded ?? ''),
+        recognitionFailed: String(body.failureMessages?.recognitionFailed ?? ''),
+      },
+    } as API.AiAttachmentPolicyBody;
   }
   return {
     dependencySignals: Array.isArray(body.dependencySignals)

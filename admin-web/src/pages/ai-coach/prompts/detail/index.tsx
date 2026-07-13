@@ -14,6 +14,7 @@ import {
   Empty,
   Modal,
   Result,
+  Select,
   Skeleton,
   Space,
   Tabs,
@@ -29,6 +30,7 @@ import {
   aiCoachStrategyDetail,
   aiCoachStrategyVersionDiff,
   copyAiCoachStrategy,
+  createAiAttachmentMockSession,
   submitAiCoachStrategyReview,
 } from '@/services/ant-design-pro/api';
 import {
@@ -68,6 +70,15 @@ const bodyLines = (strategy: API.AiCoachStrategy) => {
       ['结构样例', body.outputExample],
     ];
   }
+  if (strategy.configType === 'attachment_policy') {
+    const body = strategy.body as API.AiAttachmentPolicyBody;
+    return [
+      ['附件规则', body.rules.map((item) => `${item.attachmentType}：${item.allowedFormats.join('/')} · ${item.maxSizeMb} MB · ${item.recognitionMode}${item.enabled ? '' : '（停用）'}`).join('\n')],
+      ['不支持类型提示', body.failureMessages.unsupportedType],
+      ['超过大小提示', body.failureMessages.sizeExceeded],
+      ['识别失败提示', body.failureMessages.recognitionFailed],
+    ];
+  }
   const body = strategy.body as API.AiCoachDependencyRuleBody;
   return [
     ['依赖信号', body.dependencySignals.join('、')],
@@ -90,6 +101,13 @@ const AiCoachStrategyDetailPage: React.FC = () => {
   };
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<API.AiCoachStrategy>();
+  const [mockScenario, setMockScenario] = useState<API.AiAttachmentMockScenario>('success');
+  const [mockPending, setMockPending] = useState(false);
+  const [mockResult, setMockResult] = useState<{
+    sample: API.AiAttachmentMockSample;
+    sessionReview: API.AiSessionReview;
+    abnormalReply?: API.AiAbnormalReply;
+  }>();
 
   const canEdit =
     (roleId === 'super_admin' || roleId === 'ai_operator') &&
@@ -158,6 +176,26 @@ const AiCoachStrategyDetailPage: React.FC = () => {
         return;
       }
       message.error(error?.data?.errorMessage || error?.message || '提交失败');
+    }
+  };
+
+  const runAttachmentMock = async () => {
+    if (strategy?.configType !== 'attachment_policy') return;
+    setMockPending(true);
+    try {
+      const response = await createAiAttachmentMockSession(strategy.id, {
+        scenario: mockScenario,
+        dataVersion: strategy.dataVersion,
+        idempotencyKey: `attachment-${strategy.id}-${mockScenario}-${Date.now()}`,
+      });
+      if (response.data) {
+        setMockResult(response.data);
+        message.success('已生成 Mock 会话');
+      }
+    } catch (error: any) {
+      message.error(error?.data?.errorMessage || error?.message || 'Mock 会话生成失败');
+    } finally {
+      setMockPending(false);
     }
   };
 
@@ -355,6 +393,81 @@ const AiCoachStrategyDetailPage: React.FC = () => {
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ),
           },
+          ...(strategy.configType === 'attachment_policy'
+            ? [
+                {
+                  key: 'attachment-mock',
+                  label: 'Mock 会话验证',
+                  children: (
+                    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+                      <Space wrap>
+                        <Select<API.AiAttachmentMockScenario>
+                          value={mockScenario}
+                          style={{ width: 220 }}
+                          onChange={setMockScenario}
+                          options={[
+                            { label: '支持的附件且识别成功', value: 'success' },
+                            { label: '不支持的附件类型', value: 'unsupported_type' },
+                            { label: '文件超过大小限制', value: 'size_exceeded' },
+                            { label: '附件识别失败', value: 'recognition_failed' },
+                          ]}
+                        />
+                        <Button
+                          type="primary"
+                          loading={mockPending}
+                          disabled={strategy.status !== 'published'}
+                          onClick={runAttachmentMock}
+                        >
+                          生成 Mock 会话
+                        </Button>
+                      </Space>
+                      {strategy.status !== 'published' ? (
+                        <Typography.Text type="secondary">附件策略发布后可执行 Mock 会话验证。</Typography.Text>
+                      ) : null}
+                      {mockResult ? (
+                        <Descriptions bordered size="small" column={2} items={[
+                          { key: 'result', label: '结果', children: <Tag color={mockResult.sample.result === 'passed' ? 'success' : 'error'}>{mockResult.sample.result === 'passed' ? '成功' : '失败'}</Tag> },
+                          { key: 'attachment', label: '附件', children: `${mockResult.sample.attachmentType}/${mockResult.sample.format} · ${mockResult.sample.sizeMb} MB` },
+                          { key: 'message', label: '处理提示', span: 2, children: mockResult.sample.message },
+                          {
+                            key: 'review',
+                            label: '会话抽检',
+                            children: (
+                              <Typography.Link
+                                href={`/ai-coach/session-review/${mockResult.sessionReview.id}`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  history.push(`/ai-coach/session-review/${mockResult.sessionReview.id}`);
+                                }}
+                              >
+                                {mockResult.sessionReview.id}
+                              </Typography.Link>
+                            ),
+                          },
+                          {
+                            key: 'abnormal',
+                            label: '异常回复',
+                            children: mockResult.abnormalReply ? (
+                              <Typography.Link
+                                href={`/ai-coach/abnormal-replies/${mockResult.abnormalReply.id}`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  history.push(`/ai-coach/abnormal-replies/${mockResult.abnormalReply?.id}`);
+                                }}
+                              >
+                                {mockResult.abnormalReply.id}
+                              </Typography.Link>
+                            ) : '-',
+                          },
+                        ]} />
+                      ) : (
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未生成 Mock 会话" />
+                      )}
+                    </Space>
+                  ),
+                },
+              ]
+            : []),
           {
             key: 'versions',
             label: '版本记录',
@@ -375,7 +488,7 @@ const AiCoachStrategyDetailPage: React.FC = () => {
             children: (
               <Timeline
                 items={strategy.operationRecords.map((item) => ({
-                  children: `${item.time} ${item.operator} ${item.action}：${item.reason}`,
+                  content: `${item.time} ${item.operator} ${item.action}：${item.reason}`,
                 }))}
               />
             ),

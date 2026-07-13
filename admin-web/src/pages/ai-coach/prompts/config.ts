@@ -5,6 +5,7 @@ export const configTypeOptions = [
   { label: 'Prompt 模板', value: 'prompt_template' },
   { label: '回答结构', value: 'response_structure' },
   { label: '防依赖规则', value: 'dependency_rule' },
+  { label: '附件策略', value: 'attachment_policy' },
 ];
 
 export const businessSceneOptions = [
@@ -140,6 +141,25 @@ export const defaultBodyByType = (
         { key: 'nextTask', title: '下一步任务', required: true, description: '回到学习闭环' },
       ],
       outputExample: '{"diagnosis":"定位错误原因","steps":["先复看题干"],"nextTask":"完成 3 道同类题"}',
+    };
+  }
+  if (configType === 'attachment_policy') {
+    return {
+      rules: [
+        {
+          id: 'attachment-rule-image',
+          attachmentType: 'image',
+          allowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+          maxSizeMb: 10,
+          recognitionMode: 'image_ocr',
+          enabled: true,
+        },
+      ],
+      failureMessages: {
+        unsupportedType: '暂不支持该附件类型，请更换后重试。',
+        sizeExceeded: '附件超过大小限制，请压缩后重试。',
+        recognitionFailed: '附件识别失败，请检查内容清晰度后重试。',
+      },
     };
   }
   return {

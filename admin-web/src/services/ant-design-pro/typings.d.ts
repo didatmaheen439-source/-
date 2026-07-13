@@ -320,7 +320,8 @@ declare namespace API {
     | 'intent'
     | 'prompt_template'
     | 'response_structure'
-    | 'dependency_rule';
+    | 'dependency_rule'
+    | 'attachment_policy';
 
   type AiCoachBusinessScene =
     | 'listening_coach'
@@ -442,6 +443,31 @@ declare namespace API {
     cooldownMinutes: number;
   };
 
+  type AiAttachmentType = 'image' | 'document' | 'audio';
+
+  type AiAttachmentRecognitionMode =
+    | 'image_ocr'
+    | 'document_text_extract'
+    | 'audio_asr';
+
+  type AiAttachmentRule = {
+    id: string;
+    attachmentType: AiAttachmentType;
+    allowedFormats: string[];
+    maxSizeMb: number;
+    recognitionMode: AiAttachmentRecognitionMode;
+    enabled: boolean;
+  };
+
+  type AiAttachmentPolicyBody = {
+    rules: AiAttachmentRule[];
+    failureMessages: {
+      unsupportedType: string;
+      sizeExceeded: string;
+      recognitionFailed: string;
+    };
+  };
+
   type AiCoachStrategyBase = {
     id: string;
     title: string;
@@ -491,11 +517,17 @@ declare namespace API {
     body: AiCoachDependencyRuleBody;
   };
 
+  type AiAttachmentPolicyStrategy = AiCoachStrategyBase & {
+    configType: 'attachment_policy';
+    body: AiAttachmentPolicyBody;
+  };
+
   type AiCoachStrategy =
     | AiCoachIntentStrategy
     | AiCoachPromptTemplateStrategy
     | AiCoachResponseStructureStrategy
-    | AiCoachDependencyRuleStrategy;
+    | AiCoachDependencyRuleStrategy
+    | AiAttachmentPolicyStrategy;
 
   type AiCoachStrategyQueryParams = {
     current?: number;
@@ -508,6 +540,7 @@ declare namespace API {
   };
 
   type AiCoachStrategySaveParams = {
+    strategyId?: string;
     title: string;
     description: string;
     configType: AiCoachConfigType;
@@ -517,7 +550,8 @@ declare namespace API {
       AiCoachIntentBody &
         AiCoachPromptTemplateBody &
         AiCoachResponseStructureBody &
-        AiCoachDependencyRuleBody
+        AiCoachDependencyRuleBody &
+        AiAttachmentPolicyBody
     >;
     riskPolicy: AiCoachRiskPolicy;
     validationCases?: AiCoachStaticValidationCase[];
@@ -532,13 +566,40 @@ declare namespace API {
     confirmWarnings?: boolean;
   };
 
+  type AiAttachmentMockScenario =
+    | 'success'
+    | 'unsupported_type'
+    | 'size_exceeded'
+    | 'recognition_failed';
+
+  type AiAttachmentMockSessionParams = {
+    scenario: AiAttachmentMockScenario;
+    dataVersion: number;
+    idempotencyKey: string;
+  };
+
+  type AiAttachmentMockSample = {
+    id: string;
+    scenario: AiAttachmentMockScenario;
+    result: 'passed' | 'failed';
+    attachmentType: AiAttachmentType;
+    format: string;
+    sizeMb: number;
+    recognitionMode?: AiAttachmentRecognitionMode;
+    message: string;
+    strategyId: string;
+    strategyVersion: string;
+    createdAt: string;
+  };
+
   type AiAbnormalReplyStatus = 'pending' | 'processing' | 'resolved' | 'closed';
 
   type AiAbnormalReplyType =
     | 'intent_mismatch'
     | 'answer_deviation'
     | 'structure_missing'
-    | 'dependency_boundary_violation';
+    | 'dependency_boundary_violation'
+    | 'attachment_policy_failure';
 
   type AiAbnormalResolutionType =
     | 'strategy_fix'
@@ -581,7 +642,7 @@ declare namespace API {
     userNickname: string;
     sessionId: string;
     sessionStartedAt: string;
-    source: 'mock_session_review';
+    source: 'mock_session_review' | 'mock_attachment_validation';
     linkedStrategyId: string;
     linkedStrategyTitle: string;
     linkedStrategyVersion: string;
@@ -1680,6 +1741,7 @@ declare namespace API {
     | 'boundary_violation'
     | 'incorrect_guidance'
     | 'sensitive_content'
+    | 'attachment_policy_failure'
     | 'other';
 
   type AiSessionAbnormalSeverity = 'P0' | 'P1' | 'P2';
@@ -1756,6 +1818,8 @@ declare namespace API {
     reviewedAt?: string;
     abnormalItemId?: string;
     abnormalItem?: AiAbnormalHandlingItem;
+    source?: 'seed' | 'attachment_policy_mock';
+    attachmentMockSample?: AiAttachmentMockSample;
     timeline: AiSessionReviewTimelineItem[];
     dataVersion: number;
     updatedAt: string;
