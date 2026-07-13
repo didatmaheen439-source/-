@@ -81,6 +81,7 @@
 
 /mock-exam
   /mock-exam/papers
+  /mock-exam/results
   /mock-exam/sections
   /mock-exam/question-arrangement
   /mock-exam/timing

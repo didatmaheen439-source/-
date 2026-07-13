@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { questionData } from '../../../../mock/contentQuestionStore';
 import {
   buildMockExamPrecheck,
+  buildMockExamResultDetail,
+  filterMockExamResults,
   buildMockExamStatistics,
   getMockExamPaper,
   mockExamTemplate,
@@ -125,5 +127,41 @@ describe('mockExamStore', () => {
     expect(statistics.containsSensitiveFields).toBe(false);
     expect(JSON.stringify(statistics)).not.toContain('userId');
     expect(JSON.stringify(statistics)).not.toContain('answer');
+  });
+
+  it('builds result diagnostics from aggregate mock statistics only', () => {
+    const results = filterMockExamResults({ period: '30d' });
+    const published = results.find(
+      (item) => item.paperId === 'mock-exam-cet6-202607',
+    );
+    expect(published).toBeTruthy();
+    expect(published?.startedCount).toBeGreaterThan(0);
+    expect(published?.completedCount).toBeGreaterThan(0);
+    expect(published?.averageScoreRate).toBeGreaterThan(0);
+    expect(published?.riskTypes.length).toBeGreaterThan(0);
+
+    const detail = buildMockExamResultDetail(
+      requiredPaper('mock-exam-cet6-202607'),
+      '30d',
+    );
+    expect(detail.containsSensitiveFields).toBe(false);
+    expect(detail.mockOnly).toBe(true);
+    expect(detail.itemStats.length).toBeGreaterThan(0);
+    expect(detail.diagnosis.length).toBeGreaterThan(0);
+    expect(JSON.stringify(detail)).not.toContain('userId');
+    expect(JSON.stringify(detail.paper)).not.toContain('"answer"');
+    expect(JSON.stringify(detail.paper)).not.toContain('referenceAnswer');
+    expect(JSON.stringify(detail)).not.toContain('作文原文');
+  });
+
+  it('filters result risks by exam type and risk type', () => {
+    const cet6Results = filterMockExamResults({ examType: 'CET6' });
+    expect(cet6Results.every((item) => item.examType === 'CET6')).toBe(true);
+
+    const weakItemResults = filterMockExamResults({ riskType: 'weak_item' });
+    expect(weakItemResults.length).toBeGreaterThan(0);
+    expect(
+      weakItemResults.every((item) => item.riskTypes.includes('weak_item')),
+    ).toBe(true);
   });
 });

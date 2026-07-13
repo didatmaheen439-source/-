@@ -4,6 +4,9 @@ import type {
   MockExamPaperItemSnapshot,
   MockExamPaperListResponse,
   MockExamPaperQueryParams,
+  MockExamResultDetail,
+  MockExamResultListResponse,
+  MockExamResultQueryParams,
   MockExamPaperSaveParams,
   MockExamPaperSubmitParams,
   MockExamPrecheckResult,
@@ -142,6 +145,30 @@ export const mockExamPaperStatistics = (
   request<{ success: boolean; data?: MockExamStatistics }>(
     `/api/mock-exam/papers/${id}/statistics`,
     { method: 'GET', params: { period } },
+  );
+
+export const mockExamResults = (params: MockExamResultQueryParams) =>
+  request<MockExamResultListResponse>('/api/mock-exam/results', {
+    method: 'GET',
+    params,
+  });
+
+export const mockExamResultDetail = (
+  paperId: string,
+  period: MockExamStatisticsPeriod,
+) =>
+  request<{ success: boolean; data?: MockExamResultDetail }>(
+    `/api/mock-exam/results/${paperId}`,
+    { method: 'GET', params: { period } },
+  );
+
+export const createMockExamResultFixDraft = (
+  paperId: string,
+  data?: { reason?: string },
+) =>
+  request<{ success: boolean; data?: MockExamPaper }>(
+    `/api/mock-exam/results/${paperId}/create-fix-draft`,
+    { method: 'POST', data },
   );
 
 export const mockExamTemplate = (examType: API.ExamType) =>

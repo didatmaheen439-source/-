@@ -238,8 +238,11 @@
 | `GET /api/mock-exam/references` | 来源类型、考试类型、关键词 | 可引用题目 | `mockExam.read` | 只读 |
 | `GET /api/mock-exam/papers/:id/statistics` | `id` | 聚合统计 | `mockExam.read` | 不返回用户级明细 |
 | `GET /api/mock-exam/templates/:examType` | 考试类型 | 标准模板 | `mockExam.read` | 只读 |
+| `GET /api/mock-exam/results` | 关键词、考试类型、状态、风险类型、完成率、均分、时间范围、分页 | 试卷版本级结果摘要、聚合指标和风险标签 | `mockExam.read` | 不返回用户级明细 |
+| `GET /api/mock-exam/results/:paperId` | `paperId`、时间范围 | 分区表现、题目风险、时间风险和定位建议 | `mockExam.read` | 不返回逐题用户答案或写译原文 |
+| `POST /api/mock-exam/results/:paperId/create-fix-draft` | 修正原因 | 修正草稿 | `mockExam.create` | 记录来源试卷版本和修正原因 |
 
-后端必须持久化字段：试卷主体、分区、题目快照、总分、时长、状态、版本、在线版本、预校验、统计聚合。
+后端必须持久化字段：试卷主体、分区、题目快照、总分、时长、状态、版本、在线版本、预校验、统计聚合、结果风险聚合。
 
 ## 运营数据 `/analytics/overview`
 
