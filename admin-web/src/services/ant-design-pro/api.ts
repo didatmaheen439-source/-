@@ -1750,6 +1750,21 @@ export async function exportAnalyticsOverview(
   });
 }
 
+/** 记录运营数据修正意图 POST /api/analytics/correction-intents */
+export async function createAnalyticsCorrectionIntent(
+  data: API.AnalyticsCorrectionIntentParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: API.AnalyticsCorrectionIntentResult;
+    success?: boolean;
+  }>('/api/analytics/correction-intents', {
+    method: 'POST',
+    data,
+    ...(options || {}),
+  });
+}
+
 /** 获取运营工作台 GET /api/dashboard/overview */
 export async function dashboardOverview(
   params?: API.DashboardFilterParams,

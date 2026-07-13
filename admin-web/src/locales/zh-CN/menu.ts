@@ -102,6 +102,7 @@ export default {
   'menu.analytics.writing-translation': '写译效果',
   'menu.analytics.mock-exam': '模考表现',
   'menu.analytics.ai': 'AI 使用',
+  'menu.analytics.retention': '留存分析',
   'menu.analytics.overview': '数据总览',
   'menu.review-release': '审核发布',
   'menu.review-release.pending': '审核发布中心',

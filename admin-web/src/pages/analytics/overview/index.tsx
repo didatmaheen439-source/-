@@ -1,7 +1,9 @@
 import {
   DownloadOutlined,
+  EyeOutlined,
   InfoCircleOutlined,
   ReloadOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useLocation, useModel, useSearchParams } from '@umijs/max';
@@ -14,7 +16,6 @@ import {
   DatePicker,
   Empty,
   Flex,
-  Progress,
   Result,
   Row,
   Col,
@@ -23,6 +24,7 @@ import {
   Skeleton,
   Space,
   Statistic,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -32,21 +34,25 @@ import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   analyticsOverview,
+  createAnalyticsCorrectionIntent,
   exportAnalyticsOverview,
 } from '@/services/ant-design-pro/api';
 
 const { RangePicker } = DatePicker;
 
-const moduleOptions: { label: string; value: API.AnalyticsModule }[] = [
-  { label: '全部', value: 'all' },
-  { label: '用户', value: 'users' },
-  { label: '学习路径', value: 'learningPath' },
-  { label: '题库与内容', value: 'content' },
-  { label: '审核发布', value: 'reviewRelease' },
-  { label: '客服反馈', value: 'feedback' },
-  { label: 'AI 陪练', value: 'aiCoach' },
-  { label: '写译批改', value: 'writingTranslation' },
-  { label: '模考', value: 'mockExam' },
+const sectionTabs: Array<{
+  key: API.AnalyticsVisibleSection;
+  label: string;
+  route: string;
+}> = [
+  { key: 'users', label: '用户', route: '/analytics/users' },
+  { key: 'learningPath', label: '路径', route: '/analytics/learning-funnel' },
+  { key: 'content', label: '内容', route: '/analytics/content' },
+  { key: 'wrongReason', label: '错因', route: '/analytics/wrong-reasons' },
+  { key: 'writingTranslation', label: '写译', route: '/analytics/writing-translation' },
+  { key: 'mockExam', label: '模考', route: '/analytics/mock-exam' },
+  { key: 'aiCoach', label: 'AI', route: '/analytics/ai' },
+  { key: 'retention', label: '留存', route: '/analytics/retention' },
 ];
 
 const pathModuleMap: Record<string, API.AnalyticsModule> = {
@@ -54,10 +60,11 @@ const pathModuleMap: Record<string, API.AnalyticsModule> = {
   '/analytics/learning-funnel': 'learningPath',
   '/analytics/content': 'content',
   '/analytics/questions': 'content',
-  '/analytics/wrong-reasons': 'content',
+  '/analytics/wrong-reasons': 'wrongReason',
   '/analytics/writing-translation': 'writingTranslation',
   '/analytics/mock-exam': 'mockExam',
   '/analytics/ai': 'aiCoach',
+  '/analytics/retention': 'retention',
   '/analytics/overview': 'all',
 };
 
@@ -87,12 +94,12 @@ const analyticsEntryMap: Record<
   },
   '/analytics/wrong-reasons': {
     title: '错因分布',
-    description: '查看错因相关内容表现和薄弱项分布。',
-    module: 'content',
+    description: '查看错因薄弱项、引用覆盖和可修正对象。',
+    module: 'wrongReason',
   },
   '/analytics/writing-translation': {
     title: '写译效果',
-    description: '查看写作、翻译题目和批改效果指标。',
+    description: '查看写译题目、模板、二改策略和 Mock 批改指标。',
     module: 'writingTranslation',
   },
   '/analytics/mock-exam': {
@@ -102,12 +109,17 @@ const analyticsEntryMap: Record<
   },
   '/analytics/ai': {
     title: 'AI 使用',
-    description: '查看 AI 陪练使用和策略效果指标。',
+    description: '查看 AI 策略、异常回复和待处理项。',
     module: 'aiCoach',
+  },
+  '/analytics/retention': {
+    title: '留存分析',
+    description: '查看用户活跃、7 日留存和路径中断对象。',
+    module: 'retention',
   },
   '/analytics/overview': {
     title: '数据总览',
-    description: '汇总用户、学习路径、内容、审核发布和客服反馈数据。',
+    description: '按用户、路径、内容、错因、写译、模考、AI 和留存分区查看指标。',
     module: 'all',
   },
 };
@@ -118,12 +130,14 @@ const getAnalyticsEntry = (pathname: string) =>
 const sectionTitle: Record<API.AnalyticsVisibleSection, string> = {
   users: '用户增长与活跃',
   learningPath: '学习路径漏斗',
-  content: '题库与内容指标',
+  content: '内容效果',
+  wrongReason: '错因分布',
   reviewRelease: '审核发布指标',
   feedback: '客服反馈指标',
-  aiCoach: 'AI 陪练占位指标',
-  writingTranslation: '写译批改占位指标',
+  aiCoach: 'AI 陪练',
+  writingTranslation: '写译批改',
   mockExam: '模考表现',
+  retention: '留存分析',
   audit: '风险与审计摘要',
 };
 
@@ -150,6 +164,11 @@ const readFilters = (searchParams: URLSearchParams, pathname?: string) => {
   };
 };
 
+const filterEntries = (filters: ReturnType<typeof readFilters>) =>
+  Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => Boolean(value)),
+  );
+
 const comparisonColor = (card: API.AnalyticsMetricCard) => {
   if (!card.comparison.available || card.comparison.rate === undefined) return 'default';
   if (card.direction === 'risk') return card.comparison.rate > 0 ? 'error' : 'success';
@@ -165,29 +184,10 @@ const renderComparison = (card: API.AnalyticsMetricCard) => {
 
 const cardSpan = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6 };
 
-const SectionCard: React.FC<{
-  section: API.AnalyticsVisibleSection;
-  data?: API.AnalyticsOverview;
-  children: React.ReactNode;
-}> = ({ section, data, children }) => {
-  const error = data?.sectionErrors.find((item) => item.section === section);
-  if (error) {
-    return (
-      <Card title={sectionTitle[section]} size="small">
-        <Alert
-          type="error"
-          showIcon
-          title={error.message}
-          description="该区块按部分成功策略降级展示，其他区块不受影响。"
-        />
-      </Card>
-    );
-  }
-  return (
-    <Card title={sectionTitle[section]} size="small">
-      {children}
-    </Card>
-  );
+const riskColor: Record<API.AnalyticsDrilldownRiskLevel, string> = {
+  info: 'blue',
+  warning: 'warning',
+  error: 'error',
 };
 
 const MetricCard: React.FC<{ card: API.AnalyticsMetricCard }> = ({ card }) => (
@@ -219,6 +219,46 @@ const MetricCard: React.FC<{ card: API.AnalyticsMetricCard }> = ({ card }) => (
   </Card>
 );
 
+const MetricsGrid: React.FC<{ metrics?: API.AnalyticsMetricCard[] }> = ({ metrics = [] }) => {
+  if (!metrics.length) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前分区暂无指标" />;
+  }
+  return (
+    <Row gutter={[16, 16]}>
+      {metrics.map((card) => (
+        <Col key={card.id} {...cardSpan}>
+          <MetricCard card={card} />
+        </Col>
+      ))}
+    </Row>
+  );
+};
+
+const SectionCard: React.FC<{
+  section: API.AnalyticsVisibleSection;
+  data?: API.AnalyticsOverview;
+  children: React.ReactNode;
+}> = ({ section, data, children }) => {
+  const error = data?.sectionErrors.find((item) => item.section === section);
+  if (error) {
+    return (
+      <Card title={sectionTitle[section]} size="small">
+        <Alert
+          type="error"
+          showIcon
+          title={error.message}
+          description="该区块按部分成功策略降级展示，其他区块不受影响。"
+        />
+      </Card>
+    );
+  }
+  return (
+    <Card title={sectionTitle[section]} size="small">
+      {children}
+    </Card>
+  );
+};
+
 const AnalyticsOverviewPage: React.FC = () => {
   const { message, modal } = App.useApp();
   const location = useLocation();
@@ -231,6 +271,7 @@ const AnalyticsOverviewPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<{ status?: '403' | '500'; message: string }>();
+  const [correctionLoadingId, setCorrectionLoadingId] = useState<string>();
 
   const queryParams = useMemo(
     () => ({
@@ -271,11 +312,7 @@ const AnalyticsOverviewPage: React.FC = () => {
 
   const syncFilters = (next: typeof filters) => {
     setFilters(next);
-    setSearchParams(
-      Object.fromEntries(
-        Object.entries(next).filter(([, value]) => Boolean(value)),
-      ),
-    );
+    setSearchParams(filterEntries(next));
   };
 
   const resetFilters = () => {
@@ -303,8 +340,267 @@ const AnalyticsOverviewPage: React.FC = () => {
     }
   };
 
-  const visible = (section: API.AnalyticsVisibleSection) =>
-    data?.visibleSections.includes(section);
+  const availableTabs = useMemo(() => {
+    const visibleSections = data?.visibleSections ?? [];
+    return sectionTabs.filter((item) => visibleSections.includes(item.key));
+  }, [data?.visibleSections]);
+
+  const activeSection = useMemo<API.AnalyticsVisibleSection>(() => {
+    const moduleSection = filters.module === 'all' ? undefined : filters.module;
+    if (moduleSection && availableTabs.some((item) => item.key === moduleSection)) {
+      return moduleSection as API.AnalyticsVisibleSection;
+    }
+    return availableTabs[0]?.key ?? 'users';
+  }, [availableTabs, filters.module]);
+
+  const switchSection = (section: API.AnalyticsVisibleSection) => {
+    const next = { ...filters, module: section };
+    const search = new URLSearchParams(filterEntries(next)).toString();
+    history.replace(`/analytics/overview?${search}`);
+  };
+
+  const handleCorrection = async (item: API.AnalyticsDrilldownItem) => {
+    setCorrectionLoadingId(item.id);
+    try {
+      const result = await createAnalyticsCorrectionIntent({
+        drilldownId: item.id,
+        section: item.section,
+        objectType: item.objectType,
+        objectId: item.objectId,
+        objectName: item.objectName,
+        metricLabel: item.metricLabel,
+        metricValue: item.metricValue,
+        riskLevel: item.riskLevel,
+        targetRoute: item.targetRoute,
+        correctionRoute: item.correctionRoute,
+        reason: item.reason,
+      });
+      message.success('已记录修正意图');
+      history.push(result.data?.targetRoute || item.correctionRoute || item.targetRoute);
+    } catch (err: any) {
+      message.error(err?.data?.errorMessage || err?.message || '发起修正失败');
+    } finally {
+      setCorrectionLoadingId(undefined);
+    }
+  };
+
+  const renderDrilldownTable = (section: API.AnalyticsVisibleSection) => {
+    const rows = data?.drilldowns?.[section] ?? [];
+    return (
+      <ProTable<API.AnalyticsDrilldownItem>
+        headerTitle="下钻对象与修正建议"
+        search={false}
+        options={false}
+        pagination={false}
+        rowKey="id"
+        dataSource={rows}
+        scroll={{ x: 1100 }}
+        locale={{ emptyText: '当前分区暂无可下钻对象' }}
+        columns={[
+          { title: '对象', dataIndex: 'objectName', width: 220, ellipsis: true },
+          { title: '类型', dataIndex: 'objectType', width: 120 },
+          { title: '指标', dataIndex: 'metricLabel', width: 140 },
+          { title: '值', dataIndex: 'metricValue', width: 130 },
+          {
+            title: '风险',
+            dataIndex: 'riskLevel',
+            width: 100,
+            render: (_, record) => <Tag color={riskColor[record.riskLevel]}>{record.riskLevel}</Tag>,
+          },
+          { title: '原因', dataIndex: 'reason', ellipsis: true },
+          {
+            title: '操作',
+            valueType: 'option',
+            width: 190,
+            render: (_, record) => {
+              const actions: React.ReactNode[] = [];
+              if (record.targetAccessible !== false) {
+                actions.push(
+                  <Button
+                    key="view"
+                    type="link"
+                    size="small"
+                    icon={<EyeOutlined />}
+                    onClick={() => history.push(record.targetRoute)}
+                  >
+                    查看
+                  </Button>,
+                );
+              }
+              if (record.correctionRoute && record.correctionAccessible !== false) {
+                actions.push(
+                  <Button
+                    key="correct"
+                    type="link"
+                    size="small"
+                    icon={<ToolOutlined />}
+                    loading={correctionLoadingId === record.id}
+                    onClick={() => handleCorrection(record)}
+                  >
+                    {record.correctionLabel || '发起修正'}
+                  </Button>,
+                );
+              }
+              return actions.length ? actions : <Typography.Text type="secondary">无目标权限</Typography.Text>;
+            },
+          },
+        ]}
+      />
+    );
+  };
+
+  const renderSectionBody = (section: API.AnalyticsVisibleSection) => {
+    if (!data) return null;
+    const metrics = data.sectionMetrics?.[section] ?? [];
+    const distributions = data.sectionDistributions?.[section] ?? [];
+    const trends = data.sectionTrends?.[section] ?? [];
+
+    if (section === 'users') {
+      return (
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <MetricsGrid metrics={metrics} />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={16}>
+              {data.userTrend.length ? (
+                <Line height={260} data={data.userTrend} xField="date" yField="value" colorField="metric" point tooltip={{ title: 'date' }} />
+              ) : (
+                <Empty description="当前筛选范围暂无用户趋势" />
+              )}
+            </Col>
+            <Col xs={24} lg={8}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
+                {Object.entries(data.userDistributions).map(([key, rows]) => (
+                  <Card key={key} size="small" title={key}>
+                    {rows.length ? (
+                      <Pie height={160} data={rows} angleField="value" colorField="label" legend={false} />
+                    ) : (
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    )}
+                  </Card>
+                ))}
+              </Space>
+            </Col>
+          </Row>
+          {renderDrilldownTable(section)}
+        </Space>
+      );
+    }
+
+    if (section === 'learningPath') {
+      return (
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <MetricsGrid metrics={metrics} />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={14}>
+              {data.learningPathFunnel.length ? (
+                <Column height={260} data={data.learningPathFunnel} xField="step" yField="count" tooltip={{ title: 'step' }} label={{ text: 'count' }} />
+              ) : (
+                <Empty description="当前筛选范围暂无学习路径漏斗" />
+              )}
+            </Col>
+            <Col xs={24} lg={10}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
+                {data.learningPathFunnel.map((item) => (
+                  <Flex key={item.step} justify="space-between" align="center">
+                    <Typography.Text>{item.step}</Typography.Text>
+                    <Space>
+                      <Typography.Text strong>{item.count}</Typography.Text>
+                      <Tag>{item.previousRate === undefined ? '--' : `${item.previousRate}%`}</Tag>
+                    </Space>
+                  </Flex>
+                ))}
+              </Space>
+            </Col>
+          </Row>
+          {renderDrilldownTable(section)}
+        </Space>
+      );
+    }
+
+    if (section === 'content') {
+      return (
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <MetricsGrid metrics={metrics} />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={8}>
+              {data.contentStatusDistribution.length ? (
+                <Pie height={240} data={data.contentStatusDistribution} angleField="value" colorField="label" />
+              ) : (
+                <Empty description="当前筛选范围暂无内容状态数据" />
+              )}
+            </Col>
+            <Col xs={24} lg={16}>
+              {data.moduleSnapshots.filter((item) => item.visible && ['content', 'wrongReason'].includes(item.id)).map((item) => (
+                <Card key={item.id} size="small" style={{ marginBottom: 12 }}>
+                  <Statistic title={item.name} value={item.displayValue} suffix={item.unit} />
+                  <Typography.Text type="secondary">{item.description}</Typography.Text>
+                </Card>
+              ))}
+            </Col>
+          </Row>
+          {renderDrilldownTable(section)}
+        </Space>
+      );
+    }
+
+    if (section === 'wrongReason') {
+      return (
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <MetricsGrid metrics={metrics} />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={10}>
+              {distributions.length ? (
+                <Pie height={240} data={distributions} angleField="value" colorField="label" />
+              ) : (
+                <Empty description="当前筛选范围暂无错因分布" />
+              )}
+            </Col>
+            <Col xs={24} lg={14}>
+              <Bar height={240} data={distributions} xField="value" yField="label" label={{ text: 'value' }} />
+            </Col>
+          </Row>
+          {renderDrilldownTable(section)}
+        </Space>
+      );
+    }
+
+    if (section === 'retention') {
+      return (
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <MetricsGrid metrics={metrics} />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={15}>
+              {trends.length ? (
+                <Line height={260} data={trends} xField="date" yField="value" colorField="metric" point />
+              ) : (
+                <Empty description="当前筛选范围暂无留存趋势" />
+              )}
+            </Col>
+            <Col xs={24} lg={9}>
+              {distributions.length ? (
+                <Pie height={240} data={distributions} angleField="value" colorField="label" />
+              ) : (
+                <Empty description="当前筛选范围暂无留存分布" />
+              )}
+            </Col>
+          </Row>
+          {renderDrilldownTable(section)}
+        </Space>
+      );
+    }
+
+    return (
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+        <MetricsGrid metrics={metrics} />
+        {distributions.length ? (
+          <Bar height={260} data={distributions} xField="value" yField="label" colorField="group" label={{ text: 'value' }} />
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前分区暂无分布数据" />
+        )}
+        {renderDrilldownTable(section)}
+      </Space>
+    );
+  };
 
   if (error?.status === '403') {
     return <Result status="403" title="403" subTitle={error.message} />;
@@ -374,12 +670,6 @@ const AnalyticsOverviewPage: React.FC = () => {
                 syncFilters({ ...filters, granularity: granularity as API.AnalyticsGranularity })
               }
             />
-            <Select
-              value={filters.module}
-              style={{ width: 160 }}
-              options={moduleOptions}
-              onChange={(module) => syncFilters({ ...filters, module })}
-            />
             <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => loadData(filters, true)}>
               刷新
             </Button>
@@ -400,244 +690,19 @@ const AnalyticsOverviewPage: React.FC = () => {
               />
             ) : null}
 
-            {data.summaryCards.length === 0 ? (
-              <Empty description="当前筛选范围暂无运营数据" />
+            <Tabs
+              activeKey={activeSection}
+              onChange={(key) => switchSection(key as API.AnalyticsVisibleSection)}
+              items={availableTabs.map((item) => ({ key: item.key, label: item.label }))}
+            />
+
+            {availableTabs.length === 0 ? (
+              <Empty description="当前角色暂无可查看的数据分区" />
             ) : (
-              <Row gutter={[16, 16]}>
-                {data.summaryCards.map((card) => (
-                  <Col key={card.id} {...cardSpan}>
-                    <MetricCard card={card} />
-                  </Col>
-                ))}
-              </Row>
+              <SectionCard section={activeSection} data={data}>
+                {renderSectionBody(activeSection)}
+              </SectionCard>
             )}
-
-            {visible('users') ? (
-              <SectionCard section="users" data={data}>
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={16}>
-                    {data.userTrend.length ? (
-                      <Line
-                        height={260}
-                        data={data.userTrend}
-                        xField="date"
-                        yField="value"
-                        colorField="metric"
-                        point
-                        tooltip={{ title: 'date' }}
-                      />
-                    ) : (
-                      <Empty description="当前筛选范围暂无用户趋势" />
-                    )}
-                  </Col>
-                  <Col xs={24} lg={8}>
-                    <Space orientation="vertical" style={{ width: '100%' }}>
-                      {Object.entries(data.userDistributions).map(([key, rows]) => (
-                        <Card key={key} size="small" title={key}>
-                          {rows.length ? (
-                            <Pie height={160} data={rows} angleField="value" colorField="label" legend={false} />
-                          ) : (
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                          )}
-                        </Card>
-                      ))}
-                    </Space>
-                  </Col>
-                </Row>
-              </SectionCard>
-            ) : null}
-
-            {visible('learningPath') ? (
-              <SectionCard section="learningPath" data={data}>
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={14}>
-                    {data.learningPathFunnel.length ? (
-                      <Column
-                        height={260}
-                        data={data.learningPathFunnel}
-                        xField="step"
-                        yField="count"
-                        tooltip={{ title: 'step' }}
-                        label={{ text: 'count' }}
-                      />
-                    ) : (
-                      <Empty description="当前筛选范围暂无学习路径漏斗" />
-                    )}
-                  </Col>
-                  <Col xs={24} lg={10}>
-                    <Space orientation="vertical" style={{ width: '100%' }}>
-                      {data.learningPathFunnel.map((item) => (
-                        <Flex key={item.step} justify="space-between" align="center">
-                          <Typography.Text>{item.step}</Typography.Text>
-                          <Space>
-                            <Typography.Text strong>{item.count}</Typography.Text>
-                            <Tag>{item.previousRate === undefined ? '--' : `${item.previousRate}%`}</Tag>
-                          </Space>
-                        </Flex>
-                      ))}
-                      {data.learningPathMetrics.map((card) => (
-                        <MetricCard key={card.id} card={card} />
-                      ))}
-                    </Space>
-                  </Col>
-                </Row>
-              </SectionCard>
-            ) : null}
-
-            {visible('content') ? (
-              <SectionCard section="content" data={data}>
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={8}>
-                    {data.contentStatusDistribution.length ? (
-                      <Pie height={240} data={data.contentStatusDistribution} angleField="value" colorField="label" />
-                    ) : (
-                      <Empty description="当前筛选范围暂无内容状态数据" />
-                    )}
-                  </Col>
-                  <Col xs={24} lg={16}>
-                    <Row gutter={[12, 12]}>
-                      {data.contentMetrics.map((card) => (
-                        <Col key={card.id} xs={24} md={12}>
-                          <MetricCard card={card} />
-                        </Col>
-                      ))}
-                    </Row>
-                  </Col>
-                </Row>
-              </SectionCard>
-            ) : null}
-
-            {visible('reviewRelease') ? (
-              <SectionCard section="reviewRelease" data={data}>
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={14}>
-                    <ProTable
-                      search={false}
-                      pagination={false}
-                      options={false}
-                      rowKey="label"
-                      dataSource={[
-                        { label: '当前待审核', value: data.reviewReleaseStats?.pendingReview },
-                        { label: '区间已通过', value: data.reviewReleaseStats?.approved },
-                        { label: '区间已驳回', value: data.reviewReleaseStats?.rejected },
-                        { label: '当前待发布', value: data.reviewReleaseStats?.pendingRelease },
-                        { label: '区间已发布', value: data.reviewReleaseStats?.published },
-                        { label: '区间已下架', value: data.reviewReleaseStats?.offline },
-                        { label: '区间已回滚', value: data.reviewReleaseStats?.rolledBack },
-                        { label: '区间发布失败', value: data.reviewReleaseStats?.publishFailed },
-                        { label: '区间回滚失败', value: data.reviewReleaseStats?.rollbackFailed },
-                      ]}
-                      columns={[
-                        { title: '指标', dataIndex: 'label' },
-                        { title: '值', dataIndex: 'value', renderText: (value) => value ?? '--' },
-                      ]}
-                    />
-                  </Col>
-                  <Col xs={24} lg={10}>
-                    <Space orientation="vertical" style={{ width: '100%' }}>
-                      <Statistic title="平均审核时长" value={data.reviewReleaseStats?.averageReviewMinutes ?? '--'} suffix="分钟" />
-                      <Statistic title="最长待审核时长" value={data.reviewReleaseStats?.longestPendingReviewHours ?? '--'} suffix="小时" />
-                      {data.reviewRiskItems.map((item) => (
-                        <Flex key={item.label} justify="space-between">
-                          <Typography.Text>{item.label}</Typography.Text>
-                          <Tag color={item.value > 0 ? 'error' : 'success'}>{item.value}</Tag>
-                        </Flex>
-                      ))}
-                    </Space>
-                  </Col>
-                </Row>
-              </SectionCard>
-            ) : null}
-
-            {visible('feedback') ? (
-              <SectionCard section="feedback" data={data}>
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={12}>
-                    <Bar
-                      height={240}
-                      data={data.feedbackDistributions.status ?? []}
-                      xField="value"
-                      yField="label"
-                      label={{ text: 'value' }}
-                    />
-                  </Col>
-                  <Col xs={24} lg={12}>
-                    <Row gutter={[12, 12]}>
-                      {[
-                        ['区间新增反馈', data.feedbackStats?.newFeedback, '条'],
-                        ['当前待处理', data.feedbackStats?.pending, '条'],
-                        ['当前处理中', data.feedbackStats?.processing, '条'],
-                        ['反馈关闭率', data.feedbackStats?.closeRate === undefined ? '--' : `${data.feedbackStats.closeRate}%`, ''],
-                        ['平均处理时长', data.feedbackStats?.averageHandleHours === undefined ? '--' : data.feedbackStats.averageHandleHours, '小时'],
-                        ['P0 反馈', data.feedbackStats?.p0Feedback, '条'],
-                      ].map(([title, value, suffix]) => (
-                        <Col key={String(title)} xs={24} md={12}>
-                          <Card size="small">
-                            <Statistic title={title} value={value ?? '--'} suffix={suffix} />
-                          </Card>
-                        </Col>
-                      ))}
-                    </Row>
-                  </Col>
-                </Row>
-              </SectionCard>
-            ) : null}
-
-            {visible('mockExam') ? (
-              <SectionCard section="mockExam" data={data}>
-                {data.moduleSnapshots
-                  .filter((item) => item.id === 'mockExam' && item.visible)
-                  .map((item) => (
-                    <Flex
-                      key={item.id}
-                      justify="space-between"
-                      align="center"
-                      gap={16}
-                      wrap
-                    >
-                      <Space orientation="vertical" size={2}>
-                        <Statistic
-                          title={item.name}
-                          value={item.displayValue}
-                          suffix={item.unit}
-                        />
-                        <Typography.Text type="secondary">
-                          {item.description}
-                        </Typography.Text>
-                      </Space>
-                      <Button
-                        type="link"
-                        onClick={() => history.push(item.jumpTo || '/mock-exam/papers')}
-                      >
-                        查看模考试卷
-                      </Button>
-                    </Flex>
-                  ))}
-              </SectionCard>
-            ) : null}
-
-            {['aiCoach', 'writingTranslation'].some((section) =>
-              visible(section as API.AnalyticsVisibleSection),
-            ) ? (
-              <SectionCard section="aiCoach" data={data}>
-                <Row gutter={[16, 16]}>
-                  {data.moduleSnapshots
-                    .filter((item) => item.status === 'placeholder' && item.visible)
-                    .map((item) => (
-                      <Col key={item.id} xs={24} md={8}>
-                        <Card size="small">
-                          <Space orientation="vertical">
-                            <Tag color="default">基础占位指标</Tag>
-                            <Statistic title={item.name} value={item.displayValue} suffix={item.unit} />
-                            <Typography.Text type="secondary">{item.description}</Typography.Text>
-                            <Progress percent={item.id === 'mockExam' ? 61 : item.id === 'aiCoach' ? 8.1 : 38} size="small" />
-                          </Space>
-                        </Card>
-                      </Col>
-                    ))}
-                </Row>
-              </SectionCard>
-            ) : null}
 
             <Card title="数据来源与口径" size="small">
               <ProTable

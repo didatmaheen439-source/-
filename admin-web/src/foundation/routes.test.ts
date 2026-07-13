@@ -139,6 +139,9 @@ describe('admin navigation structure', () => {
     expect(findRoute('/analytics/users')?.parentKeys).toEqual([
       '/analytics/overview',
     ]);
+    expect(findRoute('/analytics/retention')?.parentKeys).toEqual([
+      '/analytics/overview',
+    ]);
     expect(findRoute('/system/sensitive-access-logs')?.parentKeys).toEqual([
       '/system/operation-logs',
     ]);
