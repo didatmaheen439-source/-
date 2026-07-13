@@ -469,16 +469,21 @@ export default [
         component: './writing-translation/topics/detail/index',
       },
       {
+        path: '/writing-translation/scoring-feedback-templates',
+        name: 'scoring-feedback-templates',
+        component: './writing-translation/scoring-feedback-templates',
+      },
+      {
         path: '/writing-translation/scoring-dimensions',
-        name: 'scoring-dimensions',
         hideInMenu: true,
-        component: './prd-placeholder',
+        redirect: '/writing-translation/scoring-feedback-templates?tab=scoring',
+        parentKeys: ['/writing-translation/scoring-feedback-templates'],
       },
       {
         path: '/writing-translation/feedback-templates',
-        name: 'feedback-templates',
         hideInMenu: true,
-        component: './prd-placeholder',
+        redirect: '/writing-translation/scoring-feedback-templates?tab=feedback',
+        parentKeys: ['/writing-translation/scoring-feedback-templates'],
       },
       {
         path: '/writing-translation/topics',

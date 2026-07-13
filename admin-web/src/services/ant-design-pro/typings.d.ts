@@ -111,6 +111,7 @@ declare namespace API {
     | 'learning_rule'
     | 'ai_coach_strategy'
     | 'writing_translation'
+    | 'writing_translation_template'
     | 'mock_exam';
 
   type ReviewRiskLevel = 'low' | 'medium' | 'high';
@@ -143,6 +144,7 @@ declare namespace API {
       | 'onboarding_config'
       | AiCoachConfigType
       | WritingTranslationTopicType
+      | WritingTranslationTemplateType
       | WrongReasonTagCategory;
     objectTypeName: string;
     objectId: string;
@@ -645,6 +647,130 @@ declare namespace API {
 
   type WritingTranslationTopicType = 'writing' | 'translation';
 
+  type WritingTranslationTemplateType = 'scoring_template' | 'feedback_template';
+
+  type WritingTranslationTemplateStatus = ReviewTaskStatus;
+
+  type WritingTranslationTemplateReference = {
+    templateId: string;
+    templateName: string;
+    templateType: WritingTranslationTemplateType;
+    version: string;
+    releaseVersionId: string;
+    statusAtBinding: WritingTranslationTemplateStatus;
+    boundAt: string;
+  };
+
+  type FeedbackSection = {
+    key: string;
+    title: string;
+    guidance: string;
+    required: boolean;
+    order: number;
+  };
+
+  type WritingTranslationTemplateVersion = {
+    id: string;
+    templateId: string;
+    version: string;
+    status: WritingTranslationTemplateStatus;
+    createdBy: string;
+    createdAt: string;
+    changeSummary: string;
+    currentOnline: boolean;
+    snapshot: Partial<WritingTranslationTemplate>;
+  };
+
+  type WritingTranslationTemplateBase = {
+    id: string;
+    templateType: WritingTranslationTemplateType;
+    name: string;
+    description: string;
+    topicTypes: WritingTranslationTopicType[];
+    examTypes: ExamType[];
+    status: WritingTranslationTemplateStatus;
+    version: string;
+    dataVersion: number;
+    createdBy: string;
+    createdById: string;
+    createdAt: string;
+    updatedBy: string;
+    updatedById: string;
+    updatedAt: string;
+    reviewTaskId?: string;
+    releaseVersionId?: string;
+    rollbackTargetVersion?: string;
+    changeSummary: string;
+    lastPrecheck?: WritingTranslationPrecheckResult;
+    versionRecords: WritingTranslationTemplateVersion[];
+    operationRecords: ReviewOperationRecord[];
+  };
+
+  type ScoringTemplate = WritingTranslationTemplateBase & {
+    templateType: 'scoring_template';
+    totalScore: number;
+    dimensions: ScoringDimension[];
+  };
+
+  type FeedbackTemplate = WritingTranslationTemplateBase & {
+    templateType: 'feedback_template';
+    sections: FeedbackSection[];
+    responseStructureRef: WritingTranslationAiStrategyReference;
+  };
+
+  type WritingTranslationTemplate = ScoringTemplate | FeedbackTemplate;
+
+  type WritingTranslationTemplateSaveParams = {
+    templateType: WritingTranslationTemplateType;
+    name: string;
+    description?: string;
+    topicTypes: WritingTranslationTopicType[];
+    examTypes: ExamType[];
+    totalScore?: number;
+    dimensions?: ScoringDimension[];
+    sections?: FeedbackSection[];
+    responseStructureRef?: WritingTranslationAiStrategyReference;
+    changeSummary?: string;
+    dataVersion?: number;
+    confirmWarnings?: boolean;
+  };
+
+  type WritingTranslationTemplateQueryParams = {
+    current?: number;
+    pageSize?: number;
+    templateType?: WritingTranslationTemplateType;
+    keyword?: string;
+    status?: WritingTranslationTemplateStatus;
+    topicType?: WritingTranslationTopicType;
+    examType?: ExamType;
+  };
+
+  type WritingTranslationTemplateList = {
+    data?: WritingTranslationTemplate[];
+    total?: number;
+    success?: boolean;
+  };
+
+  type WritingTranslationTopicTemplateBindingParams = {
+    scoringTemplateId: string;
+    feedbackTemplateId: string;
+    dataVersion: number;
+  };
+
+  type MockCorrectionRecord = {
+    id: string;
+    topicId: string;
+    topicName: string;
+    topicVersion: string;
+    scoringTemplateRef: WritingTranslationTemplateReference;
+    feedbackTemplateRef: WritingTranslationTemplateReference;
+    aiStrategyVersion: string;
+    score: number;
+    feedbackSections: Array<{ title: string; content: string }>;
+    createdAt: string;
+    mockOnly: true;
+  };
+
   type WritingTranslationStatus = ReviewTaskStatus;
 
   type WritingTranslationDifficulty = QuestionDifficulty;
@@ -783,6 +909,8 @@ declare namespace API {
     scoringDimensions: ScoringDimension[];
     correctionRule: CorrectionRuleSet;
     aiStrategyRefs: WritingTranslationAiStrategyReference[];
+    scoringTemplateRef?: WritingTranslationTemplateReference;
+    feedbackTemplateRef?: WritingTranslationTemplateReference;
     status: WritingTranslationStatus;
     version: string;
     dataVersion: number;

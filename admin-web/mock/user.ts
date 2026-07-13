@@ -119,6 +119,11 @@ import {
   writingTranslationDashboardStats,
 } from './writingTranslationStore';
 import {
+  isWritingTranslationTemplateReviewTask,
+  syncWritingTranslationTemplateFromReviewTask,
+  validateWritingTranslationTemplateReviewTransition,
+} from './writingTranslationTemplateStore';
+import {
   dailySentenceAnalytics,
   dailySentencesData,
   isDailySentenceReviewTask,
@@ -182,6 +187,7 @@ const reviewObjectModuleMap: Record<API.ReviewObjectType, string> = {
   learning_rule: 'learningPath',
   ai_coach_strategy: 'aiCoach',
   writing_translation: 'writingTranslation',
+  writing_translation_template: 'writingTranslation',
   mock_exam: 'mockExam',
 };
 
@@ -1916,6 +1922,7 @@ const roleCanOperateReviewTask = (
       'learning_rule',
       'learning_path_config',
       'writing_translation',
+      'writing_translation_template',
       'mock_exam',
     ].includes(task.objectType);
   }
@@ -6140,6 +6147,7 @@ export default {
         (isLearningPathConfig(task) ||
           isAiCoachReviewTask(task) ||
           isWritingTranslationReviewTask(task) ||
+          isWritingTranslationTemplateReviewTask(task) ||
           task.objectType === 'mock_exam' ||
           task.objectType === 'wrong_reason_tag')
       ) {
@@ -6242,6 +6250,13 @@ export default {
         errorMessage: writingTransitionCheck.errorMessage,
         data: writingTransitionCheck.precheck,
       });
+      return;
+    }
+
+    const writingTemplateTransitionCheck = validateWritingTranslationTemplateReviewTransition(task, nextStatus);
+    if (!writingTemplateTransitionCheck.ok) {
+      pushReviewAuditLog(currentRoleId, task, reviewStatusActionMap[nextStatus], 'failed', writingTemplateTransitionCheck.errorMessage, `写译模板发布前复验失败：${writingTemplateTransitionCheck.errorMessage}`);
+      res.status(422).send({ success: false, errorCode: '422', errorMessage: writingTemplateTransitionCheck.errorMessage, data: 'precheck' in writingTemplateTransitionCheck ? writingTemplateTransitionCheck.precheck : undefined });
       return;
     }
 
@@ -6380,6 +6395,12 @@ export default {
       previousStatus,
       nextStatus,
       operatorFromWritingTranslationRole(operator.roleId, operator.id, operator.name),
+      operationReason,
+    );
+    syncWritingTranslationTemplateFromReviewTask(
+      task,
+      nextStatus,
+      { id: operator.id, name: operator.name, roleId: operator.roleId, roleName: operator.roleName },
       operationReason,
     );
     syncMockExamFromReviewTask(

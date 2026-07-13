@@ -28,6 +28,7 @@
 - 已完成 `/ai-coach/abnormal-replies` AI 异常回复处置 Mock MVP：异常队列、归因、受控证据、修复草稿、审核发布联动、Mock 复检、关闭和权限审计。
 - 已完成 `/ai-coach/session-review` AI 会话抽检 Mock MVP：按意图、策略版本和风险筛选会话摘要，认领抽检，申请查看必要信息，标记正常/异常，异常时生成处理项并关联策略版本。
 - 已完成 `/writing-translation/topics` 写译批改管理 MVP：写作题目、翻译题目、评分维度、批改规则、AI 策略引用、预校验、静态样例校验、审核发布同步和工作台联动。
+- 已完成 `/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP：双 Tab、模板版本、权重与引用校验、审核发布、题目版本绑定和 Mock 批改记录追溯。
 - 已完成 `/mock-exam/papers` 模考试卷配置 MVP：CET4/CET6 模板、混合题目编排、预校验、版本快照、审核发布同步、聚合统计和跨模块联动。
 - 已完成 `/learning-path/onboarding` Onboarding 配置闭环 MVP：固定五字段维护、预校验、版本复制、审核发布、固定 Mock 用户、诊断/任务命中、用户详情与漏斗回看。
 - 已完成 `/content-operations/daily-sentences` 每日一句运营闭环 MVP：列表/日历、新建编辑、来源与配图校验、用户侧预览、审核排期、立即/定时发布、Mock 阅读打卡、效果回流、下架和版本复制。
@@ -65,6 +66,7 @@
 
 ## 最近验证
 
+- 2026-07-13：`/writing-translation/scoring-feedback-templates` 评分与反馈模板 Mock MVP 完成，覆盖评分维度/反馈模板双 Tab、版本引用、题目绑定和 Mock 批改记录追溯；`npm run tsc`、`npm run test`（21 文件、114 测试）、`npm run lint`、`npx antd lint ./src`、`npm run build` 均通过；浏览器和 API 权限烟测见 `logs/writing-translation-templates-implementation-2026-07-13/summary.md`。
 - 2026-07-12：`/content-operations/daily-sentences` 每日一句运营闭环完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；浏览器验证记录见 `logs/daily-sentences-implementation-2026-07-12.md`。
 - 2026-07-12：`/users/feedback` 反馈工作队列 Mock MVP 完成，`npm run test`、`npm run tsc`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 与浏览器验证记录见 `logs/feedback-work-queue-implementation-2026-07-12.md`。
 - 2026-07-12：`/ai-coach/abnormal-replies` AI 异常回复处置 Mock MVP 完成，`npm run tsc`、`npm run test`、`npm run lint`、`npx antd lint ./src`、`npm run build` 通过；API 和浏览器验证记录见 `logs/ai-abnormal-replies-implementation-2026-07-12/summary.md`。

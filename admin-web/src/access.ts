@@ -36,6 +36,12 @@ export default function access(
       roleId,
       'writingTranslation',
     ),
+    canManageScoringTemplates:
+      roleId === 'super_admin' || roleId === 'teaching_reviewer',
+    canManageFeedbackTemplates:
+      roleId === 'super_admin' || roleId === 'ai_operator',
+    canBindWritingTranslationTemplates:
+      roleId === 'super_admin' || roleId === 'teaching_reviewer',
     canAccessMockExam: roleCanAccessModule(roleId, 'mockExam'),
     canAccessAnalytics: roleCanAccessModule(roleId, 'analytics'),
     canAccessReviewRelease: roleCanAccessModule(roleId, 'reviewRelease'),

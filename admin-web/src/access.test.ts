@@ -51,6 +51,17 @@ describe('access', () => {
     ).toBe(false);
   });
 
+  it('separates scoring and feedback template ownership', () => {
+    const teaching = access({ currentUser: { roleId: 'teaching_reviewer' } });
+    const ai = access({ currentUser: { roleId: 'ai_operator' } });
+    expect(teaching.canManageScoringTemplates).toBe(true);
+    expect(teaching.canManageFeedbackTemplates).toBe(false);
+    expect(teaching.canBindWritingTranslationTemplates).toBe(true);
+    expect(ai.canManageScoringTemplates).toBe(false);
+    expect(ai.canManageFeedbackTemplates).toBe(true);
+    expect(ai.canBindWritingTranslationTemplates).toBe(false);
+  });
+
   it('should return canAdmin false when user access is undefined', () => {
     const initialState = {
       currentUser: {

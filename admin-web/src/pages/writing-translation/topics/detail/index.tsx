@@ -426,14 +426,23 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
               key: 'scoring',
               label: '评分维度',
               children: (
-                <ProTable<API.ScoringDimension>
-                  rowKey="key"
-                  search={false}
-                  pagination={false}
-                  options={false}
-                  dataSource={topic.scoringDimensions}
-                  columns={scoringColumns}
-                />
+                <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                  <Descriptions bordered column={1} size="small">
+                    <Descriptions.Item label="评分模板版本">
+                      {topic.scoringTemplateRef
+                        ? `${topic.scoringTemplateRef.templateName} / ${topic.scoringTemplateRef.version}`
+                        : '历史内嵌评分规则'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                  <ProTable<API.ScoringDimension>
+                    rowKey="key"
+                    search={false}
+                    pagination={false}
+                    options={false}
+                    dataSource={topic.scoringDimensions}
+                    columns={scoringColumns}
+                  />
+                </Space>
               ),
             },
             {
@@ -442,6 +451,11 @@ const WritingTranslationTopicDetailPage: React.FC = () => {
               children: (
                 <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                   <Descriptions bordered column={2} size="small">
+                    <Descriptions.Item label="反馈模板版本" span={2}>
+                      {topic.feedbackTemplateRef
+                        ? `${topic.feedbackTemplateRef.templateName} / ${topic.feedbackTemplateRef.version}`
+                        : '历史内嵌反馈结构'}
+                    </Descriptions.Item>
                     <Descriptions.Item label="反馈结构">{listText(topic.correctionRule.feedbackStructure)}</Descriptions.Item>
                     <Descriptions.Item label="人工复核">{listText(topic.correctionRule.manualReviewConditions)}</Descriptions.Item>
                     <Descriptions.Item label="总分规则" span={2}>{topic.correctionRule.overallScoringGuide}</Descriptions.Item>

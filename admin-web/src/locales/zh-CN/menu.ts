@@ -77,6 +77,7 @@ export default {
   'menu.writing-translation.translation-topic-detail': '翻译题目详情',
   'menu.writing-translation.scoring-dimensions': '评分维度',
   'menu.writing-translation.feedback-templates': '反馈模板',
+  'menu.writing-translation.scoring-feedback-templates': '评分与反馈模板',
   'menu.writing-translation.topics': '写译题目',
   'menu.writing-translation.topic-new': '新建写译题目',
   'menu.writing-translation.topic-edit': '编辑写译题目',

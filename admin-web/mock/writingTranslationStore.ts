@@ -677,6 +677,16 @@ export const buildWritingTranslationPrecheck = (
   if (!base.scoringDimensions?.length) addIssue(issues, 'error', 'DIMENSION_EMPTY', 'scoringDimensions', '评分维度为空。', '配置评分维度。');
   if (!base.correctionRule) addIssue(issues, 'error', 'CORRECTION_RULE_EMPTY', 'correctionRule', '批改规则为空。', '配置批改规则。');
   if (!base.riskLevel) addIssue(issues, 'error', 'RISK_LEVEL_EMPTY', 'riskLevel', '风险等级为空。', '选择风险等级。');
+  if (base.scoringTemplateRef || base.feedbackTemplateRef) {
+    if (!base.scoringTemplateRef || !base.feedbackTemplateRef) {
+      addIssue(issues, 'error', 'TEMPLATE_REFERENCE_INCOMPLETE', 'templateReferences', '评分模板和反馈模板必须成对绑定。', '重新绑定两个已发布模板版本。');
+    }
+    [base.scoringTemplateRef, base.feedbackTemplateRef].filter(Boolean).forEach((ref, index) => {
+      if (ref?.statusAtBinding !== 'published' || !ref.releaseVersionId || !ref.version) {
+        addIssue(issues, 'error', 'TEMPLATE_REFERENCE_INVALID', `templateReferences.${index}`, '模板发布版本引用不完整。', '重新绑定已发布模板版本。');
+      }
+    });
+  }
   validateDimensions(base, issues);
   if (base.topicType === 'writing') {
     const writing = base as API.WritingTopic;
