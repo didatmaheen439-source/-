@@ -1,5 +1,28 @@
 # 过级搭子后台管理系统项目记忆
 
+## 2026-07-13 Writing Translation Correction Summaries MVP
+
+### Summary
+- 新增 `/writing-translation/correction-summaries` 二级入口，用于查看 Mock 批改记录、评分分布、常见问题、题目/模板/AI 策略版本定位和修正草稿创建。
+- 批改记录继续使用 Mock Store 和脱敏答案摘要，不接真实后端、真实 AI 或真实用户原文。
+- 修正草稿按归因分流：题目、评分模板、反馈模板和 AI 策略分别复用现有复制草稿与后续审核发布链路。
+- 评分与反馈模板页的 Mock 使用记录已增加跳转到批改记录摘要详情的入口。
+
+### Key Files
+- `admin-web/src/pages/writing-translation/correction-summaries/index.tsx`
+- `admin-web/mock/writingTranslationTemplateStore.ts`
+- `admin-web/mock/writingTranslationTemplate.ts`
+- `admin-web/src/services/ant-design-pro/typings.d.ts`
+- `docs/writing-translation-correction-summaries-mvp.md`
+
+### Decisions
+- 批改记录摘要是独立二级菜单，不放入评分与反馈模板 Tab。
+- 客服、数据分析、只读审计保持只读；教研处理题目和评分规则，AI 运营处理反馈模板和 AI 策略。
+- 不新增独立审核状态机，所有修正对象继续走既有草稿、预校验、审核发布流程。
+
+### Verification
+- 相关单测和类型检查已通过；完整验证记录见 `logs/writing-translation-correction-summaries-implementation-2026-07-13.md`。
+
 ## 2026-07-13 Writing Translation Templates MVP
 
 ### Summary

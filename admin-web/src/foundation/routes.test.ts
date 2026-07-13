@@ -68,6 +68,7 @@ const visibleSecondLevelPaths = [
   '/writing-translation/writing-topics',
   '/writing-translation/translation-topics',
   '/writing-translation/scoring-feedback-templates',
+  '/writing-translation/correction-summaries',
   '/mock-exam/papers',
   '/analytics/overview',
   '/review-release/pending',
@@ -84,7 +85,7 @@ describe('admin navigation structure', () => {
     expect(businessRoutes.filter((route) => route?.hideInMenu)).toEqual([]);
   });
 
-  it('exposes only the twenty-two implemented second-level entries', () => {
+  it('exposes only the twenty-three implemented second-level entries', () => {
     const visiblePaths = businessPaths.flatMap((path) => {
       const parent = findRoute(path);
       if (!parent || parent.hideInMenu) return [];
@@ -157,6 +158,9 @@ describe('admin navigation structure', () => {
     expect(
       zhCNMenu['menu.writing-translation.scoring-feedback-templates'],
     ).toBe('评分与反馈模板');
+    expect(zhCNMenu['menu.writing-translation.correction-summaries']).toBe(
+      '批改记录摘要',
+    );
     expect(zhCNMenu['menu.system']).toBe('系统与审计');
     expect(zhCNMenu['menu.system.operation-logs']).toBe('审计日志');
   });

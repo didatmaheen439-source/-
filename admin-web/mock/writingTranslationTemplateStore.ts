@@ -1,7 +1,12 @@
 import type { AdminRoleId } from '../src/foundation/permissions';
+import { copyAiCoachStrategyDraft } from './aiCoachStore';
 import { nowText } from './auditStore';
 import { aiCoachStrategiesData } from './aiCoachStore';
-import { getWritingTranslationTopic } from './writingTranslationStore';
+import {
+  copyWritingTranslationTopicDraft,
+  getWritingTranslationTopic,
+  writingTranslationTopicsData,
+} from './writingTranslationStore';
 
 export type TemplateOperator = { id: string; name: string; roleId: AdminRoleId; roleName: string };
 
@@ -55,6 +60,108 @@ export const writingTranslationTemplatesData: API.WritingTranslationTemplate[] =
 ];
 
 export const mockCorrectionRecords: API.MockCorrectionRecord[] = [];
+
+const scoreBandLabel: Record<API.MockCorrectionRecord['scoreBand'], string> = {
+  excellent: '高分稳定',
+  stable: '正常区间',
+  attention: '需要关注',
+  abnormal: '异常样例',
+};
+
+const issuePool: Record<string, Omit<API.CorrectionIssueTag, 'count'>> = {
+  topic_requirement: { code: 'topic_requirement', name: '题目要求不清', severity: 'medium', causeType: 'topic' },
+  scoring_weight: { code: 'scoring_weight', name: '评分权重偏差', severity: 'high', causeType: 'scoring_template' },
+  feedback_vague: { code: 'feedback_vague', name: '反馈建议泛化', severity: 'medium', causeType: 'feedback_template' },
+  ai_structure: { code: 'ai_structure', name: 'AI 结构输出偏移', severity: 'high', causeType: 'ai_strategy' },
+  language_accuracy: { code: 'language_accuracy', name: '语言准确性扣分集中', severity: 'low', causeType: 'scoring_template' },
+  missing_revision: { code: 'missing_revision', name: '缺少可执行修改建议', severity: 'medium', causeType: 'feedback_template' },
+};
+
+const buildIssues = (codes: string[]) =>
+  codes.map((code) => ({ ...issuePool[code], count: 1 })).filter((item): item is API.CorrectionIssueTag => Boolean(item?.code));
+
+const scoreBand = (score: number, totalScore: number): API.MockCorrectionRecord['scoreBand'] => {
+  const ratio = totalScore ? score / totalScore : 0;
+  if (ratio >= 0.86) return 'excellent';
+  if (ratio >= 0.72) return 'stable';
+  if (ratio >= 0.58) return 'attention';
+  return 'abnormal';
+};
+
+const buildDimensionScores = (
+  dimensions: API.ScoringDimension[],
+  ratio: number,
+  issueCodes: string[],
+): API.CorrectionDimensionScore[] =>
+  dimensions.map((dimension) => {
+    const issueCount =
+      issueCodes.includes('scoring_weight') && dimension.key === 'content'
+        ? 2
+        : issueCodes.includes('language_accuracy') && dimension.key === 'language'
+          ? 2
+          : issueCodes.includes('topic_requirement') && dimension.key === 'content'
+            ? 1
+            : 0;
+    const penalty = issueCount * 0.08;
+    return {
+      key: dimension.key,
+      name: dimension.name,
+      score: Math.max(0, Math.round(dimension.maxScore * Math.max(0.35, ratio - penalty))),
+      maxScore: dimension.maxScore,
+      issueCount,
+    };
+  });
+
+const buildCorrectionRecord = (
+  topic: API.WritingTranslationTopic,
+  scoring: API.ScoringTemplate,
+  feedback: API.FeedbackTemplate,
+  options: {
+    id?: string;
+    scoreRatio: number;
+    issueCodes: string[];
+    answerSummary: string;
+    correctionStatus: API.MockCorrectionRecord['correctionStatus'];
+    createdAt: string;
+    revisionCount?: number;
+  },
+): API.MockCorrectionRecord => {
+  const score = Math.round(scoring.totalScore * options.scoreRatio);
+  const band = scoreBand(score, scoring.totalScore);
+  const aiStrategySnapshot = clone(feedback.responseStructureRef);
+  return {
+    id: options.id ?? uid('mock-correction'),
+    topicId: topic.id,
+    topicName: topic.name,
+    topicType: topic.topicType,
+    examType: topic.examType,
+    topicVersion: topic.version,
+    scoringTemplateRef: clone(topic.scoringTemplateRef ?? templateRef(scoring)),
+    feedbackTemplateRef: clone(topic.feedbackTemplateRef ?? templateRef(feedback)),
+    aiStrategySnapshot,
+    aiStrategyVersion: aiStrategySnapshot.strategyVersion,
+    totalScore: scoring.totalScore,
+    score,
+    scoreBand: band,
+    answerSummary: options.answerSummary,
+    dimensionScores: buildDimensionScores(scoring.dimensions, options.scoreRatio, options.issueCodes),
+    issueTags: buildIssues(options.issueCodes),
+    feedbackSections: feedback.sections
+      .sort((a, b) => a.order - b.order)
+      .map((item) => ({
+        title: item.title,
+        content: `Mock ${item.title}结果，固定题目、评分模板、反馈模板与 AI 策略版本。`,
+      })),
+    correctionStatus: options.correctionStatus,
+    revisionCount: options.revisionCount ?? 0,
+    fixStatus: 'none',
+    linkedFixDrafts: [],
+    updatedAt: options.createdAt,
+    dataVersion: 1,
+    createdAt: options.createdAt,
+    mockOnly: true,
+  };
+};
 
 export const getWritingTranslationTemplate = (id: string) => writingTranslationTemplatesData.find((item) => item.id === id);
 
@@ -148,6 +255,185 @@ export const syncWritingTranslationTemplateFromReviewTask = (task: API.ReviewTas
 };
 
 const templateRef = (template: API.WritingTranslationTemplate): API.WritingTranslationTemplateReference => ({ templateId: template.id, templateName: template.name, templateType: template.templateType, version: template.version, releaseVersionId: template.releaseVersionId!, statusAtBinding: template.status, boundAt: nowText() });
+
+const seedMockCorrectionRecords = () => {
+  if (mockCorrectionRecords.some((item) => item.id === 'mock-correction-translation-cet6-003')) return;
+  const scoring = getWritingTranslationTemplate('wt-scoring-default');
+  const feedback = getWritingTranslationTemplate('wt-feedback-default');
+  if (!scoring || scoring.templateType !== 'scoring_template' || !feedback || feedback.templateType !== 'feedback_template') return;
+  [
+    {
+      topicId: 'writing-topic-cet6-published',
+      id: 'mock-correction-writing-cet6-001',
+      scoreRatio: 0.88,
+      issueCodes: ['language_accuracy'],
+      answerSummary: '脱敏摘要：观点完整，个别长句语法和搭配需要修正。',
+      correctionStatus: 'normal' as const,
+      createdAt: '2026-07-12 09:20:00',
+      revisionCount: 1,
+    },
+    {
+      topicId: 'writing-topic-cet4-published',
+      id: 'mock-correction-writing-cet4-002',
+      scoreRatio: 0.62,
+      issueCodes: ['topic_requirement', 'feedback_vague'],
+      answerSummary: '脱敏摘要：答题方向接近主题，但任务要点覆盖不足，反馈建议偏泛。',
+      correctionStatus: 'needs_review' as const,
+      createdAt: '2026-07-12 10:15:00',
+      revisionCount: 0,
+    },
+    {
+      topicId: 'translation-topic-cet6-published',
+      id: 'mock-correction-translation-cet6-003',
+      scoreRatio: 0.54,
+      issueCodes: ['scoring_weight', 'ai_structure'],
+      answerSummary: '脱敏摘要：译文信息遗漏较多，AI 输出结构出现非模板区块。',
+      correctionStatus: 'abnormal' as const,
+      createdAt: '2026-07-12 11:05:00',
+      revisionCount: 0,
+    },
+    {
+      topicId: 'translation-topic-cet4-published',
+      id: 'mock-correction-translation-cet4-004',
+      scoreRatio: 0.76,
+      issueCodes: ['missing_revision'],
+      answerSummary: '脱敏摘要：译文基本准确，但修改建议缺少可直接执行的下一步。',
+      correctionStatus: 'needs_review' as const,
+      createdAt: '2026-07-12 13:40:00',
+      revisionCount: 2,
+    },
+  ].forEach((item) => {
+    const topic = getWritingTranslationTopic(item.topicId);
+    if (topic) mockCorrectionRecords.push(buildCorrectionRecord(topic, scoring, feedback, item));
+  });
+};
+
+export const getCorrectionSummary = (id: string) => {
+  seedMockCorrectionRecords();
+  return mockCorrectionRecords.find((item) => item.id === id);
+};
+
+export const filterCorrectionSummaries = (query: API.CorrectionSummaryQueryParams = {}) => {
+  seedMockCorrectionRecords();
+  return mockCorrectionRecords.filter((item) => {
+    if (query.keyword) {
+      const keyword = query.keyword.toLowerCase();
+      const haystack = `${item.id} ${item.topicName} ${item.topicId} ${item.answerSummary} ${item.issueTags.map((tag) => tag.name).join(' ')}`.toLowerCase();
+      if (!haystack.includes(keyword)) return false;
+    }
+    if (query.topicType && item.topicType !== query.topicType) return false;
+    if (query.examType && item.examType !== query.examType) return false;
+    if (query.scoreBand && item.scoreBand !== query.scoreBand) return false;
+    if (query.correctionStatus && item.correctionStatus !== query.correctionStatus) return false;
+    if (query.fixStatus && item.fixStatus !== query.fixStatus) return false;
+    if (query.issueCode && !item.issueTags.some((tag) => tag.code === query.issueCode)) return false;
+    if (query.causeType && !item.issueTags.some((tag) => tag.causeType === query.causeType) && item.rootCauseType !== query.causeType) return false;
+    if (query.strategyVersion && item.aiStrategyVersion !== query.strategyVersion) return false;
+    return true;
+  });
+};
+
+export const correctionSummaryStats = (query: API.CorrectionSummaryQueryParams = {}): API.CorrectionSummaryStats => {
+  const rows = filterCorrectionSummaries(query);
+  const issueMap = new Map<string, API.CorrectionIssueTag>();
+  const dimensionMap = new Map<string, { key: string; name: string; total: number; count: number; maxScore: number }>();
+  rows.forEach((record) => {
+    record.issueTags.forEach((tag) => {
+      const current = issueMap.get(tag.code);
+      issueMap.set(tag.code, current ? { ...current, count: current.count + tag.count } : { ...tag });
+    });
+    record.dimensionScores.forEach((dimension) => {
+      const current = dimensionMap.get(dimension.key) ?? { key: dimension.key, name: dimension.name, total: 0, count: 0, maxScore: dimension.maxScore };
+      current.total += dimension.score;
+      current.count += 1;
+      dimensionMap.set(dimension.key, current);
+    });
+  });
+  const countByBand = (band: API.MockCorrectionRecord['scoreBand']) => rows.filter((item) => item.scoreBand === band).length;
+  return {
+    total: rows.length,
+    normalCount: rows.filter((item) => item.correctionStatus === 'normal').length,
+    abnormalCount: rows.filter((item) => item.correctionStatus === 'abnormal').length,
+    needsReviewCount: rows.filter((item) => item.correctionStatus === 'needs_review').length,
+    averageScore: rows.length ? Math.round(rows.reduce((sum, item) => sum + item.score, 0) / rows.length) : 0,
+    scoreBands: (Object.keys(scoreBandLabel) as API.MockCorrectionRecord['scoreBand'][]).map((band) => ({ band, label: scoreBandLabel[band], count: countByBand(band) })),
+    topIssues: [...issueMap.values()].sort((a, b) => b.count - a.count).slice(0, 5),
+    dimensionAverages: [...dimensionMap.values()].map((item) => ({ key: item.key, name: item.name, averageScore: item.count ? Math.round(item.total / item.count) : 0, maxScore: item.maxScore })),
+  };
+};
+
+export const createCorrectionFixDraft = (
+  recordId: string,
+  params: API.CorrectionFixDraftParams,
+  operator: TemplateOperator,
+) => {
+  const record = getCorrectionSummary(recordId);
+  if (!record) return { missing: true as const };
+  if (record.dataVersion !== params.dataVersion) return { conflict: true as const };
+  if (!params.diagnosis?.trim() || !params.changeSummary?.trim()) return { invalid: true as const, errorMessage: '需填写归因说明和变更说明。' };
+
+  const now = nowText();
+  let draft: API.CorrectionFixDraft | undefined;
+  if (params.targetType === 'topic') {
+    if (!['super_admin', 'teaching_reviewer'].includes(operator.roleId)) return { forbidden: true as const };
+    const topic = getWritingTranslationTopic(record.topicId);
+    if (!topic) return { invalid: true as const, errorMessage: '关联题目不存在。' };
+    const topicDraft = copyWritingTranslationTopicDraft(topic, operator);
+    topicDraft.changeSummary = params.changeSummary;
+    draft = {
+      id: `fix-draft-${topicDraft.id}`,
+      targetType: 'topic',
+      targetId: topicDraft.id,
+      targetName: topicDraft.name,
+      targetVersion: topicDraft.version,
+      targetPath: `/writing-translation/${topicDraft.topicType === 'writing' ? 'writing-topics' : 'translation-topics'}/${topicDraft.id}/edit`,
+      createdBy: operator.name,
+      createdAt: now,
+    };
+  } else if (params.targetType === 'scoring_template' || params.targetType === 'feedback_template') {
+    if (!canEditWritingTranslationTemplate(params.targetType, operator.roleId)) return { forbidden: true as const };
+    const templateId = params.targetType === 'scoring_template' ? record.scoringTemplateRef.templateId : record.feedbackTemplateRef.templateId;
+    const template = getWritingTranslationTemplate(templateId);
+    if (!template) return { invalid: true as const, errorMessage: '关联模板不存在。' };
+    const templateDraft = copyWritingTranslationTemplate(template, operator);
+    templateDraft.changeSummary = params.changeSummary;
+    draft = {
+      id: `fix-draft-${templateDraft.id}`,
+      targetType: params.targetType,
+      targetId: templateDraft.id,
+      targetName: templateDraft.name,
+      targetVersion: templateDraft.version,
+      targetPath: `/writing-translation/scoring-feedback-templates?tab=${templateDraft.templateType === 'feedback_template' ? 'feedback' : 'scoring'}`,
+      createdBy: operator.name,
+      createdAt: now,
+    };
+  } else {
+    if (!['super_admin', 'ai_operator'].includes(operator.roleId)) return { forbidden: true as const };
+    const strategy = aiCoachStrategiesData.find((item) => item.id === record.aiStrategySnapshot.strategyId);
+    if (!strategy) return { invalid: true as const, errorMessage: '关联 AI 策略不存在。' };
+    const strategyDraft = copyAiCoachStrategyDraft(strategy, operator);
+    strategyDraft.changeSummary = params.changeSummary;
+    draft = {
+      id: `fix-draft-${strategyDraft.id}`,
+      targetType: 'ai_strategy',
+      targetId: strategyDraft.id,
+      targetName: strategyDraft.title,
+      targetVersion: strategyDraft.version,
+      targetPath: `/ai-coach/prompts/${strategyDraft.id}/edit`,
+      createdBy: operator.name,
+      createdAt: now,
+    };
+  }
+
+  record.rootCauseType = params.targetType;
+  record.diagnosis = params.diagnosis.trim();
+  record.fixStatus = 'draft_created';
+  record.linkedFixDrafts.unshift(draft);
+  record.dataVersion += 1;
+  record.updatedAt = now;
+  return { record, draft };
+};
+
 export const bindTemplatesToTopic = (topicId: string, params: API.WritingTranslationTopicTemplateBindingParams, operator: TemplateOperator) => {
   if (!['super_admin', 'teaching_reviewer'].includes(operator.roleId)) return { forbidden: true as const };
   const topic = getWritingTranslationTopic(topicId); if (!topic) return { missing: true as const };
@@ -162,7 +448,13 @@ export const bindTemplatesToTopic = (topicId: string, params: API.WritingTransla
 export const runMockCorrection = (topicId: string) => {
   const topic = getWritingTranslationTopic(topicId); if (!topic?.scoringTemplateRef || !topic.feedbackTemplateRef) return { invalid: true as const, errorMessage: '题目尚未绑定完整模板版本。' };
   const scoring = getWritingTranslationTemplate(topic.scoringTemplateRef.templateId); const feedback = getWritingTranslationTemplate(topic.feedbackTemplateRef.templateId);
-  if (!scoring || !feedback || scoring.status !== 'published' || feedback.status !== 'published' || feedback.templateType !== 'feedback_template') return { invalid: true as const, errorMessage: '绑定模板已失效，不能生成新的 Mock 批改记录。' };
-  const record: API.MockCorrectionRecord = { id: uid('mock-correction'), topicId: topic.id, topicName: topic.name, topicVersion: topic.version, scoringTemplateRef: clone(topic.scoringTemplateRef), feedbackTemplateRef: clone(topic.feedbackTemplateRef), aiStrategyVersion: feedback.responseStructureRef.strategyVersion, score: Math.round(topic.totalScore * 0.78), feedbackSections: feedback.sections.sort((a,b) => a.order-b.order).map((item) => ({ title: item.title, content: `Mock ${item.title}结果，仅验证结构与版本追溯。` })), createdAt: nowText(), mockOnly: true };
+  if (!scoring || scoring.templateType !== 'scoring_template' || !feedback || scoring.status !== 'published' || feedback.status !== 'published' || feedback.templateType !== 'feedback_template') return { invalid: true as const, errorMessage: '绑定模板已失效，不能生成新的 Mock 批改记录。' };
+  const record = buildCorrectionRecord(topic, scoring, feedback, {
+    scoreRatio: 0.78,
+    issueCodes: topic.topicType === 'writing' ? ['language_accuracy', 'missing_revision'] : ['topic_requirement'],
+    answerSummary: '脱敏摘要：Mock 会话仅保留结构化表现，不记录用户原文。',
+    correctionStatus: 'normal',
+    createdAt: nowText(),
+  });
   mockCorrectionRecords.unshift(record); return { record };
 };
