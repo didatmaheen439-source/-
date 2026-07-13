@@ -380,7 +380,7 @@ const AiSessionReviewDetailPage: React.FC = () => {
             <Card size="small" title="操作记录">
               <Timeline
                 items={detail.timeline.map((item) => ({
-                  children: (
+                  content: (
                     <Space orientation="vertical" size={2}>
                       <Typography.Text>
                         {item.action}：{item.reason}

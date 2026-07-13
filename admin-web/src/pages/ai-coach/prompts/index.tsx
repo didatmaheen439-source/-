@@ -82,6 +82,7 @@ const AiCoachStrategiesPage: React.FC = () => {
   const runPrecheck = async (record: API.AiCoachStrategy) => {
     try {
       const response = await precheckAiCoachStrategy({
+        strategyId: record.id,
         title: record.title,
         description: record.description,
         configType: record.configType,
@@ -117,6 +118,7 @@ const AiCoachStrategiesPage: React.FC = () => {
   const runSampleValidation = async (record: API.AiCoachStrategy) => {
     try {
       const response = await validateAiCoachStrategySamples({
+        strategyId: record.id,
         title: record.title,
         description: record.description,
         configType: record.configType,
@@ -417,7 +419,13 @@ const AiCoachStrategiesPage: React.FC = () => {
               action="create"
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => history.push('/ai-coach/prompts/new')}
+              onClick={() =>
+                history.push(
+                  activeKey === 'all'
+                    ? '/ai-coach/prompts/new'
+                    : `/ai-coach/prompts/new?configType=${activeKey}`,
+                )
+              }
             >
               新建策略
             </PermissionButton>,

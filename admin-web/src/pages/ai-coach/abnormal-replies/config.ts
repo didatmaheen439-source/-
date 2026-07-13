@@ -17,6 +17,7 @@ export const abnormalTypeText: Record<API.AiAbnormalReplyType, string> = {
   answer_deviation: '回答偏离',
   structure_missing: '结构缺失',
   dependency_boundary_violation: '边界失守',
+  attachment_policy_failure: '附件处理失败',
 };
 
 export const resolutionTypeText: Record<API.AiAbnormalResolutionType, string> = {
@@ -37,6 +38,7 @@ export const abnormalTypeOptions = [
   { label: '回答偏离', value: 'answer_deviation' },
   { label: '结构缺失', value: 'structure_missing' },
   { label: '边界失守', value: 'dependency_boundary_violation' },
+  { label: '附件处理失败', value: 'attachment_policy_failure' },
 ];
 
 export const resolutionTypeOptions = [

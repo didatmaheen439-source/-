@@ -262,6 +262,27 @@ export async function copyAiCoachStrategy(id: string, options?: { [key: string]:
   });
 }
 
+/** 触发附件策略 Mock 会话 POST /api/ai-coach/strategies/:id/mock-attachment-session */
+export async function createAiAttachmentMockSession(
+  id: string,
+  body: API.AiAttachmentMockSessionParams,
+  options?: { [key: string]: any },
+) {
+  return request<{
+    data?: {
+      sample: API.AiAttachmentMockSample;
+      sessionReview: API.AiSessionReview;
+      abnormalReply?: API.AiAbnormalReply;
+      duplicate?: boolean;
+    };
+    success?: boolean;
+  }>(`/api/ai-coach/strategies/${id}/mock-attachment-session`, {
+    method: 'POST',
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 预校验 AI 陪练策略 POST /api/ai-coach/strategies/precheck */
 export async function precheckAiCoachStrategy(
   body: API.AiCoachStrategySaveParams,
