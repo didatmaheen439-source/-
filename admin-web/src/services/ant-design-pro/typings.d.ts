@@ -2561,22 +2561,26 @@ declare namespace API {
     | 'users'
     | 'learningPath'
     | 'content'
+    | 'wrongReason'
     | 'reviewRelease'
     | 'feedback'
     | 'aiCoach'
     | 'writingTranslation'
     | 'mockExam'
+    | 'retention'
     | 'audit';
 
   type AnalyticsVisibleSection =
     | 'users'
     | 'learningPath'
     | 'content'
+    | 'wrongReason'
     | 'reviewRelease'
     | 'feedback'
     | 'aiCoach'
     | 'writingTranslation'
     | 'mockExam'
+    | 'retention'
     | 'audit';
 
   type AnalyticsMetricType = 'count' | 'rate' | 'duration';
@@ -2701,6 +2705,48 @@ declare namespace API {
     formal: boolean;
   };
 
+  type AnalyticsDrilldownRiskLevel = 'info' | 'warning' | 'error';
+
+  type AnalyticsDrilldownItem = {
+    id: string;
+    section: AnalyticsVisibleSection;
+    objectType: string;
+    objectId: string;
+    objectName: string;
+    metricLabel: string;
+    metricValue: string;
+    riskLevel: AnalyticsDrilldownRiskLevel;
+    reason: string;
+    ownerModule: string;
+    targetRoute: string;
+    targetAccessible?: boolean;
+    correctionRoute?: string;
+    correctionLabel?: string;
+    correctionAccessible?: boolean;
+    updatedAt: string;
+  };
+
+  type AnalyticsCorrectionIntentParams = {
+    drilldownId: string;
+    section: AnalyticsVisibleSection;
+    objectType: string;
+    objectId: string;
+    objectName: string;
+    metricLabel: string;
+    metricValue: string;
+    riskLevel: AnalyticsDrilldownRiskLevel;
+    targetRoute: string;
+    correctionRoute?: string;
+    reason: string;
+  };
+
+  type AnalyticsCorrectionIntentResult = {
+    id: string;
+    targetRoute: string;
+    createdAt: string;
+    mockOnly: true;
+  };
+
   type AnalyticsOverview = {
     filters: Required<Pick<AnalyticsFilterParams, 'startDate' | 'endDate' | 'granularity' | 'module'>> & {
       examType: ExamType | 'all';
@@ -2712,6 +2758,10 @@ declare namespace API {
     learningPathMetrics: AnalyticsMetricCard[];
     contentStatusDistribution: AnalyticsDistributionItem[];
     contentMetrics: AnalyticsMetricCard[];
+    sectionMetrics: Partial<Record<AnalyticsVisibleSection, AnalyticsMetricCard[]>>;
+    sectionTrends: Partial<Record<AnalyticsVisibleSection, AnalyticsTrendPoint[]>>;
+    sectionDistributions: Partial<Record<AnalyticsVisibleSection, AnalyticsDistributionItem[]>>;
+    drilldowns: Partial<Record<AnalyticsVisibleSection, AnalyticsDrilldownItem[]>>;
     reviewReleaseStats?: AnalyticsReviewStats;
     reviewRiskItems: AnalyticsDistributionItem[];
     feedbackStats?: AnalyticsFeedbackStats;

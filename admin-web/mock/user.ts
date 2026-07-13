@@ -67,6 +67,9 @@ import {
   strategyForUserSummary,
   syncAiCoachStrategyFromReviewTask,
 } from './aiCoachStore';
+import {
+  aiAbnormalRepliesData,
+} from './aiAbnormalReplyStore';
 import { auditLogs, nowText, pushAuditLog, pushOperationAuditLog } from './auditStore';
 import {
   buildQuestionReference,
@@ -87,6 +90,8 @@ import {
   validateQuestionPayload,
   updateWrongReasonTagRecord,
   validateWrongReasonTagPayload,
+  wrongReasonCategoryLabels,
+  wrongReasonSeverityLabels,
   wrongReasonTagData,
 } from './contentQuestionStore';
 import {
@@ -103,8 +108,10 @@ import {
 import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
 import {
+  buildMockExamStatistics,
   filterMockExamResults,
   mockExamDashboardStats,
+  mockExamPapersData,
   mockExamPapersReferencingQuestionGroup,
   syncMockExamFromReviewTask,
   validateMockExamReviewTransition,
@@ -139,6 +146,8 @@ import {
   validateWritingTranslationTemplateReviewTransition,
 } from './writingTranslationTemplateStore';
 import {
+  revisionEffectSummary,
+  revisionStrategiesData,
   syncRevisionStrategyFromReviewTask,
   validateRevisionStrategyReviewTransition,
 } from './writingRevisionStrategyStore';
@@ -2948,59 +2957,40 @@ const analyticsSectionLabels: Record<API.AnalyticsVisibleSection, string> = {
   users: '用户增长与活跃',
   learningPath: '学习路径漏斗',
   content: '题库与内容',
+  wrongReason: '错因分布',
   reviewRelease: '审核发布',
   feedback: '客服反馈',
-  aiCoach: 'AI 陪练占位',
-  writingTranslation: '写译批改占位',
+  aiCoach: 'AI 陪练',
+  writingTranslation: '写译批改',
   mockExam: '模考管理',
+  retention: '留存分析',
   audit: '风险与审计摘要',
 };
 
 const analyticsModuleSectionMap: Record<API.AnalyticsModule, API.AnalyticsVisibleSection[]> = {
-  all: ['users', 'learningPath', 'content', 'reviewRelease', 'feedback', 'aiCoach', 'writingTranslation', 'mockExam', 'audit'],
+  all: ['users', 'learningPath', 'content', 'wrongReason', 'reviewRelease', 'feedback', 'aiCoach', 'writingTranslation', 'mockExam', 'retention', 'audit'],
   users: ['users'],
   learningPath: ['learningPath'],
   content: ['content'],
+  wrongReason: ['wrongReason'],
   reviewRelease: ['reviewRelease'],
   feedback: ['feedback'],
   aiCoach: ['aiCoach'],
   writingTranslation: ['writingTranslation'],
   mockExam: ['mockExam'],
+  retention: ['retention'],
   audit: ['audit'],
 };
 
 const roleAnalyticsSections: Record<AdminRoleId, API.AnalyticsVisibleSection[]> = {
   super_admin: analyticsModuleSectionMap.all,
-  content_operator: ['content', 'reviewRelease'],
-  teaching_reviewer: ['users', 'learningPath', 'content', 'reviewRelease', 'writingTranslation', 'mockExam'],
+  content_operator: ['content', 'wrongReason', 'reviewRelease'],
+  teaching_reviewer: ['users', 'learningPath', 'content', 'wrongReason', 'reviewRelease', 'writingTranslation', 'mockExam', 'retention'],
   ai_operator: ['users', 'reviewRelease', 'aiCoach', 'writingTranslation'],
   customer_support: ['users', 'feedback'],
   data_analyst: analyticsModuleSectionMap.all,
-  read_only_auditor: ['reviewRelease', 'mockExam', 'audit'],
+  read_only_auditor: ['reviewRelease', 'mockExam', 'retention', 'audit'],
 };
-
-const analyticsPlaceholderSnapshots: API.AnalyticsModuleSnapshot[] = [
-  {
-    id: 'aiCoach',
-    name: 'AI 陪练',
-    value: 86,
-    displayValue: '86',
-    unit: '次 Mock 会话',
-    status: 'placeholder',
-    description: '基础占位指标，完整 AI 业务模块尚未建设。',
-    visible: true,
-  },
-  {
-    id: 'writingTranslation',
-    name: '写译批改',
-    value: 42,
-    displayValue: '42',
-    unit: '次 Mock 提交',
-    status: 'placeholder',
-    description: '完整模块尚未建设，仅展示结构占位。',
-    visible: true,
-  },
-];
 
 const formatDate = (date: Date) => {
   const year = date.getFullYear();
@@ -3086,6 +3076,27 @@ const metricCard = (params: {
     jumpTo: params.jumpTo,
   } satisfies API.AnalyticsMetricCard;
 };
+
+const drilldownItem = (params: {
+  id: string;
+  section: API.AnalyticsVisibleSection;
+  objectType: string;
+  objectId: string;
+  objectName: string;
+  metricLabel: string;
+  metricValue: string;
+  riskLevel?: API.AnalyticsDrilldownRiskLevel;
+  reason: string;
+  ownerModule: AdminModuleKey;
+  targetRoute: string;
+  correctionRoute?: string;
+  correctionLabel?: string;
+  updatedAt: string;
+}): API.AnalyticsDrilldownItem => ({
+  riskLevel: 'info',
+  correctionLabel: '发起修正',
+  ...params,
+});
 
 const analyticsRoleSections = (roleId: AdminRoleId, module: API.AnalyticsModule) => {
   const allowed = roleAnalyticsSections[roleId] ?? [];
@@ -3449,6 +3460,72 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'article_completion_rate', title: '外刊完成率', value: percentValue(articleData.reduce((sum, item) => sum + item.effects.completions, 0), articleData.reduce((sum, item) => sum + item.effects.readers, 0)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '外刊完成人数 / 外刊阅读 UV，按文章版本聚合。', updatedAt, jumpTo: '/content-operations/articles' }),
   ];
 
+  const wrongReasonTags = wrongReasonTagData.filter((item) => filters.examType === 'all' || item.examTypes.includes(filters.examType));
+  const publishedWrongReasonTags = wrongReasonTags.filter((item) => item.status === 'published');
+  const referencedWrongReasonTags = new Set(questions.flatMap((item) => item.tags ?? []));
+  const highSeverityWrongReasonTags = wrongReasonTags.filter((item) => item.severity === 'high');
+  const wrongReasonMetrics = [
+    metricCard({ id: 'wrong_reason_total', title: '错因标签总数', value: wrongReasonTags.length, unit: '个', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'wrongReason', tooltip: '当前错因标签总数，按考试类型过滤。', updatedAt, jumpTo: '/content/wrong-reason-tags' }),
+    metricCard({ id: 'wrong_reason_published', title: '已发布错因', value: publishedWrongReasonTags.length, unit: '个', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'wrongReason', tooltip: '当前状态为已发布的错因标签数。', updatedAt, jumpTo: '/content/wrong-reason-tags?status=published' }),
+    metricCard({ id: 'wrong_reason_reference_rate', title: '题目引用覆盖率', value: percentValue(referencedWrongReasonTags.size, Math.max(wrongReasonTags.length, 1)), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'wrongReason', tooltip: '被题目标签引用的错因数 / 错因标签总数。', updatedAt, jumpTo: '/content/questions' }),
+    metricCard({ id: 'wrong_reason_high_risk', title: '高严重度错因', value: highSeverityWrongReasonTags.length, unit: '个', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'wrongReason', tooltip: '严重度为高的错因标签数。', updatedAt, jumpTo: '/content/wrong-reason-tags' }),
+  ];
+
+  const aiTodoSources = aiCoachDashboardTodoSources();
+  const aiPublishedStrategies = aiCoachStrategiesData.filter((item) => item.status === 'published');
+  const aiAbnormalOpen = aiAbnormalRepliesData.filter((item) => item.status !== 'closed');
+  const aiCoachMetrics = [
+    metricCard({ id: 'ai_strategy_total', title: 'AI 策略数', value: aiCoachStrategiesData.length, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'aiCoach', tooltip: 'AI 陪练策略总数。', updatedAt, jumpTo: '/ai-coach/prompts' }),
+    metricCard({ id: 'ai_strategy_published', title: '已发布策略', value: aiPublishedStrategies.length, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'aiCoach', tooltip: '当前已发布的 AI 策略数。', updatedAt, jumpTo: '/ai-coach/prompts?status=published' }),
+    metricCard({ id: 'ai_abnormal_open', title: '未关闭异常', value: aiAbnormalOpen.length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'aiCoach', tooltip: 'AI 异常回复队列中未关闭的异常项。', updatedAt, jumpTo: '/ai-coach/abnormal-replies' }),
+    metricCard({ id: 'ai_strategy_todo', title: '策略待处理项', value: aiTodoSources.length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'aiCoach', tooltip: '待审核、待发布、驳回、预校验错误和高风险发布策略数。', updatedAt, jumpTo: '/ai-coach/prompts' }),
+  ];
+
+  const writingStats = writingTranslationDashboardStats();
+  const revisionEffects = revisionEffectSummary();
+  const revisionSubmissions = revisionEffects.reduce((sum, item) => sum + item.submissions, 0);
+  const revisionRevised = revisionEffects.reduce((sum, item) => sum + item.revised, 0);
+  const writingTranslationMetrics = [
+    metricCard({ id: 'writing_topic_published', title: '已发布写译题目', value: writingStats.published, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'writingTranslation', tooltip: '写作和翻译题目中当前已发布数量。', updatedAt, jumpTo: '/writing-translation/writing-topics' }),
+    metricCard({ id: 'writing_topic_pending_review', title: '待审核写译题目', value: writingStats.pendingReview, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'writingTranslation', tooltip: '写译题目当前待审核数量。', updatedAt, jumpTo: '/review-release/pending?module=writingTranslation' }),
+    metricCard({ id: 'writing_ai_invalid', title: 'AI 引用异常题目', value: writingStats.aiInvalid.length, unit: '题', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'writingTranslation', tooltip: '预校验中 AI 策略引用异常的写译题目数。', updatedAt, jumpTo: '/writing-translation/scoring-feedback-templates' }),
+    metricCard({ id: 'writing_revision_rate', title: '二改完成率', value: percentValue(revisionRevised, revisionSubmissions), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'writingTranslation', tooltip: '二改已提交数 / Mock 提交数，来自二次修改策略效果摘要。', updatedAt, jumpTo: '/writing-translation/revision-strategies?tab=effects' }),
+  ];
+
+  const mockStats = mockExamDashboardStats();
+  const publishedMockPapers = mockExamPapersData.filter((item) => item.status === 'published');
+  const mockExamStatistics = publishedMockPapers.map((item) => buildMockExamStatistics(item, '30d'));
+  const mockStarted = mockExamStatistics.reduce((sum, item) => sum + item.startedCount, 0);
+  const mockCompleted = mockExamStatistics.reduce((sum, item) => sum + item.completedCount, 0);
+  const averageMockScore = mockExamStatistics.length
+    ? Number((mockExamStatistics.reduce((sum, item) => sum + item.averageScore, 0) / mockExamStatistics.length).toFixed(1))
+    : undefined;
+  const mockExamMetrics = [
+    metricCard({ id: 'mock_exam_published', title: '已发布试卷', value: mockStats.published, unit: '套', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'mockExam', tooltip: '当前已发布模考试卷数。', updatedAt, jumpTo: '/mock-exam/papers?status=published' }),
+    metricCard({ id: 'mock_exam_completion_rate', title: '模考完成率', value: percentValue(mockCompleted, mockStarted), unit: '%', type: 'rate', timeSemantic: 'interval', direction: 'positive', section: 'mockExam', tooltip: '30 天 Mock 聚合完成次数 / 开始次数。', updatedAt, jumpTo: '/mock-exam/papers' }),
+    metricCard({ id: 'mock_exam_average_score', title: '平均得分', value: averageMockScore, unit: '分', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'mockExam', tooltip: '已发布试卷 30 天 Mock 平均分。', updatedAt, jumpTo: '/mock-exam/papers' }),
+    metricCard({ id: 'mock_exam_precheck_errors', title: '预校验错误试卷', value: mockStats.precheckErrors, unit: '套', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'mockExam', tooltip: '最近预校验结果为错误的模考试卷数。', updatedAt, jumpTo: '/mock-exam/papers' }),
+  ];
+
+  const retentionActiveUsers = registeredUsers.filter((user) => activeUserIds.has(user.id));
+  const day7EligibleUsers = registeredUsers.filter((user) => {
+    const registerTime = parseDateTime(user.registerAt);
+    return registerTime !== undefined && endOfDate(filters.endDate) - registerTime >= 7 * 86_400_000;
+  });
+  const retained7dUsers = day7EligibleUsers.filter((user) => {
+    const registerTime = parseDateTime(user.registerAt);
+    return user.learningRecords?.some((record) => {
+      const recordTime = parseDateTime(record.date);
+      return registerTime !== undefined && recordTime !== undefined && recordTime - registerTime >= 7 * 86_400_000;
+    });
+  });
+  const retentionMetrics = [
+    metricCard({ id: 'retention_active_registered_rate', title: '注册活跃率', value: percentValue(retentionActiveUsers.length, registeredUsers.length), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'retention', tooltip: '区间活跃注册用户数 / 有效注册用户数。', updatedAt, jumpTo: '/users/list' }),
+    metricCard({ id: 'retention_day7_rate', title: '7 日留存率', value: percentValue(retained7dUsers.length, day7EligibleUsers.length), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'retention', tooltip: '注册满 7 天且仍有学习记录用户数 / 注册满 7 天用户数。', updatedAt, jumpTo: '/analytics/users' }),
+    metricCard({ id: 'retention_inactive_users', title: '区间未活跃注册用户', value: registeredUsers.length - retentionActiveUsers.length, unit: '人', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'retention', tooltip: '有效注册但区间内无学习行为或活跃时间的用户数。', updatedAt, jumpTo: '/users/list' }),
+    metricCard({ id: 'retention_completed_task_users', title: '任务完成留存用户', value: completedTaskUsers, unit: '人', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'retention', tooltip: '当前学习状态为已完成今日任务的注册用户数。', updatedAt, jumpTo: '/learning-path/task-templates' }),
+  ];
+
   const summaryCards = [
     metricCard({ id: 'new_users', title: '新增用户', value: newUsers, comparisonValue: previousNewUsers, unit: '人', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'users', tooltip: '筛选时间范围内 registerAt 落入范围的用户数。', updatedAt, jumpTo: '/users/list' }),
     metricCard({ id: 'active_users', title: '区间活跃用户', value: activeUserIds.size, comparisonValue: previousActiveUserIds.size, unit: '人', type: 'count', timeSemantic: 'interval', direction: 'positive', section: 'users', tooltip: '筛选时间范围内存在学习行为或 lastActiveAt 落入范围的去重用户数。', updatedAt }),
@@ -3457,18 +3534,99 @@ const buildAnalyticsOverview = (
     metricCard({ id: 'pending_review_tasks', title: '当前待审核任务', value: reviewStats.pendingReview, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'reviewRelease', tooltip: '当前审核任务状态为待审核的任务数。', updatedAt, jumpTo: '/review-release/pending?status=pending_review' }),
     metricCard({ id: 'pending_feedback', title: '当前待处理反馈', value: feedbackStats.pending, unit: '条', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'feedback', tooltip: '当前状态为待处理的反馈数。', updatedAt, jumpTo: '/users/feedback?view=triage' }),
     metricCard({ id: 'published_content', title: '当前已发布内容', value: contentObjects.filter((item) => item.status === 'published').length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'positive', section: 'content', tooltip: '题目、题组、错因标签、每日一句和外刊中当前状态为已发布的对象数。', updatedAt, jumpTo: '/analytics/content' }),
+    metricCard({ id: 'open_ai_abnormal', title: 'AI 未关闭异常', value: aiAbnormalOpen.length, unit: '项', type: 'count', timeSemantic: 'snapshot', direction: 'risk', section: 'aiCoach', tooltip: 'AI 异常回复队列中未关闭的异常项。', updatedAt, jumpTo: '/ai-coach/abnormal-replies' }),
+    metricCard({ id: 'writing_revision_summary', title: '写译二改完成率', value: percentValue(revisionRevised, revisionSubmissions), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'writingTranslation', tooltip: '二改已提交数 / Mock 提交数。', updatedAt, jumpTo: '/writing-translation/revision-strategies?tab=effects' }),
+    metricCard({ id: 'retention_summary', title: '7 日留存率', value: percentValue(retained7dUsers.length, day7EligibleUsers.length), unit: '%', type: 'rate', timeSemantic: 'snapshot', direction: 'positive', section: 'retention', tooltip: '注册满 7 天用户的学习留存率。', updatedAt, jumpTo: '/analytics/retention' }),
     metricCard({ id: 'review_rollback_count', title: '区间回滚数', value: reviewStats.rolledBack, unit: '次', type: 'count', timeSemantic: 'interval', direction: 'risk', section: 'reviewRelease', tooltip: '筛选时间范围内审核任务状态变为已回滚的数量。', updatedAt }),
   ].filter((card) => visibleSections.includes(card.section));
 
-  const mockStats = mockExamDashboardStats();
+  const sectionMetrics: API.AnalyticsOverview['sectionMetrics'] = {
+    users: summaryCards.filter((card) => card.section === 'users'),
+    learningPath: learningPathMetrics,
+    content: contentMetrics,
+    wrongReason: wrongReasonMetrics,
+    aiCoach: aiCoachMetrics,
+    writingTranslation: writingTranslationMetrics,
+    mockExam: mockExamMetrics,
+    retention: retentionMetrics,
+  };
+  const sectionTrends: API.AnalyticsOverview['sectionTrends'] = {
+    users: trendRows,
+    retention: buckets.map((date) => ({
+      date,
+      metric: '活跃留存用户',
+      value: registeredUsers.filter((user) =>
+        (bucketStart(user.lastActiveAt, filters.granularity) === date && inRange(user.lastActiveAt, filters)) ||
+        (user.learningRecords ?? []).some((record) => bucketStart(record.date, filters.granularity) === date && inRange(record.date, filters)),
+      ).length,
+    })),
+  };
+  const sectionDistributions: API.AnalyticsOverview['sectionDistributions'] = {
+    wrongReason: countBy(wrongReasonTags, (item) => wrongReasonCategoryLabels[item.category]),
+    aiCoach: countBy(aiAbnormalRepliesData, (item) => item.status),
+    writingTranslation: revisionEffects.flatMap((effect) => effect.commonIssues.map((issue) => ({ label: issue.tag, value: issue.count, group: effect.strategyName }))),
+    mockExam: mockExamStatistics.flatMap((item) => item.sectionStats.map((section) => ({ label: section.sectionName, value: section.averageRate, group: item.paperId }))),
+    retention: [
+      { label: '区间活跃', value: retentionActiveUsers.length },
+      { label: '区间未活跃', value: Math.max(0, registeredUsers.length - retentionActiveUsers.length) },
+      { label: '7 日留存', value: retained7dUsers.length },
+    ],
+  };
+  const drilldowns: API.AnalyticsOverview['drilldowns'] = {
+    users: registeredUsers.slice(0, 4).map((user) => drilldownItem({ id: `drill-user-${user.id}`, section: 'users', objectType: '用户', objectId: user.id, objectName: user.nickname, metricLabel: '最近活跃', metricValue: user.lastActiveAt, riskLevel: activeUserIds.has(user.id) ? 'info' : 'warning', reason: activeUserIds.has(user.id) ? '用户在当前区间有活跃或学习记录。' : '用户在当前区间没有活跃或学习记录，可进入用户详情排查路径。', ownerModule: 'users', targetRoute: `/users/${user.id}`, correctionRoute: `/users/${user.id}`, correctionLabel: '查看用户', updatedAt: user.lastActiveAt })),
+    learningPath: matchSummaries.filter((item) => !item.todayTaskTemplate || !item.diagnosisRule).slice(0, 4).map((item) => drilldownItem({ id: `drill-learning-${item.userId}`, section: 'learningPath', objectType: '路径匹配', objectId: item.userId, objectName: `用户 ${item.userId}`, metricLabel: '匹配结果', metricValue: item.todayTaskTemplate ? '缺诊断规则' : '缺今日任务模板', riskLevel: 'warning', reason: '诊断规则或今日任务模板未完整命中，需要回到学习路径配置检查规则覆盖。', ownerModule: 'learningPath', targetRoute: `/users/${item.userId}`, correctionRoute: '/learning-path/task-templates', correctionLabel: '检查路径配置', updatedAt })),
+    content: [...questions.filter((item) => item.status !== 'published').slice(0, 3).map((item) => drilldownItem({ id: `drill-content-${item.id}`, section: 'content', objectType: '题目', objectId: item.id, objectName: item.title, metricLabel: '发布状态', metricValue: reviewStatusActionMap[item.status], riskLevel: item.status === 'rejected' ? 'error' : 'warning', reason: '内容未处于已发布状态，会影响题库与路径引用覆盖。', ownerModule: 'content', targetRoute: `/content/questions/${item.id}`, correctionRoute: `/content/questions/${item.id}/edit`, correctionLabel: '编辑题目', updatedAt: item.updatedAt })), ...articleData.filter((item) => !item.isOnline).slice(0, 2).map((item) => drilldownItem({ id: `drill-article-${item.id}`, section: 'content', objectType: '外刊', objectId: item.id, objectName: item.title, metricLabel: '上线状态', metricValue: item.isOnline ? '已上线' : '未上线', riskLevel: 'warning', reason: '外刊未上线，内容效果无法继续回流。', ownerModule: 'content', targetRoute: `/content-operations/articles/${item.id}`, correctionRoute: `/content-operations/articles/${item.id}/edit`, correctionLabel: '编辑外刊', updatedAt: item.updatedAt }))],
+    wrongReason: wrongReasonTags.slice(0, 5).map((item) => drilldownItem({ id: `drill-wrong-${item.id}`, section: 'wrongReason', objectType: '错因标签', objectId: item.id, objectName: item.name, metricLabel: '严重度', metricValue: wrongReasonSeverityLabels[item.severity], riskLevel: item.severity === 'high' ? 'error' : item.status !== 'published' ? 'warning' : 'info', reason: item.status !== 'published' ? '错因标签未发布，题目引用后仍需回到标签维护和审核。' : '错因标签已可用于题库与学习路径分析。', ownerModule: 'content', targetRoute: `/content/wrong-reason-tags/${item.id}`, correctionRoute: `/content/wrong-reason-tags/${item.id}/edit`, correctionLabel: '维护错因', updatedAt: item.updatedAt })),
+    aiCoach: [...aiAbnormalOpen.slice(0, 4).map((item) => drilldownItem({ id: `drill-ai-abnormal-${item.id}`, section: 'aiCoach', objectType: 'AI 异常项', objectId: item.id, objectName: item.title, metricLabel: '处理状态', metricValue: item.status, riskLevel: item.severity === 'high' ? 'error' : 'warning', reason: 'AI 异常项未关闭，需要进入异常回复队列完成归因、策略草稿、复检和关闭。', ownerModule: 'aiCoach', targetRoute: `/ai-coach/abnormal-replies/${item.id}`, correctionRoute: `/ai-coach/abnormal-replies/${item.id}`, correctionLabel: '处理异常', updatedAt: item.updatedAt })), ...aiTodoSources.slice(0, 3).map((item) => drilldownItem({ id: `drill-ai-strategy-${item.id}`, section: 'aiCoach', objectType: 'AI 策略', objectId: item.id, objectName: item.title, metricLabel: '策略状态', metricValue: item.status, riskLevel: item.riskLevel === 'high' ? 'error' : 'warning', reason: '策略存在待审核、待发布、驳回或预校验风险。', ownerModule: 'aiCoach', targetRoute: `/ai-coach/prompts/${item.id}`, correctionRoute: `/ai-coach/prompts/${item.id}/edit`, correctionLabel: '编辑策略', updatedAt: item.updatedAt }))],
+    writingTranslation: [...writingStats.aiInvalid.slice(0, 3).map((item) => drilldownItem({ id: `drill-writing-ai-${item.id}`, section: 'writingTranslation', objectType: '写译题目', objectId: item.id, objectName: item.name, metricLabel: 'AI 引用', metricValue: '引用异常', riskLevel: 'error', reason: '题目绑定的 AI 策略引用预校验异常，需要回到写译题目或模板维护。', ownerModule: 'writingTranslation', targetRoute: `/writing-translation/${item.topicType === 'writing' ? 'writing-topics' : 'translation-topics'}/${item.id}`, correctionRoute: `/writing-translation/${item.topicType === 'writing' ? 'writing-topics' : 'translation-topics'}/${item.id}/edit`, correctionLabel: '编辑题目', updatedAt: item.updatedAt })), ...revisionStrategiesData.slice(0, 3).map((item) => drilldownItem({ id: `drill-revision-${item.id}`, section: 'writingTranslation', objectType: '二改策略', objectId: item.id, objectName: item.name, metricLabel: '二改率', metricValue: `${item.effectSummary.revisionRate}%`, riskLevel: item.effectSummary.revisionRate < 50 ? 'warning' : 'info', reason: '二改率偏低时需要回到二次修改策略检查触发条件、二改要求和提示方式。', ownerModule: 'writingTranslation', targetRoute: '/writing-translation/revision-strategies?tab=effects', correctionRoute: '/writing-translation/revision-strategies', correctionLabel: '调整策略', updatedAt: item.updatedAt }))],
+    mockExam: [...mockExamStatistics.slice(0, 4).map((item) => drilldownItem({ id: `drill-mock-${item.paperId}`, section: 'mockExam', objectType: '模考试卷', objectId: item.paperId, objectName: item.paperVersion, metricLabel: '完成率', metricValue: `${item.completionRate}%`, riskLevel: item.completionRate < 65 ? 'warning' : 'info', reason: '完成率偏低时需要回到试卷配置检查题量、时长和引用质量。', ownerModule: 'mockExam', targetRoute: `/mock-exam/papers/${item.paperId}`, correctionRoute: `/mock-exam/papers/${item.paperId}/edit`, correctionLabel: '编辑试卷', updatedAt: item.updatedAt }))],
+    retention: [...registeredUsers]
+      .sort((first, second) => first.lastActiveAt.localeCompare(second.lastActiveAt))
+      .slice(0, 5)
+      .map((user) => {
+        const active = activeUserIds.has(user.id);
+        return drilldownItem({
+          id: `drill-retention-${user.id}`,
+          section: 'retention',
+          objectType: '用户',
+          objectId: user.id,
+          objectName: user.nickname,
+          metricLabel: '区间活跃',
+          metricValue: active ? '低频活跃' : '未活跃',
+          riskLevel: active ? 'info' : 'warning',
+          reason: active
+            ? '用户最近活跃时间较早，可进入用户详情查看路径完成情况和学习记录。'
+            : '注册用户在筛选区间内无学习行为或活跃记录，可进入用户详情排查路径中断点。',
+          ownerModule: 'users',
+          targetRoute: `/users/${user.id}`,
+          correctionRoute: `/users/${user.id}`,
+          correctionLabel: '查看用户',
+          updatedAt: user.lastActiveAt,
+        });
+      }),
+  };
+  const scopedDrilldowns = Object.fromEntries(
+    Object.entries(drilldowns).map(([section, items]) => [
+      section,
+      (items ?? []).map((item) => ({
+        ...item,
+        targetAccessible: canReadRoute(roleId, item.targetRoute),
+        correctionAccessible: item.correctionRoute ? canReadRoute(roleId, item.correctionRoute) : false,
+      })),
+    ]),
+  ) as API.AnalyticsOverview['drilldowns'];
+
   const moduleSnapshots: API.AnalyticsModuleSnapshot[] = [
     { id: 'users', name: '用户', value: registeredUsers.length, displayValue: displayNumber(registeredUsers.length), unit: '人', status: 'formal', description: '来自用户共享 Mock 数据。', visible: visibleSections.includes('users'), jumpTo: '/users/list' },
     { id: 'learningPath', name: '学习路径', value: publishedRules + publishedTemplates + onlineAdvancedStrategies.length, displayValue: displayNumber(publishedRules + publishedTemplates + onlineAdvancedStrategies.length), unit: '条已发布配置', status: 'formal', description: '来自学习路径配置和进阶策略共享 Mock 数据。', visible: visibleSections.includes('learningPath'), jumpTo: '/learning-path/advanced-strategies' },
     { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组、错因标签、每日一句和外刊共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/analytics/content' },
+    { id: 'wrongReason', name: '错因', value: wrongReasonTags.length, displayValue: displayNumber(wrongReasonTags.length), unit: '个错因标签', status: 'formal', description: '来自错因标签和题目标签引用聚合。', visible: visibleSections.includes('wrongReason'), jumpTo: '/analytics/wrong-reasons' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/feedback?view=triage' },
+    { id: 'aiCoach', name: 'AI 陪练', value: aiPublishedStrategies.length, displayValue: displayNumber(aiPublishedStrategies.length), unit: '条已发布策略', status: 'formal', description: '来自 AI 策略、会话抽检和异常回复队列 Mock 数据。', visible: visibleSections.includes('aiCoach'), jumpTo: '/ai-coach/prompts' },
+    { id: 'writingTranslation', name: '写译批改', value: writingStats.published, displayValue: displayNumber(writingStats.published), unit: '个已发布题目', status: 'formal', description: '来自写译题目、模板、二改策略和 Mock 批改记录。', visible: visibleSections.includes('writingTranslation'), jumpTo: '/writing-translation/scoring-feedback-templates' },
     { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/results' },
-    ...analyticsPlaceholderSnapshots.map((item) => ({ ...item, visible: visibleSections.includes(item.id) })),
+    { id: 'retention', name: '留存', value: retained7dUsers.length, displayValue: displayNumber(retained7dUsers.length), unit: '名 7 日留存用户', status: 'formal', description: '来自用户注册、活跃和学习记录推导。', visible: visibleSections.includes('retention'), jumpTo: '/analytics/retention' },
   ];
 
   if ([registeredUsers.length, onboardingCompleted, startedTaskUsers].some((value) => value === 0)) {
@@ -3515,6 +3673,26 @@ const buildAnalyticsOverview = (
     learningPathMetrics,
     contentStatusDistribution,
     contentMetrics,
+    sectionMetrics: Object.fromEntries(
+      Object.entries(sectionMetrics).filter(([section]) =>
+        visibleSections.includes(section as API.AnalyticsVisibleSection),
+      ),
+    ) as API.AnalyticsOverview['sectionMetrics'],
+    sectionTrends: Object.fromEntries(
+      Object.entries(sectionTrends).filter(([section]) =>
+        visibleSections.includes(section as API.AnalyticsVisibleSection),
+      ),
+    ) as API.AnalyticsOverview['sectionTrends'],
+    sectionDistributions: Object.fromEntries(
+      Object.entries(sectionDistributions).filter(([section]) =>
+        visibleSections.includes(section as API.AnalyticsVisibleSection),
+      ),
+    ) as API.AnalyticsOverview['sectionDistributions'],
+    drilldowns: Object.fromEntries(
+      Object.entries(scopedDrilldowns).filter(([section]) =>
+        visibleSections.includes(section as API.AnalyticsVisibleSection),
+      ),
+    ) as API.AnalyticsOverview['drilldowns'],
     reviewReleaseStats: reviewStats,
     reviewRiskItems: [
       { label: '待审核超过 24 小时', value: pendingReviewHours.filter((item) => item > 24).length },
@@ -3538,11 +3716,13 @@ const buildAnalyticsOverview = (
       { section: 'users', source: 'operationUsersData、learningRecords', formal: true },
       { section: 'learningPath', source: 'learningPathConfigsData、userLearningPathMatches、learningRecords', formal: true },
       { section: 'content', source: 'questionData、questionGroupReferences、dailySentencesData、dailySentenceEvents、articleData、articleEventData、reviewTasksData', formal: true },
+      { section: 'wrongReason', source: 'wrongReasonTagData、questionData.tags、reviewTasksData', formal: true },
       { section: 'reviewRelease', source: 'reviewTasksData、auditLogs', formal: true },
       { section: 'feedback', source: 'operationUsersData.feedbacks', formal: true },
-      { section: 'aiCoach', source: '固定 Mock 占位指标', formal: false },
-      { section: 'writingTranslation', source: 'writingTranslationTopicsData、reviewTasksData', formal: true },
-      { section: 'mockExam', source: 'mockExamPapersData、reviewTasksData、聚合统计', formal: true },
+      { section: 'aiCoach', source: 'aiCoachStrategiesData、aiAbnormalRepliesData、sessionReview Mock 聚合', formal: true },
+      { section: 'writingTranslation', source: 'writingTranslationTopicsData、writingTranslationTemplatesData、revisionStrategiesData、mockRevisionRecords', formal: true },
+      { section: 'mockExam', source: 'mockExamPapersData、reviewTasksData、buildMockExamStatistics', formal: true },
+      { section: 'retention', source: 'operationUsersData.registerAt、lastActiveAt、learningRecords', formal: true },
       { section: 'audit', source: 'auditLogs 聚合摘要', formal: true },
     ] as API.AnalyticsDataSource[]).filter((item) => visibleSections.includes(item.section)),
   };
@@ -4994,7 +5174,12 @@ export default {
       status: 'preview_ready',
       title: '运营数据 Mock 聚合导出预览',
       filters: overview.filters,
-      metricCount: overview.summaryCards.length + overview.learningPathMetrics.length + overview.contentMetrics.length,
+      metricCount:
+        overview.summaryCards.length +
+        Object.values(overview.sectionMetrics).reduce(
+          (sum, items) => sum + (items?.length ?? 0),
+          0,
+        ),
       sectionCount: overview.visibleSections.length,
       containsSensitiveFields: false,
       mockOnly: true,
@@ -5010,6 +5195,78 @@ export default {
       reason: '生成运营数据 Mock 导出预览。',
       result: 'success',
       changeSummary: `生成 Mock 导出预览，区块数 ${result.sectionCount}，指标数 ${result.metricCount}。`,
+    });
+    res.send({
+      success: true,
+      data: result,
+    });
+  },
+  'POST /api/analytics/correction-intents': (req: Request, res: Response) => {
+    if (!currentRoleId || !roleCanReadAnalytics(currentRoleId)) {
+      if (currentRoleId) {
+        pushOperationAuditLog({
+          roleId: currentRoleId,
+          logType: 'permission_denied',
+          action: 'analytics_correction_denied',
+          objectType: 'analytics',
+          objectId: String(req.body?.drilldownId ?? 'correction-intent'),
+          sourcePage: '/analytics/overview',
+          reason: '当前角色无运营数据访问权限。',
+          result: 'denied',
+          changeSummary: 'Mock API 拒绝运营数据修正意图。',
+        });
+      }
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前账号无运营数据访问权限。',
+      });
+      return;
+    }
+    const body = req.body as API.AnalyticsCorrectionIntentParams;
+    if (!body?.drilldownId || !body.section || !body.objectId || !body.targetRoute) {
+      res.status(400).send({
+        success: false,
+        errorCode: '400',
+        errorMessage: '修正意图参数不完整。',
+      });
+      return;
+    }
+    const targetRoute = body.correctionRoute || body.targetRoute;
+    if (!canReadRoute(currentRoleId, targetRoute)) {
+      pushOperationAuditLog({
+        roleId: currentRoleId,
+        logType: 'permission_denied',
+        action: 'analytics_correction_target_denied',
+        objectType: body.objectType,
+        objectId: body.objectId,
+        sourcePage: '/analytics/overview',
+        reason: `当前角色无权访问目标路由 ${targetRoute}。`,
+        result: 'denied',
+        changeSummary: `运营数据修正意图目标无权限：${body.objectName}。`,
+      });
+      res.status(403).send({
+        success: false,
+        errorCode: '403',
+        errorMessage: '当前角色无权访问该修正目标。',
+      });
+      return;
+    }
+    const result: API.AnalyticsCorrectionIntentResult = {
+      id: `analytics-correction-${Date.now()}`,
+      targetRoute,
+      createdAt: nowText(),
+      mockOnly: true,
+    };
+    pushOperationAuditLog({
+      roleId: currentRoleId,
+      action: 'analytics_correction_intent',
+      objectType: body.objectType,
+      objectId: body.objectId,
+      sourcePage: '/analytics/overview',
+      reason: body.reason,
+      result: 'success',
+      changeSummary: `从运营数据 ${analyticsSectionLabels[body.section]} 分区发起修正意图：${body.objectName} / ${body.metricLabel} ${body.metricValue}。`,
     });
     res.send({
       success: true,

@@ -640,6 +640,13 @@ export default [
         component: './analytics/overview',
       },
       {
+        path: '/analytics/retention',
+        name: 'retention',
+        hideInMenu: true,
+        parentKeys: ['/analytics/overview'],
+        component: './analytics/overview',
+      },
+      {
         path: '/analytics/overview',
         name: 'overview',
         component: './analytics/overview',

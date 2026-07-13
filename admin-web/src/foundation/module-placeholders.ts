@@ -273,7 +273,7 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
     'analytics-wrong-reasons': {
       moduleKey: 'analytics',
       title: '错因分布',
-      description: 'PRD 错因分布入口，当前复用运营数据页并默认筛选题库与内容分区。',
+      description: 'PRD 错因分布入口，当前复用运营数据页并默认筛选错因分区。',
       primaryActions: readonlyActions,
       tableTitle: '错因分布占位',
       columns: ['指标', '当前值', '环比', '更新时间'],
@@ -300,6 +300,14 @@ export const modulePlaceholderConfigs: Record<string, ModulePlaceholderConfig> =
       description: 'PRD AI 使用入口，当前复用运营数据页并默认筛选 AI 陪练分区。',
       primaryActions: readonlyActions,
       tableTitle: 'AI 使用占位',
+      columns: ['指标', '当前值', '环比', '更新时间'],
+    },
+    'analytics-retention': {
+      moduleKey: 'analytics',
+      title: '留存分析',
+      description: 'PRD 留存分析入口，当前复用运营数据页并默认筛选留存分区。',
+      primaryActions: readonlyActions,
+      tableTitle: '留存分析占位',
       columns: ['指标', '当前值', '环比', '更新时间'],
     },
     'review-release-pending': {
