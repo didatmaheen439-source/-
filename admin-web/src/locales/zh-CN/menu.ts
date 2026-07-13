@@ -89,6 +89,7 @@ export default {
   'menu.writing-translation.topic-detail': '写译题目详情',
   'menu.mock-exam': '模考管理',
   'menu.mock-exam.papers': '模考试卷',
+  'menu.mock-exam.results': '模考结果',
   'menu.mock-exam.paper-new': '新增模考试卷',
   'menu.mock-exam.paper-edit': '编辑模考试卷',
   'menu.mock-exam.paper-detail': '模考试卷详情',

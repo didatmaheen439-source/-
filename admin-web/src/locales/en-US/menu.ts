@@ -76,6 +76,7 @@ export default {
   'menu.writing-translation.topic-detail': 'Writing/Translation Topic Detail',
   'menu.mock-exam': 'Mock Exam',
   'menu.mock-exam.papers': 'Papers',
+  'menu.mock-exam.results': 'Results',
   'menu.mock-exam.paper-new': 'New Paper',
   'menu.mock-exam.paper-edit': 'Edit Paper',
   'menu.mock-exam.paper-detail': 'Paper Detail',

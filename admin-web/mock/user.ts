@@ -103,6 +103,7 @@ import {
 import { clearMockSession, loginAliases, mockSession, setMockSession } from './session';
 import { waitTime, defaultUser } from './utils';
 import {
+  filterMockExamResults,
   mockExamDashboardStats,
   mockExamPapersReferencingQuestionGroup,
   syncMockExamFromReviewTask,
@@ -3466,7 +3467,7 @@ const buildAnalyticsOverview = (
     { id: 'content', name: '题库与内容', value: contentObjects.length, displayValue: displayNumber(contentObjects.length), unit: '项内容对象', status: 'formal', description: '来自题库、题组、错因标签、每日一句和外刊共享 Mock 数据。', visible: visibleSections.includes('content'), jumpTo: '/analytics/content' },
     { id: 'reviewRelease', name: '审核发布', value: filteredReviewTasks.length, displayValue: displayNumber(filteredReviewTasks.length), unit: '项审核任务', status: 'formal', description: '来自审核发布共享 Mock 数据。', visible: visibleSections.includes('reviewRelease'), jumpTo: '/review-release/pending' },
     { id: 'feedback', name: '客服反馈', value: allFeedbacks.length, displayValue: displayNumber(allFeedbacks.length), unit: '条反馈', status: 'formal', description: '来自用户反馈共享 Mock 数据，不含反馈原文。', visible: visibleSections.includes('feedback'), jumpTo: '/users/feedback?view=triage' },
-    { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/papers' },
+    { id: 'mockExam', name: '模考', value: mockStats.published, displayValue: displayNumber(mockStats.published), unit: '套已发布试卷', status: 'formal', description: '来自模考试卷、审核发布和聚合结果 Mock 数据。', visible: visibleSections.includes('mockExam'), jumpTo: '/mock-exam/results' },
     ...analyticsPlaceholderSnapshots.map((item) => ({ ...item, visible: visibleSections.includes(item.id) })),
   ];
 
@@ -4384,7 +4385,7 @@ const buildDashboardQuickActions = (roleId: AdminRoleId, todos: API.DashboardTod
     { id: 'user-feedback', title: '去用户反馈', description: '查看待处理反馈和用户排查入口。', icon: 'TeamOutlined', targetRoute: '/users/list', targetQuery: { feedbackStatus: 'pending' }, requiredModule: 'users', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'users').length },
     { id: 'learning-path', title: '去学习路径配置', description: '检查诊断、任务和进阶学习策略。', icon: 'BranchesOutlined', targetRoute: '/learning-path/advanced-strategies', requiredModule: 'learningPath', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'learningPath').length },
     { id: 'writing-translation', title: '去写译题目管理', description: '检查写作、翻译题目和评分规则。', icon: 'EditOutlined', targetRoute: '/writing-translation/writing-topics', requiredModule: 'writingTranslation', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'writingTranslation').length },
-    { id: 'mock-exam', title: '去模考试卷管理', description: '检查试卷结构、题目引用和发布状态。', icon: 'FileDoneOutlined', targetRoute: '/mock-exam/papers', requiredModule: 'mockExam', requiredAction: 'read', todoCount: todos.filter((item) => item.objectType === '模考试卷').length },
+    { id: 'mock-exam', title: '去模考结果', description: '查看开始、完成、均分和配置风险。', icon: 'FileDoneOutlined', targetRoute: '/mock-exam/results', requiredModule: 'mockExam', requiredAction: 'read', todoCount: filterMockExamResults({}).filter((item) => item.riskTypes.length).length },
     { id: 'analytics', title: '去运营数据', description: '查看趋势、漏斗和指标口径。', icon: 'LineChartOutlined', targetRoute: '/analytics/users', requiredModule: 'analytics', requiredAction: 'read' },
     { id: 'system-audit', title: '去审计日志', description: '查看权限拒绝、敏感访问和权限变更。', icon: 'SafetyCertificateOutlined', targetRoute: '/system/operation-logs', requiredModule: 'system', requiredAction: 'read', todoCount: todos.filter((item) => item.sourceModule === 'system').length },
     { id: 'ai-coach', title: '去 AI 陪练管理', description: '查看 AI 策略占位摘要和审核入口。', icon: 'RobotOutlined', targetRoute: '/ai-coach/prompts', requiredModule: 'aiCoach', requiredAction: 'read' },
@@ -4496,13 +4497,14 @@ const buildDashboardModuleSnapshots = (roleId: AdminRoleId): API.DashboardModule
       id: 'mockExam',
       title: '模考管理',
       sourceModule: 'mockExam',
-      targetRoute: '/mock-exam/papers',
+      targetRoute: '/mock-exam/results',
       items: [
         { label: '草稿', value: mockStats.draft },
         { label: '待审核', value: mockStats.pendingReview, status: 'warning' },
         { label: '待发布', value: mockStats.pendingPublish, status: 'warning' },
         { label: '已发布', value: mockStats.published },
         { label: '预校验阻断', value: mockStats.precheckErrors, status: 'risk' },
+        { label: '结果风险', value: filterMockExamResults({}).filter((item) => item.riskTypes.length).length, status: 'risk' },
       ],
     },
   ];

@@ -9,6 +9,8 @@ import type {
 } from '../src/foundation/permissions';
 import type {
   MockExamPaperQueryParams,
+  MockExamResultQueryParams,
+  MockExamResultRiskType,
   MockExamPaperSaveParams,
   MockExamPaperSubmitParams,
   MockExamSectionType,
@@ -18,17 +20,20 @@ import type {
 import { pushOperationAuditLog } from './auditStore';
 import {
   buildMockExamPrecheck,
+  buildMockExamResultDetail,
   buildMockExamStatistics,
   availableMockExamQuestionGroups,
   copyMockExamPaperDraft,
   createMockExamPaperRecord,
   filterMockExamPapers,
+  filterMockExamResults,
   filterMockExamReferences,
   expandQuestionGroupForMockExam,
   getMockExamPaper,
   mockExamTemplate,
   mockExamTemplateTotals,
   mockExamVersionDiff,
+  paginateMockExamResults,
   paginateMockExamPapers,
   submitMockExamPaperReview,
   updateMockExamPaperRecord,
@@ -124,6 +129,30 @@ const readPaperQuery = (
     ) as MockExamPaperQueryParams['precheckLevel']) || undefined,
 });
 
+const readResultQuery = (
+  query: Request['query'],
+): MockExamResultQueryParams => ({
+  current: Number(queryValue(query.current) || 1),
+  pageSize: Number(queryValue(query.pageSize) || 20),
+  keyword: queryValue(query.keyword) || undefined,
+  examType: (queryValue(query.examType) as API.ExamType) || undefined,
+  status:
+    (queryValue(query.status) as API.ReviewTaskStatus) || undefined,
+  period:
+    (queryValue(query.period) as MockExamResultQueryParams['period']) ||
+    '30d',
+  riskType:
+    (queryValue(query.riskType) as MockExamResultRiskType) || undefined,
+  completionBand:
+    (queryValue(
+      query.completionBand,
+    ) as MockExamResultQueryParams['completionBand']) || undefined,
+  averageBand:
+    (queryValue(
+      query.averageBand,
+    ) as MockExamResultQueryParams['averageBand']) || undefined,
+});
+
 const paginate = <T,>(data: T[], req: Request) => {
   const current = Number(queryValue(req.query.current) || 1);
   const pageSize = Number(queryValue(req.query.pageSize) || 20);
@@ -144,6 +173,86 @@ export default {
       success: true,
       ...paginateMockExamPapers(filtered, query),
     });
+  },
+  'GET /api/mock-exam/results': (req: Request, res: Response) => {
+    if (!canAction('read')) return sendForbidden(res, 'read_results');
+    const query = readResultQuery(req.query);
+    const filtered = filterMockExamResults(query);
+    res.send(paginateMockExamResults(filtered, query));
+  },
+  'GET /api/mock-exam/results/:paperId': (req: Request, res: Response) => {
+    if (!canAction('read'))
+      return sendForbidden(res, 'read_result_detail', pathValue(req.params.paperId));
+    const paper = getMockExamPaper(pathValue(req.params.paperId));
+    if (!paper) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '模考试卷不存在。',
+      });
+      return;
+    }
+    const period =
+      (queryValue(req.query.period) as MockExamResultQueryParams['period']) ||
+      '30d';
+    res.send({
+      success: true,
+      data: buildMockExamResultDetail(
+        paper,
+        ['7d', '30d', 'all'].includes(String(period)) ? period : '30d',
+      ),
+    });
+  },
+  'POST /api/mock-exam/results/:paperId/create-fix-draft': (
+    req: Request,
+    res: Response,
+  ) => {
+    const paper = getMockExamPaper(pathValue(req.params.paperId));
+    if (!paper) {
+      res.status(404).send({
+        success: false,
+        errorCode: '404',
+        errorMessage: '模考试卷不存在。',
+      });
+      return;
+    }
+    if (!canAction('create')) {
+      return sendForbidden(res, 'create_fix_draft', paper.id);
+    }
+    if (['pending_review', 'approved', 'pending_publish'].includes(paper.status)) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '当前试卷处于审核发布流程中，不能创建修正草稿。',
+      });
+      return;
+    }
+    if (['draft', 'rejected'].includes(paper.status)) {
+      res.status(422).send({
+        success: false,
+        errorCode: '422',
+        errorMessage: '当前试卷可直接编辑，无需创建修正草稿。',
+      });
+      return;
+    }
+    const draft = copyMockExamPaperDraft(paper, currentOperator());
+    draft.name = `${paper.name} 结果修正草稿`;
+    draft.changeSummary =
+      String(req.body?.reason ?? '').trim() ||
+      '根据模考结果风险复制为修正草稿。';
+    if (draft.versionRecords[0]) {
+      draft.versionRecords[0].changeSummary = draft.changeSummary;
+      draft.versionRecords[0].snapshot.name = draft.name;
+    }
+    auditPaper(
+      'create_fix_draft',
+      'success',
+      draft.id,
+      draft.changeSummary,
+      `从 ${paper.id}@${paper.releaseVersionId ?? paper.version} 创建模考结果修正草稿。`,
+      draft.version,
+    );
+    res.send({ success: true, data: draft });
   },
   'GET /api/mock-exam/papers/:id': (req: Request, res: Response) => {
     if (!canAction('read'))

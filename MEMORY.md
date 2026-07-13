@@ -1,5 +1,31 @@
 # 过级搭子后台管理系统项目记忆
 
+## 2026-07-13 Mock Exam Results MVP
+
+### Summary
+- 新增 `/mock-exam/results` 模考结果二级入口。
+- 支持查看 Mock 开始人数、完成人数、完成率、均分、平均耗时、分区表现、题目风险和时间配置风险。
+- 结果详情给出定位建议，已发布/下架/回滚试卷可复制为修正草稿，草稿/已驳回试卷可直接进入编辑。
+- 修正仍复用 `/mock-exam/papers` 草稿、预校验、审核发布和版本链，不在结果页直接修改线上试卷。
+
+### Key Files
+- `admin-web/src/pages/mock-exam/results/index.tsx`
+- `admin-web/mock/mockExamStore.ts`
+- `admin-web/mock/mockExam.ts`
+- `docs/mock-exam-results-mvp.md`
+
+### Verification
+- `npm run test`：通过，24 个测试文件、129 条测试。
+- `npm run tsc`：通过。
+- `npm run lint`：通过，Biome 扫描 366 个文件无问题，TypeScript 通过。
+- `npx antd lint ./src`：通过，扫描 331 个文件无问题。
+- `npm run build`：通过，输出 `dist/`，78 个资源文件。
+- API smoke：超级管理员可读结果并创建修正草稿；数据分析只读；AI 运营 403；结果详情不返回答案字段。
+
+### Next Context
+- 本期仍为 Mock，题目风险和时间风险由稳定派生规则生成。
+- 真实后端接入时，结果聚合必须保持只返回聚合数据，不返回用户 ID、逐题用户答案、作文原文或翻译原文。
+
 ## 2026-07-13 Writing Revision Strategies MVP
 
 ### Summary

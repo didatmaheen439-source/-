@@ -549,6 +549,11 @@ export default [
         component: './mock-exam/papers',
       },
       {
+        path: '/mock-exam/results',
+        name: 'results',
+        component: './mock-exam/results',
+      },
+      {
         path: '/mock-exam/papers/new',
         name: 'paper-new',
         hideInMenu: true,
